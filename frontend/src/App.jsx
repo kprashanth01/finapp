@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import AdvisorySession from './components/AdvisorySession.jsx'
+import Dashboard from './components/Dashboard.jsx'
 import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
 import UserForm from './components/UserForm.jsx'
@@ -20,6 +21,7 @@ import {
 const savedUserKey = 'finapp.userId'
 
 function App() {
+  const [activeView, setActiveView] = useState('dashboard')
   const [savedUserId, setSavedUserId] = useState(() => localStorage.getItem(savedUserKey))
   const [connection, setConnection] = useState('checking')
   const [loading, setLoading] = useState(true)
@@ -120,6 +122,7 @@ function App() {
       if (!user) {
         localStorage.setItem(savedUserKey, String(saved.id))
         setSavedUserId(String(saved.id))
+        setActiveView('profile')
       }
       setUser(saved)
       setMessage(user ? 'User details updated.' : 'User created. Now save a financial profile.')
@@ -149,6 +152,7 @@ function App() {
       setAdvisorySession((current) => markSessionStale(current, hasProfileFinancialChanges(profile, saved)))
       setProfile(saved)
       setMessage('Financial profile saved.')
+      setActiveView('dashboard')
       try {
         setAnalysis(await getFinancialAnalysis(user.id))
       } catch (analysisError) {
@@ -204,16 +208,48 @@ function App() {
             <>
               <div className="mb-8 rounded-lg bg-slate-50 p-4 text-sm">
                 <p className="font-medium">User: {user.name}</p>
-                <p className="mt-1 text-slate-600">{user.email} · Gross monthly income: {user.monthly_income}</p>
+                <p className="mt-1 text-slate-600">{user.email}</p>
                 <p className="mt-2 text-slate-500">This browser remembers user #{user.id} for reloads. Login is not implemented yet.</p>
               </div>
-              <details className="mb-8 rounded-lg border border-slate-200 p-4">
-                <summary className="cursor-pointer text-sm font-medium">Edit user details</summary>
-                <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} disabled={advisoryRunning} /></div>
-              </details>
-              <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} disabled={advisoryRunning} />
-              {profile && <FinancialAnalysis analysis={analysis} user={user} profile={profile} />}
-              {profile && (
+              <nav aria-label="FinApp views" className="mb-8 flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+                {[
+                  ['dashboard', 'Dashboard'],
+                  ['profile', 'Profile'],
+                  ['advisor', 'Advisor'],
+                ].map(([view, label]) => (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => setActiveView(view)}
+                    disabled={view === 'advisor' && !profile}
+                    aria-current={activeView === view ? 'page' : undefined}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40 ${activeView === view ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
+              {activeView === 'dashboard' && (
+                <Dashboard
+                  user={user}
+                  profile={profile}
+                  analysis={analysis}
+                  advisorySession={advisorySession}
+                  onOpenProfile={() => setActiveView('profile')}
+                  onOpenAdvisor={() => setActiveView('advisor')}
+                />
+              )}
+              {activeView === 'profile' && (
+                <>
+                  <details className="mb-8 rounded-lg border border-slate-200 p-4">
+                    <summary className="cursor-pointer text-sm font-medium">Edit user details</summary>
+                    <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} disabled={advisoryRunning} /></div>
+                  </details>
+                  <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} disabled={advisoryRunning} />
+                  {profile && <FinancialAnalysis analysis={analysis} user={user} profile={profile} />}
+                </>
+              )}
+              {activeView === 'advisor' && profile && (
                 <AdvisorySession
                   session={advisorySession}
                   loading={advisoryLoading}
