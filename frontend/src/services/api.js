@@ -30,6 +30,11 @@ export async function getFinancialProfile(userId) {
   return response.data
 }
 
+export async function getFinancialAnalysis(userId) {
+  const response = await api.get(`/users/${userId}/financial-analysis`)
+  return response.data
+}
+
 export async function saveFinancialProfile(userId, profile) {
   const response = await api.put(`/users/${userId}/financial-profile`, profile)
   return response.data

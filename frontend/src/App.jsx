@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
+import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
 import UserForm from './components/UserForm.jsx'
 import {
   createUser,
   explainApiError,
+  getFinancialAnalysis,
   getFinancialProfile,
   getHealth,
   getUser,
@@ -20,6 +22,7 @@ function App() {
   const [saving, setSaving] = useState(false)
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
+  const [analysis, setAnalysis] = useState(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -46,12 +49,23 @@ function App() {
       }
       setUser(loadedUser)
       setProfile(loadedProfile)
+      if (loadedProfile) {
+        try {
+          setAnalysis(await getFinancialAnalysis(userId))
+        } catch (analysisError) {
+          setAnalysis(null)
+          setError(`Profile loaded, but analysis could not load: ${explainApiError(analysisError)}`)
+        }
+      } else {
+        setAnalysis(null)
+      }
     } catch (requestError) {
       if (requestError.response?.status === 404) {
         localStorage.removeItem(savedUserKey)
         setSavedUserId(null)
         setUser(null)
         setProfile(null)
+        setAnalysis(null)
         setMessage('The saved user was not found. Create a new user to continue.')
       } else {
         setError(explainApiError(requestError))
@@ -81,6 +95,14 @@ function App() {
       }
       setUser(saved)
       setMessage(user ? 'User details updated.' : 'User created. Now save a financial profile.')
+      if (user && profile) {
+        try {
+          setAnalysis(await getFinancialAnalysis(saved.id))
+        } catch (analysisError) {
+          setAnalysis(null)
+          setError(`User details saved, but analysis could not load: ${explainApiError(analysisError)}`)
+        }
+      }
     } catch (requestError) {
       setError(explainApiError(requestError))
     } finally {
@@ -96,6 +118,12 @@ function App() {
       const saved = await saveFinancialProfile(user.id, values)
       setProfile(saved)
       setMessage('Financial profile saved.')
+      try {
+        setAnalysis(await getFinancialAnalysis(user.id))
+      } catch (analysisError) {
+        setAnalysis(null)
+        setError(`Profile saved, but analysis could not load: ${explainApiError(analysisError)}`)
+      }
     } catch (requestError) {
       setError(explainApiError(requestError))
     } finally {
@@ -108,7 +136,7 @@ function App() {
       <div className="mx-auto max-w-3xl">
         <header className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight">FinApp</h1>
-          <p className="mt-2 text-slate-600">Build your financial starting point. Analysis and recommendations come in later issues.</p>
+          <p className="mt-2 text-slate-600">Build your financial starting point and see transparent calculations. Recommendations come later.</p>
         </header>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -131,7 +159,7 @@ function App() {
             <>
               <div className="mb-8 rounded-lg bg-slate-50 p-4 text-sm">
                 <p className="font-medium">User: {user.name}</p>
-                <p className="mt-1 text-slate-600">{user.email} · Monthly income: {user.monthly_income}</p>
+                <p className="mt-1 text-slate-600">{user.email} · Gross monthly income: {user.monthly_income}</p>
                 <p className="mt-2 text-slate-500">This browser remembers user #{user.id} for reloads. Login is not implemented yet.</p>
               </div>
               <details className="mb-8 rounded-lg border border-slate-200 p-4">
@@ -139,6 +167,7 @@ function App() {
                 <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} /></div>
               </details>
               <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} />
+              {profile && <FinancialAnalysis analysis={analysis} user={user} profile={profile} />}
             </>
           ) : savedUserId ? (
             <div>
