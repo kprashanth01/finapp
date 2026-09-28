@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Numeric, String, UniqueConstraint, func
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -24,6 +24,9 @@ class User(Base):
 
     profile: Mapped["FinancialProfile | None"] = relationship(
         back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+    analysis_sessions: Mapped[list["AnalysisSession"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
     )
 
 
@@ -71,3 +74,18 @@ class FinancialProfile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="profile")
+
+
+class AnalysisSession(Base):
+    __tablename__ = "analysis_sessions"
+    __table_args__ = (Index("ix_analysis_sessions_user_id_id", "user_id", "id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    method: Mapped[str] = mapped_column(String(30))
+    rule_version: Mapped[str] = mapped_column(String(40))
+    input_fingerprint: Mapped[str] = mapped_column(String(64))
+    result_payload: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    user: Mapped[User] = relationship(back_populates="analysis_sessions")

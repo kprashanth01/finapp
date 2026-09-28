@@ -1,4 +1,5 @@
 from decimal import Decimal
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
@@ -55,3 +56,13 @@ class AdvisoryResult(BaseModel):
     decision: OrchestratorDecision
     agent_results: list[AgentResult]
     priority_actions: list[PriorityAction]
+
+
+class AdvisorySessionRead(BaseModel):
+    id: int
+    user_id: int
+    created_at: datetime
+    method: str
+    rule_version: str
+    is_stale: bool
+    result: AdvisoryResult
