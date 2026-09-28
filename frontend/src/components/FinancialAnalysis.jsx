@@ -19,7 +19,7 @@ function FinancialAnalysis({ analysis, user, profile }) {
   return (
     <section className="mt-10 border-t border-slate-200 pt-8" aria-labelledby="analysis-heading">
       <h2 id="analysis-heading" className="text-xl font-semibold">3. Financial snapshot</h2>
-      <p className="mt-1 text-sm text-slate-600">Calculated from your saved values. No advice or predictions are generated.</p>
+      <p className="mt-1 text-sm text-slate-600">Calculated from your saved values. These numbers contain no advice or predictions.</p>
 
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <Metric

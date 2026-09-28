@@ -3,7 +3,7 @@ import { useState } from 'react'
 const inputClass = 'mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-base focus:border-slate-600 focus:outline-none focus:ring-2 focus:ring-slate-200'
 const labelClass = 'block text-sm font-medium text-slate-700'
 
-function UserForm({ user, onSave, saving }) {
+function UserForm({ user, onSave, saving, disabled }) {
   const [fields, setFields] = useState({
     name: user?.name ?? '',
     email: user?.email ?? '',
@@ -56,7 +56,7 @@ function UserForm({ user, onSave, saving }) {
           <span className="mt-1 block text-xs font-normal text-slate-500">Used for income-based ratios. Edit earlier entries if you entered take-home income.</span>
         </label>
       </div>
-      <button type="submit" disabled={saving} className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
+      <button type="submit" disabled={saving || disabled} className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
         {saving ? 'Saving…' : user ? 'Update user' : 'Create user'}
       </button>
     </form>
