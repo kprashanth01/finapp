@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import AdvisorySession from './components/AdvisorySession.jsx'
+import AdvisoryHistory from './components/AdvisoryHistory.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
@@ -12,6 +13,7 @@ import {
   getFinancialProfile,
   getHealth,
   getLatestAdvisorySession,
+  getAdvisorySession,
   getUser,
   saveFinancialProfile,
   runAdvisorySession,
@@ -33,6 +35,11 @@ function App() {
   const [advisoryLoading, setAdvisoryLoading] = useState(false)
   const [advisoryRunning, setAdvisoryRunning] = useState(false)
   const [advisoryError, setAdvisoryError] = useState('')
+  const [selectedSession, setSelectedSession] = useState(null)
+  const [selectedSessionError, setSelectedSessionError] = useState('')
+  const [selectedSessionLoading, setSelectedSessionLoading] = useState(false)
+  const selectionToken = useRef(0)
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -92,6 +99,8 @@ function App() {
         setProfile(null)
         setAnalysis(null)
         setAdvisorySession(null)
+        selectionToken.current += 1
+        setSelectedSession(null)
         setMessage('The saved user was not found. Create a new user to continue.')
       } else {
         setError(explainApiError(requestError))
@@ -134,6 +143,11 @@ function App() {
           setError(`User details saved, but analysis could not load: ${explainApiError(analysisError)}`)
         }
         await refreshAdvisory(saved.id)
+        selectionToken.current += 1
+        setSelectedSession(null)
+        setSelectedSessionError('')
+        setSelectedSessionLoading(false)
+        setHistoryRefreshKey((value) => value + 1)
       }
     } catch (requestError) {
       setError(explainApiError(requestError))
@@ -160,6 +174,11 @@ function App() {
         setError(`Profile saved, but analysis could not load: ${explainApiError(analysisError)}`)
       }
       await refreshAdvisory(user.id)
+      selectionToken.current += 1
+      setSelectedSession(null)
+      setSelectedSessionError('')
+      setSelectedSessionLoading(false)
+      setHistoryRefreshKey((value) => value + 1)
     } catch (requestError) {
       setError(explainApiError(requestError))
     } finally {
@@ -173,10 +192,34 @@ function App() {
     setAdvisoryError('')
     try {
       setAdvisorySession(await runAdvisorySession(user.id))
+      selectionToken.current += 1
+      setSelectedSession(null)
+      setSelectedSessionError('')
+      setSelectedSessionLoading(false)
+      setHistoryRefreshKey((value) => value + 1)
     } catch (requestError) {
       setAdvisoryError(explainApiError(requestError))
     } finally {
       setAdvisoryRunning(false)
+    }
+  }
+
+  async function handleSelectSession(sessionId) {
+    const requestId = ++selectionToken.current
+    setSelectedSessionError('')
+    if (sessionId === advisorySession?.id) {
+      setSelectedSession(null)
+      setSelectedSessionLoading(false)
+      return
+    }
+    setSelectedSessionLoading(true)
+    try {
+      const saved = await getAdvisorySession(user.id, sessionId)
+      if (requestId === selectionToken.current) setSelectedSession(saved)
+    } catch (requestError) {
+      if (requestId === selectionToken.current) setSelectedSessionError(`Could not open that saved run: ${explainApiError(requestError)}`)
+    } finally {
+      if (requestId === selectionToken.current) setSelectedSessionLoading(false)
     }
   }
 
@@ -250,14 +293,27 @@ function App() {
                 </>
               )}
               {activeView === 'advisor' && profile && (
-                <AdvisorySession
-                  session={advisorySession}
-                  loading={advisoryLoading}
-                  running={advisoryRunning}
-                  saving={saving}
-                  error={advisoryError}
-                  onRun={handleRunAdvisory}
-                />
+                <>
+                  {selectedSessionLoading && <p className="text-sm text-slate-600">Opening saved run…</p>}
+                  {selectedSessionError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{selectedSessionError}</p>}
+                  <AdvisorySession
+                    key={(selectedSession ?? advisorySession)?.id ?? 'empty'}
+                    session={selectedSession ?? advisorySession}
+                    loading={advisoryLoading}
+                    running={advisoryRunning}
+                    saving={saving}
+                    error={advisoryError}
+                    onRun={handleRunAdvisory}
+                    historical={selectedSession != null}
+                    onShowLatest={() => { selectionToken.current += 1; setSelectedSession(null); setSelectedSessionError(''); setSelectedSessionLoading(false) }}
+                  />
+                  <AdvisoryHistory
+                    userId={user.id}
+                    refreshKey={historyRefreshKey}
+                    selectedId={(selectedSession ?? advisorySession)?.id}
+                    onSelect={handleSelectSession}
+                  />
+                </>
               )}
             </>
           ) : savedUserId ? (

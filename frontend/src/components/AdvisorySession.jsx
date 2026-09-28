@@ -1,4 +1,12 @@
 const agentNames = { budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund' }
+const capturedInputs = [
+  ['Gross monthly income', 'monthly_income'],
+  ['Monthly expenses', 'monthly_expenses'],
+  ['Monthly savings contribution', 'monthly_savings_contribution'],
+  ['Monthly debt payments', 'monthly_debt_payments'],
+  ['Outstanding debt', 'existing_debt'],
+  ['Emergency fund', 'emergency_fund'],
+]
 
 function formatEvidence(item) {
   if (item.value == null) return `${item.label}: unavailable`
@@ -19,13 +27,13 @@ function EvidenceList({ items }) {
   )
 }
 
-function AdvisorySession({ session, loading, running, saving, error, onRun }) {
+function AdvisorySession({ session, loading, running, saving, error, onRun, historical, onShowLatest }) {
   const result = session?.result
   const agents = Object.fromEntries((result?.agent_results ?? []).map((item) => [item.agent_id, item]))
 
   return (
     <section className="mt-10 border-t border-slate-200 pt-8" aria-labelledby="advisory-heading">
-      <h2 id="advisory-heading" className="text-xl font-semibold">4. Advisory session</h2>
+      <h2 id="advisory-heading" className="text-xl font-semibold">Advisory session</h2>
       <p className="mt-1 text-sm text-slate-600">
         Run three transparent rule-based checks on your saved profile. The findings are educational project outputs, not validated financial advice. Displayed ratios are rounded; rules compare the saved amounts.
       </p>
@@ -36,8 +44,9 @@ function AdvisorySession({ session, loading, running, saving, error, onRun }) {
         disabled={running || loading || saving}
         className="mt-5 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
       >
-        {running ? 'Running…' : session ? 'Run analysis again' : 'Run analysis'}
+        {running ? 'Running…' : historical ? 'Run analysis on current profile' : session ? 'Run analysis again' : 'Run analysis'}
       </button>
+      {historical && <button type="button" onClick={onShowLatest} className="ml-3 mt-5 text-sm font-medium text-slate-700 underline underline-offset-4">Back to latest run</button>}
 
       {error && <p role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
       {loading && <p className="mt-4 text-sm text-slate-600">Loading latest saved session…</p>}
@@ -46,7 +55,7 @@ function AdvisorySession({ session, loading, running, saving, error, onRun }) {
       {session && (
         <div className="mt-6 space-y-5">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm">
-            <p className="font-medium">Saved run #{session.id}</p>
+            <p className="font-medium">Session ID {session.id}{historical ? ' · Earlier saved run' : ''}</p>
             <p className="mt-1 text-slate-600">{new Date(session.created_at).toLocaleString()} · Rule-based method · {session.rule_version}</p>
             {session.is_stale && (
               <p className="mt-3 rounded-md bg-amber-50 p-3 text-amber-900">
@@ -55,10 +64,23 @@ function AdvisorySession({ session, loading, running, saving, error, onRun }) {
             )}
           </div>
 
+          <details open={historical} className="rounded-lg border border-slate-200 p-4">
+            <summary className="cursor-pointer text-sm font-medium">Financial inputs captured for this run</summary>
+            <p className="mt-3 text-xs text-slate-600">These values were stored with this session. Other profile fields were not recorded in the historical result.</p>
+            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+              {capturedInputs.map(([label, key]) => (
+                <div key={key}>
+                  <dt className="text-slate-600">{label}</dt>
+                  <dd className="font-medium">{result.state[key] == null ? 'Not supplied' : `${result.state[key]} (profile currency)`}</dd>
+                </div>
+              ))}
+            </dl>
+          </details>
+
           <div>
             <h3 className="text-base font-semibold">Priority findings</h3>
             {result.priority_actions.length === 0 ? (
-              <p className="mt-2 text-sm text-slate-600">No priority finding was produced by the current rules. Check the agent details below for available and missing inputs.</p>
+              <p className="mt-2 text-sm text-slate-600">No priority finding was produced by this run's rules. Check the agent details below for available and missing inputs.</p>
             ) : (
               <ol className="mt-3 space-y-3">
                 {result.priority_actions.map((action) => (
