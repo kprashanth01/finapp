@@ -1,6 +1,6 @@
 # FinApp
 
-An educational research prototype for a future RL-orchestrated, multi-agent financial advisory system. The current app lets you save a financial profile in PostgreSQL, see deterministic metrics, and run a small explainable rule-based advisory session. Its findings are illustrative project outputs, not professional financial advice.
+An educational research prototype for a future RL-orchestrated, multi-agent financial advisory system. The current app lets you save a financial profile in PostgreSQL, review a dashboard of saved values and deterministic metrics, and revisit explainable rule-based advisory sessions. Its findings are illustrative project outputs, not professional financial advice.
 
 ## How the current flow works
 
@@ -118,7 +118,7 @@ Set-Location frontend
 npm run dev
 ```
 
-Open the URL printed by Vite, normally <http://localhost:5173>. Enter a user, then enter a financial profile. The snapshot updates from saved inputs. Click **Run analysis** to create a saved advisory session; refresh to load it again. The API health endpoint remains at <http://localhost:8000/health>.
+Open the URL printed by Vite, normally <http://localhost:5173>. Enter a user, then use **Profile** to save the financial inputs. **Dashboard** shows the current saved amounts, calculated snapshot, and latest advisory summary. **Advisor** runs an analysis and lists saved sessions; open a past run to see its stored inputs and findings. Refreshing the page loads the current dashboard and latest run again. The API health endpoint remains at <http://localhost:8000/health>.
 
 The income field means **gross monthly income before tax** for the ratios below. If you entered take-home pay in an earlier version, edit it. Monthly expenses should include monthly debt payments; the separate debt-payment input identifies the portion used for DTI and cannot exceed total expenses. Savings and outstanding debt are balances, while monthly savings contributions and debt payments are flows. Existing profiles keep working because the two new flow inputs are optional.
 
@@ -149,7 +149,9 @@ The advisory session is an explicit run on the **saved** user and profile. It do
 
 Priority findings appear in emergency, debt, then budget order. Open **How agents were selected and what they found** to see every selection reason, the supporting numbers, and any unavailable inputs. If no threshold is crossed, the app says so rather than generating a generic recommendation. The rules compare unrounded saved amounts, although displayed ratios are rounded to two decimal places. They are centralized in `backend/app/advisory/rules.py` and are research examples, not validated advice. In particular, a gross-income ratio cannot establish how much cash is available after tax. The health score does not drive agent selection.
 
-Each run is saved as an immutable `analysis_sessions` row with state and rule versions, an input fingerprint, and a structured result. Editing saved financial inputs marks the latest run as stale; it does not rewrite that historical result. Click **Run analysis again** to create a new run. Name and email edits do not mark financial findings stale. Sessions currently show the latest run; a trends view is left for later when there are more types of results to compare.
+Each run is saved as an immutable `analysis_sessions` row with state and rule versions, an input fingerprint, and a structured result. Editing saved financial inputs marks affected runs as stale; it does not rewrite their historical results. Click **Run analysis again** to create a new run. Name and email edits do not mark financial findings stale. The history lists newest sessions first and loads ten at a time; **Load more** appears only when older rows exist. A displayed **session ID** is a database record number, not the number of analyses that user has run.
+
+Opening a past session shows the six financial inputs captured with its result: gross monthly income, monthly expenses, monthly savings contribution, monthly debt payments, outstanding debt, and emergency fund. Other profile fields are part of its change fingerprint but were not stored as historical values, so the app does not reconstruct them. The dashboard always shows the *current* saved profile. If a history request fails, the current advisory result remains visible and history offers a retry.
 
 ## API available now
 
@@ -164,6 +166,8 @@ Each run is saved as an immutable `analysis_sessions` row with state and rule ve
 | GET | `/users/{id}/financial-analysis` | Calculate a snapshot from saved inputs |
 | POST | `/users/{id}/advisory-sessions` | Run and save a rule-based advisory session |
 | GET | `/users/{id}/advisory-sessions/latest` | Load the latest run and its stale status |
+| GET | `/users/{id}/advisory-sessions?limit=10&before_id=<id>` | List newest session summaries with a cursor for older pages |
+| GET | `/users/{id}/advisory-sessions/{session_id}` | Load one owned historical run and its stale status |
 
 FastAPI also provides interactive API documentation at <http://localhost:8000/docs>.
 
@@ -176,7 +180,7 @@ Set-Location backend
 ..\.venv\Scripts\python -m pytest -q
 ```
 
-These tests use a temporary local SQLite database for fast API, rule, and persistence checks. Apply Alembic migration `0004_analysis_sessions` and check the browser save/run/reload/edit/rerun flow against PostgreSQL. From `frontend/`, run `npm test` for the freshness rules and `npm run build` for the production build.
+These tests use a temporary local SQLite database for fast API, rule, persistence, history-order, and ownership checks. Apply Alembic migration `0004_analysis_sessions` and check the browser dashboard/save/run/history/edit/rerun/reload flow against PostgreSQL. From `frontend/`, run `npm test` for the freshness rules and `npm run build` for the production build.
 
 ## Current structure
 
@@ -186,7 +190,7 @@ backend/app/services/    Deterministic financial analysis
 backend/app/advisory/    State, agents, registry, orchestration, and findings
 backend/alembic/         PostgreSQL schema migration
 backend/tests/           Focused API behavior checks
-frontend/src/components/ Entry forms and analysis views
+frontend/src/components/ Entry forms, dashboard, and analysis/history views
 frontend/src/services/   Axios requests
 ```
 

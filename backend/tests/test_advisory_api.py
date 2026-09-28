@@ -105,3 +105,65 @@ def test_identity_edit_does_not_mark_financial_run_stale(client):
         json={"name": "Renamed User", "email": "renamed@sample-finapp.org", "monthly_income": "5000.00"},
     ).status_code == 200
     assert client.get(f"{path}/latest").json()["is_stale"] is False
+
+
+def test_history_empty_and_missing_user(client):
+    user = client.post(
+        "/users",
+        json={"name": "No Profile", "email": "empty@sample-finapp.org", "monthly_income": "5000"},
+    ).json()
+    path = f"/users/{user['id']}/advisory-sessions"
+    response = client.get(path)
+    assert response.status_code == 200
+    assert response.json() == {"items": [], "next_before_id": None}
+    assert client.get("/users/999/advisory-sessions").status_code == 404
+
+
+def test_history_orders_pages_and_reports_stale_summaries(client):
+    user, profile = create_profile(client)
+    path = f"/users/{user['id']}/advisory-sessions"
+    first = client.post(path).json()
+    profile["emergency_fund"] = "12000.00"
+    assert client.put(f"/users/{user['id']}/financial-profile", json=profile).status_code == 200
+    second = client.post(path).json()
+    profile["emergency_fund"] = "4000.00"
+    assert client.put(f"/users/{user['id']}/financial-profile", json=profile).status_code == 200
+    third = client.post(path).json()
+
+    page = client.get(path, params={"limit": 2})
+    assert page.status_code == 200
+    assert [item["id"] for item in page.json()["items"]] == [third["id"], second["id"]]
+    assert page.json()["next_before_id"] == second["id"]
+    assert page.json()["items"][0]["priority_titles"] == ["Review emergency reserve"]
+    assert page.json()["items"][0]["priority_count"] == 1
+    assert page.json()["items"][0]["is_stale"] is False
+    assert page.json()["items"][1]["priority_titles"] == []
+    assert page.json()["items"][1]["is_stale"] is True
+
+    last = client.get(path, params={"limit": 1, "before_id": second["id"]})
+    assert last.status_code == 200
+    assert [item["id"] for item in last.json()["items"]] == [first["id"]]
+    assert last.json()["next_before_id"] is None
+    assert client.get(path, params={"before_id": first["id"]}).json()["items"] == []
+    assert client.get(path, params={"limit": 0}).status_code == 422
+    assert client.get(path, params={"limit": 51}).status_code == 422
+
+
+def test_history_detail_is_owned_and_immutable(client):
+    user, profile = create_profile(client)
+    other, _ = create_profile(client, email="other@sample-finapp.org")
+    path = f"/users/{user['id']}/advisory-sessions"
+    original = client.post(path).json()
+    profile["emergency_fund"] = "12000.00"
+    assert client.put(f"/users/{user['id']}/financial-profile", json=profile).status_code == 200
+
+    detail = client.get(f"{path}/{original['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["is_stale"] is True
+    assert detail.json()["result"] == original["result"]
+    assert detail.json()["result"]["state"]["emergency_fund"] == "4000.00"
+    assert client.get(f"/users/{other['id']}/advisory-sessions").json() == {
+        "items": [], "next_before_id": None
+    }
+    assert client.get(f"/users/{other['id']}/advisory-sessions/{original['id']}").status_code == 404
+    assert client.get(f"{path}/999").status_code == 404

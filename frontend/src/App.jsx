@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import AdvisorySession from './components/AdvisorySession.jsx'
+import AdvisoryHistory from './components/AdvisoryHistory.jsx'
+import Dashboard from './components/Dashboard.jsx'
 import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
 import UserForm from './components/UserForm.jsx'
@@ -11,6 +13,7 @@ import {
   getFinancialProfile,
   getHealth,
   getLatestAdvisorySession,
+  getAdvisorySession,
   getUser,
   saveFinancialProfile,
   runAdvisorySession,
@@ -20,6 +23,7 @@ import {
 const savedUserKey = 'finapp.userId'
 
 function App() {
+  const [activeView, setActiveView] = useState('dashboard')
   const [savedUserId, setSavedUserId] = useState(() => localStorage.getItem(savedUserKey))
   const [connection, setConnection] = useState('checking')
   const [loading, setLoading] = useState(true)
@@ -31,6 +35,11 @@ function App() {
   const [advisoryLoading, setAdvisoryLoading] = useState(false)
   const [advisoryRunning, setAdvisoryRunning] = useState(false)
   const [advisoryError, setAdvisoryError] = useState('')
+  const [selectedSession, setSelectedSession] = useState(null)
+  const [selectedSessionError, setSelectedSessionError] = useState('')
+  const [selectedSessionLoading, setSelectedSessionLoading] = useState(false)
+  const selectionToken = useRef(0)
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -90,6 +99,8 @@ function App() {
         setProfile(null)
         setAnalysis(null)
         setAdvisorySession(null)
+        selectionToken.current += 1
+        setSelectedSession(null)
         setMessage('The saved user was not found. Create a new user to continue.')
       } else {
         setError(explainApiError(requestError))
@@ -120,6 +131,7 @@ function App() {
       if (!user) {
         localStorage.setItem(savedUserKey, String(saved.id))
         setSavedUserId(String(saved.id))
+        setActiveView('profile')
       }
       setUser(saved)
       setMessage(user ? 'User details updated.' : 'User created. Now save a financial profile.')
@@ -131,6 +143,11 @@ function App() {
           setError(`User details saved, but analysis could not load: ${explainApiError(analysisError)}`)
         }
         await refreshAdvisory(saved.id)
+        selectionToken.current += 1
+        setSelectedSession(null)
+        setSelectedSessionError('')
+        setSelectedSessionLoading(false)
+        setHistoryRefreshKey((value) => value + 1)
       }
     } catch (requestError) {
       setError(explainApiError(requestError))
@@ -149,6 +166,7 @@ function App() {
       setAdvisorySession((current) => markSessionStale(current, hasProfileFinancialChanges(profile, saved)))
       setProfile(saved)
       setMessage('Financial profile saved.')
+      setActiveView('dashboard')
       try {
         setAnalysis(await getFinancialAnalysis(user.id))
       } catch (analysisError) {
@@ -156,6 +174,11 @@ function App() {
         setError(`Profile saved, but analysis could not load: ${explainApiError(analysisError)}`)
       }
       await refreshAdvisory(user.id)
+      selectionToken.current += 1
+      setSelectedSession(null)
+      setSelectedSessionError('')
+      setSelectedSessionLoading(false)
+      setHistoryRefreshKey((value) => value + 1)
     } catch (requestError) {
       setError(explainApiError(requestError))
     } finally {
@@ -169,10 +192,34 @@ function App() {
     setAdvisoryError('')
     try {
       setAdvisorySession(await runAdvisorySession(user.id))
+      selectionToken.current += 1
+      setSelectedSession(null)
+      setSelectedSessionError('')
+      setSelectedSessionLoading(false)
+      setHistoryRefreshKey((value) => value + 1)
     } catch (requestError) {
       setAdvisoryError(explainApiError(requestError))
     } finally {
       setAdvisoryRunning(false)
+    }
+  }
+
+  async function handleSelectSession(sessionId) {
+    const requestId = ++selectionToken.current
+    setSelectedSessionError('')
+    if (sessionId === advisorySession?.id) {
+      setSelectedSession(null)
+      setSelectedSessionLoading(false)
+      return
+    }
+    setSelectedSessionLoading(true)
+    try {
+      const saved = await getAdvisorySession(user.id, sessionId)
+      if (requestId === selectionToken.current) setSelectedSession(saved)
+    } catch (requestError) {
+      if (requestId === selectionToken.current) setSelectedSessionError(`Could not open that saved run: ${explainApiError(requestError)}`)
+    } finally {
+      if (requestId === selectionToken.current) setSelectedSessionLoading(false)
     }
   }
 
@@ -204,24 +251,75 @@ function App() {
             <>
               <div className="mb-8 rounded-lg bg-slate-50 p-4 text-sm">
                 <p className="font-medium">User: {user.name}</p>
-                <p className="mt-1 text-slate-600">{user.email} · Gross monthly income: {user.monthly_income}</p>
+                <p className="mt-1 text-slate-600">{user.email}</p>
                 <p className="mt-2 text-slate-500">This browser remembers user #{user.id} for reloads. Login is not implemented yet.</p>
               </div>
-              <details className="mb-8 rounded-lg border border-slate-200 p-4">
-                <summary className="cursor-pointer text-sm font-medium">Edit user details</summary>
-                <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} disabled={advisoryRunning} /></div>
-              </details>
-              <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} disabled={advisoryRunning} />
-              {profile && <FinancialAnalysis analysis={analysis} user={user} profile={profile} />}
-              {profile && (
-                <AdvisorySession
-                  session={advisorySession}
-                  loading={advisoryLoading}
-                  running={advisoryRunning}
+              <nav aria-label="FinApp views" className="mb-8 flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+                {[
+                  ['dashboard', 'Dashboard'],
+                  ['profile', 'Profile'],
+                  ['advisor', 'Advisor'],
+                ].map(([view, label]) => (
+                  <button
+                    key={view}
+                    type="button"
+                    onClick={() => setActiveView(view)}
+                    disabled={saving || (view === 'advisor' && !profile)}
+                    aria-current={activeView === view ? 'page' : undefined}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40 ${activeView === view ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </nav>
+              {activeView === 'dashboard' && (
+                <Dashboard
+                  user={user}
+                  profile={profile}
+                  analysis={analysis}
+                  advisorySession={advisorySession}
+                  advisoryLoading={advisoryLoading}
+                  advisoryError={advisoryError}
                   saving={saving}
-                  error={advisoryError}
-                  onRun={handleRunAdvisory}
+                  onRetryAdvisory={() => refreshAdvisory(user.id)}
+                  onOpenProfile={() => setActiveView('profile')}
+                  onOpenAdvisor={() => setActiveView('advisor')}
                 />
+              )}
+              {activeView === 'profile' && (
+                <>
+                  <details className="mb-8 rounded-lg border border-slate-200 p-4">
+                    <summary className="cursor-pointer text-sm font-medium">Edit user details</summary>
+                    <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} disabled={advisoryRunning} /></div>
+                  </details>
+                  <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} disabled={advisoryRunning} />
+                  {profile && (saving
+                    ? <p role="status" className="mt-8 text-sm text-slate-600">Updating financial snapshot…</p>
+                    : <FinancialAnalysis analysis={analysis} user={user} profile={profile} />)}
+                </>
+              )}
+              {activeView === 'advisor' && profile && (
+                <>
+                  {selectedSessionLoading && <p className="text-sm text-slate-600">Opening saved run…</p>}
+                  {selectedSessionError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{selectedSessionError}</p>}
+                  <AdvisorySession
+                    key={(selectedSession ?? advisorySession)?.id ?? 'empty'}
+                    session={selectedSession ?? advisorySession}
+                    loading={advisoryLoading}
+                    running={advisoryRunning}
+                    saving={saving}
+                    error={advisoryError}
+                    onRun={handleRunAdvisory}
+                    historical={selectedSession != null}
+                    onShowLatest={() => { selectionToken.current += 1; setSelectedSession(null); setSelectedSessionError(''); setSelectedSessionLoading(false) }}
+                  />
+                  <AdvisoryHistory
+                    userId={user.id}
+                    refreshKey={historyRefreshKey}
+                    selectedId={(selectedSession ?? advisorySession)?.id}
+                    onSelect={handleSelectSession}
+                  />
+                </>
               )}
             </>
           ) : savedUserId ? (

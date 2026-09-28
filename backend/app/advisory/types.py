@@ -66,3 +66,19 @@ class AdvisorySessionRead(BaseModel):
     rule_version: str
     is_stale: bool
     result: AdvisoryResult
+
+
+class AdvisorySessionSummary(BaseModel):
+    id: int
+    user_id: int
+    created_at: datetime
+    method: str
+    rule_version: str
+    is_stale: bool
+    priority_titles: list[str]
+    priority_count: int
+
+
+class AdvisoryHistoryPage(BaseModel):
+    items: list[AdvisorySessionSummary]
+    next_before_id: int | None

@@ -1,11 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_session
 from app.advisory.service import financial_state, run_advisory
-from app.advisory.types import AdvisorySessionRead
+from app.advisory.types import AdvisoryHistoryPage, AdvisorySessionRead, AdvisorySessionSummary
 from app.models import AnalysisSession, FinancialProfile, User
 from app.schemas import AnalysisRead, ProfileRead, ProfileWrite, UserCreate, UserRead
 from app.services.financial_analysis import FinancialAnalysisService
@@ -147,4 +147,59 @@ def get_latest_advisory_session(
     )
     if row is None:
         raise HTTPException(status_code=404, detail="No advisory session has been run yet.")
+    return _session_read(row, financial_state(user, profile).fingerprint())
+
+
+@router.get("/users/{user_id}/advisory-sessions", response_model=AdvisoryHistoryPage)
+def list_advisory_sessions(
+    user_id: int,
+    limit: int = Query(default=10, ge=1, le=50),
+    before_id: int | None = Query(default=None, ge=1),
+    session: Session = Depends(get_session),
+) -> AdvisoryHistoryPage:
+    user = session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
+    if profile is None:
+        return AdvisoryHistoryPage(items=[], next_before_id=None)
+
+    query = select(AnalysisSession).where(AnalysisSession.user_id == user_id)
+    if before_id is not None:
+        query = query.where(AnalysisSession.id < before_id)
+    rows = session.scalars(query.order_by(AnalysisSession.id.desc()).limit(limit + 1)).all()
+    page_rows = rows[:limit]
+    next_before_id = page_rows[-1].id if len(rows) > limit else None
+    fingerprint = financial_state(user, profile).fingerprint() if page_rows else ""
+    items = []
+    for row in page_rows:
+        saved = _session_read(row, fingerprint)
+        titles = [action.title for action in saved.result.priority_actions]
+        items.append(
+            AdvisorySessionSummary(
+                id=saved.id,
+                user_id=saved.user_id,
+                created_at=saved.created_at,
+                method=saved.method,
+                rule_version=saved.rule_version,
+                is_stale=saved.is_stale,
+                priority_titles=titles,
+                priority_count=len(titles),
+            )
+        )
+    return AdvisoryHistoryPage(items=items, next_before_id=next_before_id)
+
+
+@router.get("/users/{user_id}/advisory-sessions/{session_id}", response_model=AdvisorySessionRead)
+def get_advisory_session(
+    user_id: int, session_id: int, session: Session = Depends(get_session)
+) -> AdvisorySessionRead:
+    user, profile = _saved_financial_data(user_id, session)
+    row = session.scalar(
+        select(AnalysisSession).where(
+            AnalysisSession.user_id == user_id, AnalysisSession.id == session_id
+        )
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Advisory session not found.")
     return _session_read(row, financial_state(user, profile).fingerprint())

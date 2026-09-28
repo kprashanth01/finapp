@@ -45,6 +45,18 @@ export async function getLatestAdvisorySession(userId) {
   return response.data
 }
 
+export async function getAdvisorySessionHistory(userId, { limit = 10, beforeId } = {}) {
+  const response = await api.get(`/users/${userId}/advisory-sessions`, {
+    params: { limit, ...(beforeId == null ? {} : { before_id: beforeId }) },
+  })
+  return response.data
+}
+
+export async function getAdvisorySession(userId, sessionId) {
+  const response = await api.get(`/users/${userId}/advisory-sessions/${sessionId}`)
+  return response.data
+}
+
 export async function runAdvisorySession(userId) {
   const response = await api.post(`/users/${userId}/advisory-sessions`)
   return response.data
