@@ -149,7 +149,7 @@ The advisory session is an explicit run on the **saved** user and profile. It do
 
 Priority findings appear in emergency, debt, then budget order. Open **How agents were selected and what they found** to see every selection reason, the supporting numbers, and any unavailable inputs. If no threshold is crossed, the app says so rather than generating a generic recommendation. The rules compare unrounded saved amounts, although displayed ratios are rounded to two decimal places. They are centralized in `backend/app/advisory/rules.py` and are research examples, not validated advice. In particular, a gross-income ratio cannot establish how much cash is available after tax. The health score does not drive agent selection.
 
-Each run is saved as an immutable `analysis_sessions` row with a rule version, input fingerprint, and structured result. Editing saved financial inputs marks the latest run as stale; it does not rewrite that historical result. Click **Run analysis again** to create a new run. Name and email edits do not mark financial findings stale. Sessions currently show the latest run; a trends view is left for later when there are more types of results to compare.
+Each run is saved as an immutable `analysis_sessions` row with state and rule versions, an input fingerprint, and a structured result. Editing saved financial inputs marks the latest run as stale; it does not rewrite that historical result. Click **Run analysis again** to create a new run. Name and email edits do not mark financial findings stale. Sessions currently show the latest run; a trends view is left for later when there are more types of results to compare.
 
 ## API available now
 
@@ -176,7 +176,7 @@ Set-Location backend
 ..\.venv\Scripts\python -m pytest -q
 ```
 
-These tests use a temporary local SQLite database for fast API, rule, and persistence checks. Apply Alembic migration `0004_analysis_sessions` and check the browser save/run/reload/edit/rerun flow against PostgreSQL. The frontend build check is `npm run build` from `frontend/`.
+These tests use a temporary local SQLite database for fast API, rule, and persistence checks. Apply Alembic migration `0004_analysis_sessions` and check the browser save/run/reload/edit/rerun flow against PostgreSQL. From `frontend/`, run `npm test` for the freshness rules and `npm run build` for the production build.
 
 ## Current structure
 

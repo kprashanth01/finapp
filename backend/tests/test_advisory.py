@@ -30,6 +30,7 @@ def run(state):
 
 def test_existing_profile_prioritizes_only_emergency_gap():
     result = run(saved())
+    assert result.state.schema_version == "financial-state-v1"
     assert [action.agent_id for action in result.priority_actions] == ["emergency"]
     assert result.priority_actions[0].evidence[0].value == Decimal("1.33")
     assert result.priority_actions[0].evidence[1].value == Decimal("5000")

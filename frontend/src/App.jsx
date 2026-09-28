@@ -3,6 +3,7 @@ import AdvisorySession from './components/AdvisorySession.jsx'
 import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
 import UserForm from './components/UserForm.jsx'
+import { canStartRun, canStartSave, hasIncomeChanged, hasProfileFinancialChanges, markSessionStale } from './services/advisoryFreshness.js'
 import {
   createUser,
   explainApiError,
@@ -50,7 +51,7 @@ function App() {
       setAdvisorySession(await getLatestAdvisorySession(userId))
     } catch (requestError) {
       if (requestError.response?.status === 404) setAdvisorySession(null)
-      else setAdvisoryError(explainApiError(requestError))
+      else setAdvisoryError(`Could not verify whether the saved session is current: ${explainApiError(requestError)}`)
     } finally {
       setAdvisoryLoading(false)
     }
@@ -107,11 +108,15 @@ function App() {
   }, [])
 
   async function handleSaveUser(values) {
+    if (!canStartSave({ saving, running: advisoryRunning })) return
     setSaving(true)
     setError('')
     setMessage('')
     try {
       const saved = user ? await updateUser(user.id, values) : await createUser(values)
+      if (user && hasIncomeChanged(user, saved)) {
+        setAdvisorySession((current) => markSessionStale(current, true))
+      }
       if (!user) {
         localStorage.setItem(savedUserKey, String(saved.id))
         setSavedUserId(String(saved.id))
@@ -135,11 +140,13 @@ function App() {
   }
 
   async function handleSaveProfile(values) {
+    if (!canStartSave({ saving, running: advisoryRunning })) return
     setSaving(true)
     setError('')
     setMessage('')
     try {
       const saved = await saveFinancialProfile(user.id, values)
+      setAdvisorySession((current) => markSessionStale(current, hasProfileFinancialChanges(profile, saved)))
       setProfile(saved)
       setMessage('Financial profile saved.')
       try {
@@ -157,6 +164,7 @@ function App() {
   }
 
   async function handleRunAdvisory() {
+    if (!canStartRun({ saving, loading: advisoryLoading, running: advisoryRunning })) return
     setAdvisoryRunning(true)
     setAdvisoryError('')
     try {
@@ -201,9 +209,9 @@ function App() {
               </div>
               <details className="mb-8 rounded-lg border border-slate-200 p-4">
                 <summary className="cursor-pointer text-sm font-medium">Edit user details</summary>
-                <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} /></div>
+                <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} disabled={advisoryRunning} /></div>
               </details>
-              <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} />
+              <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} disabled={advisoryRunning} />
               {profile && <FinancialAnalysis analysis={analysis} user={user} profile={profile} />}
               {profile && (
                 <AdvisorySession

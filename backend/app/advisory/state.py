@@ -3,6 +3,7 @@
 import hashlib
 import json
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
@@ -13,6 +14,7 @@ from app.schemas import AnalysisRead
 class FinancialState(BaseModel):
     model_config = ConfigDict(frozen=True)
 
+    schema_version: Literal["financial-state-v1"] = "financial-state-v1"
     monthly_income: Decimal
     monthly_expenses: Decimal
     monthly_savings_contribution: Decimal | None
