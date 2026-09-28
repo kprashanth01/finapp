@@ -1,15 +1,23 @@
 # FinApp
 
-An educational research prototype for a future RL-orchestrated, multi-agent financial advisory system. The current app lets you create a user, save a financial profile in PostgreSQL, and see deterministic financial metrics. It does not provide recommendations or professional advice.
+An educational research prototype for a future RL-orchestrated, multi-agent financial advisory system. The current app lets you save a financial profile in PostgreSQL, see deterministic metrics, and run a small explainable rule-based advisory session. Its findings are illustrative project outputs, not professional financial advice.
 
 ## How the current flow works
 
 ```text
 React form → Axios request → FastAPI validation → SQLAlchemy → PostgreSQL
                                       ↓
-                       saved inputs → analysis service
+                         saved financial inputs
                                       ↓
-                         calculated values → React
+                    deterministic financial metrics
+                                      ↓
+                 financial state → rule-based orchestrator
+                                      ↓
+                  budget / debt / emergency agents
+                                      ↓
+                 evidence-backed findings → saved session
+                                      ↓
+                                  React view
 ```
 
 The app does not create demo users or financial data. A user ID is kept in this browser's local storage so the same record can be loaded after a refresh. This is a local development convenience, not authentication.
@@ -110,7 +118,7 @@ Set-Location frontend
 npm run dev
 ```
 
-Open the URL printed by Vite, normally <http://localhost:5173>. Enter a user, then enter a financial profile. Refresh the page to see the saved inputs and the same recalculated snapshot. The API health endpoint remains at <http://localhost:8000/health>.
+Open the URL printed by Vite, normally <http://localhost:5173>. Enter a user, then enter a financial profile. The snapshot updates from saved inputs. Click **Run analysis** to create a saved advisory session; refresh to load it again. The API health endpoint remains at <http://localhost:8000/health>.
 
 The income field means **gross monthly income before tax** for the ratios below. If you entered take-home pay in an earlier version, edit it. Monthly expenses should include monthly debt payments; the separate debt-payment input identifies the portion used for DTI and cannot exceed total expenses. Savings and outstanding debt are balances, while monthly savings contributions and debt payments are flows. Existing profiles keep working because the two new flow inputs are optional.
 
@@ -129,6 +137,20 @@ The **educational health score** is a fixed project heuristic from 0 to 100. It 
 
 The DTI input and formula follow the [Consumer Financial Protection Bureau definition](https://www.consumerfinance.gov/ask-cfpb/what-is-a-debt-to-income-ratio-en-1791/): monthly debt payments divided by gross monthly income.
 
+## Advisory session
+
+The advisory session is an explicit run on the **saved** user and profile. It does not read unsaved form values. Three agents return structured findings:
+
+| Agent | When it runs | Illustrative priority rule |
+| --- | --- | --- |
+| Budget | Every saved profile | Expense-to-gross-income ratio is at least 80% |
+| Debt | Outstanding debt or a positive monthly debt payment is recorded | DTI is at least 20% |
+| Emergency fund | Every saved profile | Reserve covers less than 3 months of expenses |
+
+Priority findings appear in emergency, debt, then budget order. Open **How agents were selected and what they found** to see every selection reason, the supporting numbers, and any unavailable inputs. If no threshold is crossed, the app says so rather than generating a generic recommendation. The rules compare unrounded saved amounts, although displayed ratios are rounded to two decimal places. They are centralized in `backend/app/advisory/rules.py` and are research examples, not validated advice. In particular, a gross-income ratio cannot establish how much cash is available after tax. The health score does not drive agent selection.
+
+Each run is saved as an immutable `analysis_sessions` row with a rule version, input fingerprint, and structured result. Editing saved financial inputs marks the latest run as stale; it does not rewrite that historical result. Click **Run analysis again** to create a new run. Name and email edits do not mark financial findings stale. Sessions currently show the latest run; a trends view is left for later when there are more types of results to compare.
+
 ## API available now
 
 | Method | Path | Purpose |
@@ -140,6 +162,8 @@ The DTI input and formula follow the [Consumer Financial Protection Bureau defin
 | PUT | `/users/{id}/financial-profile` | Create or update the user's profile |
 | GET | `/users/{id}/financial-profile` | Load the user's profile |
 | GET | `/users/{id}/financial-analysis` | Calculate a snapshot from saved inputs |
+| POST | `/users/{id}/advisory-sessions` | Run and save a rule-based advisory session |
+| GET | `/users/{id}/advisory-sessions/latest` | Load the latest run and its stale status |
 
 FastAPI also provides interactive API documentation at <http://localhost:8000/docs>.
 
@@ -152,16 +176,17 @@ Set-Location backend
 ..\.venv\Scripts\python -m pytest -q
 ```
 
-These tests use a temporary local SQLite database for a fast API behavior and calculation check. The migration and browser save/reload flow must also be verified against PostgreSQL. The frontend build check is `npm run build` from `frontend/`.
+These tests use a temporary local SQLite database for fast API, rule, and persistence checks. Apply Alembic migration `0004_analysis_sessions` and check the browser save/run/reload/edit/rerun flow against PostgreSQL. The frontend build check is `npm run build` from `frontend/`.
 
 ## Current structure
 
 ```text
 backend/app/             API, validation schemas, and database models
 backend/app/services/    Deterministic financial analysis
+backend/app/advisory/    State, agents, registry, orchestration, and findings
 backend/alembic/         PostgreSQL schema migration
 backend/tests/           Focused API behavior checks
-frontend/src/components/ Entry forms
+frontend/src/components/ Entry forms and analysis views
 frontend/src/services/   Axios requests
 ```
 
@@ -169,4 +194,4 @@ frontend/src/services/   Axios requests
 
 Each meaningful feature is tracked in a GitHub issue and built on a feature branch. Verify it, commit it, open a pull request, and merge only after review.
 
-This is a research prototype, not a financial advisory product. There is no login or access control, so use practice values rather than sensitive real-world information. Clearing browser storage loses the local link to a saved user. Goals, agents, orchestration, recommendations, RL, LLM reasoning, and experiment results are not implemented yet.
+This is a research prototype, not a financial advisory product. There is no login or access control, so use practice values rather than sensitive real-world information. The database supports multiple user records, but this browser remembers only one user ID and has no profile switcher. Clearing browser storage loses that local link. Goal planning, investment and risk agents, RL, LLM reasoning, and experiment results are not implemented yet.

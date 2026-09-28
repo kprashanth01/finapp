@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import AdvisorySession from './components/AdvisorySession.jsx'
 import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
 import UserForm from './components/UserForm.jsx'
@@ -8,8 +9,10 @@ import {
   getFinancialAnalysis,
   getFinancialProfile,
   getHealth,
+  getLatestAdvisorySession,
   getUser,
   saveFinancialProfile,
+  runAdvisorySession,
   updateUser,
 } from './services/api.js'
 
@@ -23,6 +26,10 @@ function App() {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
   const [analysis, setAnalysis] = useState(null)
+  const [advisorySession, setAdvisorySession] = useState(null)
+  const [advisoryLoading, setAdvisoryLoading] = useState(false)
+  const [advisoryRunning, setAdvisoryRunning] = useState(false)
+  const [advisoryError, setAdvisoryError] = useState('')
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
 
@@ -33,6 +40,19 @@ function App() {
       setConnection(health.status === 'ok' ? 'connected' : 'unavailable')
     } catch (requestError) {
       if (requestError.name !== 'CanceledError') setConnection('unavailable')
+    }
+  }
+
+  async function refreshAdvisory(userId) {
+    setAdvisoryLoading(true)
+    setAdvisoryError('')
+    try {
+      setAdvisorySession(await getLatestAdvisorySession(userId))
+    } catch (requestError) {
+      if (requestError.response?.status === 404) setAdvisorySession(null)
+      else setAdvisoryError(explainApiError(requestError))
+    } finally {
+      setAdvisoryLoading(false)
     }
   }
 
@@ -56,8 +76,10 @@ function App() {
           setAnalysis(null)
           setError(`Profile loaded, but analysis could not load: ${explainApiError(analysisError)}`)
         }
+        await refreshAdvisory(userId)
       } else {
         setAnalysis(null)
+        setAdvisorySession(null)
       }
     } catch (requestError) {
       if (requestError.response?.status === 404) {
@@ -66,6 +88,7 @@ function App() {
         setUser(null)
         setProfile(null)
         setAnalysis(null)
+        setAdvisorySession(null)
         setMessage('The saved user was not found. Create a new user to continue.')
       } else {
         setError(explainApiError(requestError))
@@ -102,6 +125,7 @@ function App() {
           setAnalysis(null)
           setError(`User details saved, but analysis could not load: ${explainApiError(analysisError)}`)
         }
+        await refreshAdvisory(saved.id)
       }
     } catch (requestError) {
       setError(explainApiError(requestError))
@@ -124,10 +148,23 @@ function App() {
         setAnalysis(null)
         setError(`Profile saved, but analysis could not load: ${explainApiError(analysisError)}`)
       }
+      await refreshAdvisory(user.id)
     } catch (requestError) {
       setError(explainApiError(requestError))
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleRunAdvisory() {
+    setAdvisoryRunning(true)
+    setAdvisoryError('')
+    try {
+      setAdvisorySession(await runAdvisorySession(user.id))
+    } catch (requestError) {
+      setAdvisoryError(explainApiError(requestError))
+    } finally {
+      setAdvisoryRunning(false)
     }
   }
 
@@ -136,7 +173,7 @@ function App() {
       <div className="mx-auto max-w-3xl">
         <header className="mb-8">
           <h1 className="text-3xl font-semibold tracking-tight">FinApp</h1>
-          <p className="mt-2 text-slate-600">Build your financial starting point and see transparent calculations. Recommendations come later.</p>
+          <p className="mt-2 text-slate-600">Save your financial profile, review transparent calculations, and run an explained rule-based analysis.</p>
         </header>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
@@ -168,6 +205,16 @@ function App() {
               </details>
               <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} />
               {profile && <FinancialAnalysis analysis={analysis} user={user} profile={profile} />}
+              {profile && (
+                <AdvisorySession
+                  session={advisorySession}
+                  loading={advisoryLoading}
+                  running={advisoryRunning}
+                  saving={saving}
+                  error={advisoryError}
+                  onRun={handleRunAdvisory}
+                />
+              )}
             </>
           ) : savedUserId ? (
             <div>

@@ -40,6 +40,16 @@ export async function saveFinancialProfile(userId, profile) {
   return response.data
 }
 
+export async function getLatestAdvisorySession(userId) {
+  const response = await api.get(`/users/${userId}/advisory-sessions/latest`)
+  return response.data
+}
+
+export async function runAdvisorySession(userId) {
+  const response = await api.post(`/users/${userId}/advisory-sessions`)
+  return response.data
+}
+
 export function explainApiError(error) {
   const detail = error.response?.data?.detail
   if (typeof detail === 'string') return detail
