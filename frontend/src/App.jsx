@@ -264,7 +264,7 @@ function App() {
                     key={view}
                     type="button"
                     onClick={() => setActiveView(view)}
-                    disabled={view === 'advisor' && !profile}
+                    disabled={saving || (view === 'advisor' && !profile)}
                     aria-current={activeView === view ? 'page' : undefined}
                     className={`rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40 ${activeView === view ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                   >
@@ -278,6 +278,10 @@ function App() {
                   profile={profile}
                   analysis={analysis}
                   advisorySession={advisorySession}
+                  advisoryLoading={advisoryLoading}
+                  advisoryError={advisoryError}
+                  saving={saving}
+                  onRetryAdvisory={() => refreshAdvisory(user.id)}
                   onOpenProfile={() => setActiveView('profile')}
                   onOpenAdvisor={() => setActiveView('advisor')}
                 />
@@ -289,7 +293,9 @@ function App() {
                     <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} disabled={advisoryRunning} /></div>
                   </details>
                   <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} disabled={advisoryRunning} />
-                  {profile && <FinancialAnalysis analysis={analysis} user={user} profile={profile} />}
+                  {profile && (saving
+                    ? <p role="status" className="mt-8 text-sm text-slate-600">Updating financial snapshot…</p>
+                    : <FinancialAnalysis analysis={analysis} user={user} profile={profile} />)}
                 </>
               )}
               {activeView === 'advisor' && profile && (

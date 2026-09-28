@@ -140,7 +140,7 @@ def test_history_orders_pages_and_reports_stale_summaries(client):
     assert page.json()["items"][1]["priority_titles"] == []
     assert page.json()["items"][1]["is_stale"] is True
 
-    last = client.get(path, params={"limit": 2, "before_id": second["id"]})
+    last = client.get(path, params={"limit": 1, "before_id": second["id"]})
     assert last.status_code == 200
     assert [item["id"] for item in last.json()["items"]] == [first["id"]]
     assert last.json()["next_before_id"] is None
@@ -162,5 +162,8 @@ def test_history_detail_is_owned_and_immutable(client):
     assert detail.json()["is_stale"] is True
     assert detail.json()["result"] == original["result"]
     assert detail.json()["result"]["state"]["emergency_fund"] == "4000.00"
+    assert client.get(f"/users/{other['id']}/advisory-sessions").json() == {
+        "items": [], "next_before_id": None
+    }
     assert client.get(f"/users/{other['id']}/advisory-sessions/{original['id']}").status_code == 404
     assert client.get(f"{path}/999").status_code == 404

@@ -1,3 +1,5 @@
+import { getDashboardDisplayState } from '../services/dashboardState.js'
+
 const summaryItems = [
   ['Gross monthly income', 'monthly_income', 'user'],
   ['Monthly expenses', 'monthly_expenses', 'profile'],
@@ -13,7 +15,13 @@ const snapshotItems = [
   ['Emergency fund coverage', 'emergency_fund_months', ' months'],
 ]
 
-function Dashboard({ user, profile, analysis, advisorySession, onOpenProfile, onOpenAdvisor }) {
+function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, advisoryError, saving, onRetryAdvisory, onOpenProfile, onOpenAdvisor }) {
+  const display = getDashboardDisplayState({ saving, analysis, advisoryLoading, advisoryError, advisorySession })
+
+  if (display.updating) {
+    return <p role="status" className="text-slate-600">Updating dashboard from your saved values…</p>
+  }
+
   if (!profile) {
     return (
       <section aria-labelledby="dashboard-heading">
@@ -53,21 +61,32 @@ function Dashboard({ user, profile, analysis, advisorySession, onOpenProfile, on
       <section aria-labelledby="snapshot-heading" className="border-t border-slate-200 pt-7">
         <h2 id="snapshot-heading" className="text-xl font-semibold">Financial snapshot</h2>
         <p className="mt-1 text-sm text-slate-600">Calculated by the API from your current saved values.</p>
-        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-          {snapshotItems.map(([label, key, unit]) => (
-            <div key={key} className="rounded-xl border border-slate-200 p-4">
-              <dt className="text-sm text-slate-600">{label}</dt>
-              <dd className="mt-1 text-xl font-semibold">{analysis?.[key] == null ? 'Unavailable' : `${analysis[key]}${unit}`}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="mt-4 text-sm text-slate-600">Educational health score: <span className="font-semibold text-slate-900">{analysis?.health_score == null ? 'Unavailable' : `${analysis.health_score} / 100`}</span></p>
-        <p className="mt-1 text-xs text-slate-500">The score is an illustrative project heuristic, not validated financial advice.</p>
+        {display.snapshot === 'ready' ? (
+          <>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+              {snapshotItems.map(([label, key, unit]) => (
+                <div key={key} className="rounded-xl border border-slate-200 p-4">
+                  <dt className="text-sm text-slate-600">{label}</dt>
+                  <dd className="mt-1 text-xl font-semibold">{analysis[key] == null ? 'Unavailable' : `${analysis[key]}${unit}`}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-4 text-sm text-slate-600">Educational health score: <span className="font-semibold text-slate-900">{analysis.health_score == null ? 'Unavailable' : `${analysis.health_score} / 100`}</span></p>
+            <p className="mt-1 text-xs text-slate-500">The score is an illustrative project heuristic, not validated financial advice.</p>
+          </>
+        ) : <p className="mt-4 text-sm text-slate-600">The snapshot could not load. Reload this page to try again.</p>}
       </section>
 
       <section aria-labelledby="latest-heading" className="border-t border-slate-200 pt-7">
         <h2 id="latest-heading" className="text-xl font-semibold">Latest advisory run</h2>
-        {advisorySession ? (
+        {display.latest === 'loading' ? <p role="status" className="mt-2 text-sm text-slate-600">Checking your latest saved run…</p> : null}
+        {display.latest === 'error' ? (
+          <div className="mt-2 text-sm text-rose-800">
+            <p role="alert">Latest advisory status unavailable: {advisoryError}</p>
+            <button type="button" onClick={onRetryAdvisory} className="mt-2 font-medium underline underline-offset-4">Retry latest run</button>
+          </div>
+        ) : null}
+        {display.latest === 'saved' ? (
           <>
             <p className="mt-2 text-sm text-slate-600">{new Date(advisorySession.created_at).toLocaleString()} · Session ID {advisorySession.id}</p>
             {advisorySession.is_stale && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Your saved inputs changed after this run. Open Advisor to run it again.</p>}
@@ -77,9 +96,10 @@ function Dashboard({ user, profile, analysis, advisorySession, onOpenProfile, on
               </ul>
             ) : <p className="mt-3 text-sm text-slate-600">No priority finding from this run's rules.</p>}
           </>
-        ) : <p className="mt-2 text-sm text-slate-600">No advisory run saved yet.</p>}
+        ) : null}
+        {display.latest === 'empty' && <p className="mt-2 text-sm text-slate-600">No advisory run saved yet.</p>}
         <button type="button" onClick={onOpenAdvisor} className="mt-4 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700">
-          {advisorySession ? 'Open Advisor' : 'Run analysis'}
+          {display.latest === 'empty' ? 'Run analysis' : 'Open Advisor'}
         </button>
       </section>
     </div>
