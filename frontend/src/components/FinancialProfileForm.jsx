@@ -9,6 +9,8 @@ function FinancialProfileForm({ profile, onSave, saving }) {
     savings: profile?.savings ?? '',
     existing_debt: profile?.existing_debt ?? '',
     emergency_fund: profile?.emergency_fund ?? '',
+    monthly_savings_contribution: profile?.monthly_savings_contribution ?? '',
+    monthly_debt_payments: profile?.monthly_debt_payments ?? '',
     risk_tolerance: profile?.risk_tolerance ?? '',
     financial_goal: profile?.financial_goal ?? '',
     investment_horizon_years: profile?.investment_horizon_years ?? '',
@@ -25,6 +27,8 @@ function FinancialProfileForm({ profile, onSave, saving }) {
       savings: fields.savings,
       existing_debt: fields.existing_debt,
       emergency_fund: fields.emergency_fund,
+      monthly_savings_contribution: fields.monthly_savings_contribution === '' ? null : fields.monthly_savings_contribution,
+      monthly_debt_payments: fields.monthly_debt_payments === '' ? null : fields.monthly_debt_payments,
       risk_tolerance: fields.risk_tolerance,
       financial_goal: fields.financial_goal.trim() || null,
       investment_horizon_years: fields.investment_horizon_years === '' ? null : Number(fields.investment_horizon_years),
@@ -35,24 +39,34 @@ function FinancialProfileForm({ profile, onSave, saving }) {
     <form onSubmit={submit} className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">2. Financial profile</h2>
-        <p className="mt-1 text-sm text-slate-600">Use the same currency for every amount. These values are stored, not analyzed yet.</p>
+        <p className="mt-1 text-sm text-slate-600">Use the same currency for every amount. The monthly flow fields help calculate the analysis below.</p>
       </div>
       <div className="grid gap-5 sm:grid-cols-2">
         <label className={labelClass}>
-          Monthly expenses
+          Monthly expenses (including debt payments)
           <input className={inputClass} name="monthly_expenses" type="number" min="0" step="0.01" value={fields.monthly_expenses} onChange={update} required />
         </label>
         <label className={labelClass}>
-          Savings
+          Savings balance
           <input className={inputClass} name="savings" type="number" min="0" step="0.01" value={fields.savings} onChange={update} required />
         </label>
         <label className={labelClass}>
-          Existing debt
+          Outstanding debt balance
           <input className={inputClass} name="existing_debt" type="number" min="0" step="0.01" value={fields.existing_debt} onChange={update} required />
         </label>
         <label className={labelClass}>
           Emergency fund
           <input className={inputClass} name="emergency_fund" type="number" min="0" step="0.01" value={fields.emergency_fund} onChange={update} required />
+        </label>
+        <label className={labelClass}>
+          Monthly savings contribution (optional)
+          <input className={inputClass} name="monthly_savings_contribution" type="number" min="0" step="0.01" value={fields.monthly_savings_contribution} onChange={update} />
+          <span className="mt-1 block text-xs font-normal text-slate-500">Amount actually saved each month, separate from your savings balance.</span>
+        </label>
+        <label className={labelClass}>
+          Monthly debt payments (optional)
+          <input className={inputClass} name="monthly_debt_payments" type="number" min="0" step="0.01" value={fields.monthly_debt_payments} onChange={update} />
+          <span className="mt-1 block text-xs font-normal text-slate-500">Total paid toward debt each month; include it in monthly expenses above. It cannot exceed total expenses.</span>
         </label>
         <label className={labelClass}>
           Risk tolerance

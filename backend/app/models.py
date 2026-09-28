@@ -36,6 +36,18 @@ class FinancialProfile(Base):
         CheckConstraint("existing_debt >= 0", name="ck_profiles_existing_debt"),
         CheckConstraint("emergency_fund >= 0", name="ck_profiles_emergency_fund"),
         CheckConstraint(
+            "monthly_savings_contribution IS NULL OR monthly_savings_contribution >= 0",
+            name="ck_profiles_monthly_savings_contribution",
+        ),
+        CheckConstraint(
+            "monthly_debt_payments IS NULL OR monthly_debt_payments >= 0",
+            name="ck_profiles_monthly_debt_payments",
+        ),
+        CheckConstraint(
+            "monthly_debt_payments IS NULL OR monthly_debt_payments <= monthly_expenses",
+            name="ck_profiles_debt_payments_within_expenses",
+        ),
+        CheckConstraint(
             "risk_tolerance IN ('conservative', 'moderate', 'aggressive')",
             name="ck_profiles_risk_tolerance",
         ),
@@ -51,6 +63,8 @@ class FinancialProfile(Base):
     savings: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     existing_debt: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     emergency_fund: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    monthly_savings_contribution: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    monthly_debt_payments: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     risk_tolerance: Mapped[str] = mapped_column(String(20))
     financial_goal: Mapped[str | None] = mapped_column(String(200))
     investment_horizon_years: Mapped[int | None]

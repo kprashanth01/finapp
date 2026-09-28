@@ -5,7 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_session
 from app.models import FinancialProfile, User
-from app.schemas import ProfileRead, ProfileWrite, UserCreate, UserRead
+from app.schemas import AnalysisRead, ProfileRead, ProfileWrite, UserCreate, UserRead
+from app.services.financial_analysis import FinancialAnalysisService
 
 
 router = APIRouter()
@@ -77,3 +78,14 @@ def get_profile(user_id: int, session: Session = Depends(get_session)) -> Financ
     if profile is None:
         raise HTTPException(status_code=404, detail="Financial profile not found.")
     return profile
+
+
+@router.get("/users/{user_id}/financial-analysis", response_model=AnalysisRead)
+def get_financial_analysis(user_id: int, session: Session = Depends(get_session)) -> AnalysisRead:
+    user = session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Financial profile not found.")
+    return FinancialAnalysisService.analyze(user, profile)
