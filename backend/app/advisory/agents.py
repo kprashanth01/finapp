@@ -25,7 +25,10 @@ class BudgetAgent:
             limitations.append("Expense ratio needs positive gross income.")
         if savings_rate is None:
             limitations.append("Savings rate needs a monthly contribution and positive gross income.")
-        priority = expense_ratio is not None and expense_ratio >= HIGH_EXPENSE_PERCENT
+        priority = (
+            state.monthly_income > 0
+            and state.monthly_expenses / state.monthly_income * 100 >= HIGH_EXPENSE_PERCENT
+        )
         finding = Finding(
             code="expense_ratio_high" if priority else "budget_ratios",
             title="Review monthly expenses" if priority else "Budget ratios",
@@ -56,7 +59,11 @@ class DebtAgent:
         limitations = []
         if dti is None:
             limitations.append("DTI needs a monthly debt payment and positive gross income.")
-        priority = dti is not None and dti >= HIGH_DTI_PERCENT
+        priority = (
+            state.monthly_debt_payments is not None
+            and state.monthly_income > 0
+            and state.monthly_debt_payments / state.monthly_income * 100 >= HIGH_DTI_PERCENT
+        )
         finding = Finding(
             code="dti_high" if priority else "debt_ratio",
             title="Review debt payments" if priority else "Debt payment ratio",
@@ -91,7 +98,10 @@ class EmergencyAgent:
         limitations = [f"The {EMERGENCY_TARGET_MONTHS}-month target is an illustrative project rule."]
         if coverage is None:
             limitations.append("Coverage needs positive monthly expenses.")
-        priority = coverage is not None and coverage < EMERGENCY_TARGET_MONTHS
+        priority = (
+            state.monthly_expenses > 0
+            and state.emergency_fund / state.monthly_expenses < EMERGENCY_TARGET_MONTHS
+        )
         finding = Finding(
             code="emergency_gap" if priority else "emergency_coverage",
             title="Review emergency reserve" if priority else "Emergency reserve coverage",

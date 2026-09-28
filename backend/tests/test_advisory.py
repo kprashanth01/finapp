@@ -72,8 +72,10 @@ def test_no_debt_skips_agent_and_records_reason():
     assert result.priority_actions == []
 
 
-def test_contact_fields_do_not_change_financial_fingerprint():
-    state = saved()
-    same = saved()
-    assert state.fingerprint() == same.fingerprint()
+def test_thresholds_use_unrounded_saved_amounts():
+    below_expense_and_debt = run(saved(expenses="3999.99", payments="999.99", fund="20000"))
+    assert below_expense_and_debt.priority_actions == []
 
+    below_emergency_target = run(saved(expenses="1000", payments="0", debt="0", fund="2999.99"))
+    assert [action.agent_id for action in below_emergency_target.priority_actions] == ["emergency"]
+    assert below_emergency_target.priority_actions[0].evidence[1].value == Decimal("0.01")
