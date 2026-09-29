@@ -4,6 +4,7 @@ from functools import lru_cache
 from typing import Literal
 
 from app.advisory.planning_types import PlanningAgentResult
+from app.advisory.explain import build_explanation
 from app.advisory.recommendations import RecommendationEngine, priority_actions
 from app.advisory.registry import AgentRegistry
 from app.advisory.rules import RULE_VERSION
@@ -62,16 +63,18 @@ def run_orchestration(state: PlanningState, *, mode: Mode, seed: int) -> dict:
     results = [PlanningAgentResult.model_validate(item) for item in info["agent_results"]]
     readiness = info["plan_readiness"]
     advice = None
+    advice_model = None
+    selected = set(info["selected_agents"])
+    decision = OrchestratorDecision(
+        method=mode, rule_version=RULE_VERSION,
+        selections=[AgentSelection(
+            agent_id=agent_id, selected=agent_id in selected,
+            reason=("Selected" if agent_id in selected else "Not selected") + f" by {mode} policy.",
+        ) for agent_id in registry.agent_ids],
+    )
     if readiness["can_build_full_plan"]:
-        selected = set(info["selected_agents"])
-        decision = OrchestratorDecision(
-            method=mode, rule_version=RULE_VERSION,
-            selections=[AgentSelection(
-                agent_id=agent_id, selected=agent_id in selected,
-                reason=("Selected" if agent_id in selected else "Not selected") + f" by {mode} policy.",
-            ) for agent_id in registry.agent_ids],
-        )
-        advice = RecommendationEngine().build(state, decision, results).model_dump(mode="json")
+        advice_model = RecommendationEngine().build(state, decision, results)
+        advice = advice_model.model_dump(mode="json")
         summary = advice["summary"]
     else:
         findings = priority_actions(results)
@@ -99,4 +102,6 @@ def run_orchestration(state: PlanningState, *, mode: Mode, seed: int) -> dict:
         "plan_readiness": readiness,
         "summary": summary,
         "advice": advice,
+        "explanation": build_explanation(state, decision, int(action), results, advice_model,
+                                          seed=seed).model_dump(mode="json"),
     }

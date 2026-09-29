@@ -57,6 +57,8 @@ def test_orchestration_run_is_owned_read_only_and_reports_actual_agents(client):
     assert data["plan_readiness"]["can_build_full_plan"] is True
     assert data["advice"]["summary"]["title"]
     assert data["total_reward"] == pytest.approx(sum(data["reward_components"].values()))
+    assert data["explanation"]["action"] == data["action"]
+    assert data["explanation"]["reward_components"] == data["reward_components"]
     random_one = client.post(path, json={"mode": "random", "seed": 17})
     assert random_one.status_code == 200, random_one.text
     assert client.post(path, json={"mode": "random", "seed": 17}).json() == random_one.json()
@@ -102,6 +104,12 @@ def test_committed_dqn_runs_on_saved_profile_when_rl_runtime_is_installed(client
     assert 0 <= payload["action"] < 63
     assert payload["selected_agents"] == [item["agent_id"] for item in payload["agent_results"]]
     assert payload["total_reward"] == pytest.approx(sum(payload["reward_components"].values()))
+    trace = payload["explanation"]
+    assert trace["method"] == "rl"
+    assert trace["action"] == payload["action"]
+    assert trace["reward_components"] == payload["reward_components"]
+    assert "do not establish which inputs caused" in trace["policy_explanation"]
+    assert [item["agent_id"] for item in trace["selections"] if item["selected"]] == payload["selected_agents"]
     assert client.get(f"/users/{user['id']}/advisory-sessions").json()["items"] == []
 
 
@@ -272,6 +280,12 @@ def test_run_persists_result_and_latest_can_reload_it(client):
     assert session["is_stale"] is False
     assert session["result"]["advice"]["priority_actions"][0]["source_refs"][0]["agent_id"] == "emergency"
     assert session["result"]["agent_results"][2]["findings"][0]["evidence"][1]["value"] == "5000.00"
+    trace = session["result"]["explanation"]
+    assert trace["version"] == "explanation-v1"
+    assert trace["method"] == "rule_based"
+    assert trace["state_fingerprint"] == session["result"]["state"]["input_fingerprint"]
+    assert any(item["kind"] == "reserve" and any(f["agent_id"] == "emergency"
+               for f in item["findings"]) for item in trace["recommendations"])
 
     latest = client.get(f"{path}/latest")
     assert latest.status_code == 200

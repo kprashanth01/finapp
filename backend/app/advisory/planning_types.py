@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 
 from app.advisory.state import GoalSnapshot, PlanningState
-from app.advisory.types import AgentResult, OrchestratorDecision
+from app.advisory.types import AgentResult, Finding, OrchestratorDecision
 
 Category = Literal['conservative', 'moderate', 'aggressive']
 Readiness = Literal['ready_to_consider', 'deferred', 'insufficient_information']
@@ -114,8 +114,51 @@ class CoordinatedAdvice(BaseModel):
     priority_actions: list[PlanAction]
 
 
+class ExplanationMetric(BaseModel):
+    key: str
+    label: str
+    value: str | None
+    unit: str
+
+
+class ExplanationFinding(BaseModel):
+    agent_id: str
+    finding: Finding
+
+
+class ExplanationSelection(BaseModel):
+    agent_id: str
+    selected: bool
+    basis: str
+    context: list[ExplanationMetric]
+
+
+class ExplanationRecommendation(BaseModel):
+    kind: Literal['priority', 'reserve', 'goal', 'hold', 'investment', 'partial_finding']
+    title: str
+    text: str
+    findings: list[ExplanationFinding]
+    context: list[ExplanationMetric]
+    limitations: list[str]
+
+
+class ExplanationTrace(BaseModel):
+    version: Literal['explanation-v1'] = 'explanation-v1'
+    method: Literal['rule_based', 'random', 'rl']
+    action: int
+    seed: int | None = None
+    state_fingerprint: str
+    policy_explanation: str
+    selections: list[ExplanationSelection]
+    recommendations: list[ExplanationRecommendation]
+    reward_components: dict[str, float]
+    missing_agents: list[str]
+    limitations: list[str]
+
+
 class AdvisoryResultV2(BaseModel):
     state: PlanningState
     decision: OrchestratorDecision
     agent_results: list[PlanningAgentResult]
     advice: CoordinatedAdvice
+    explanation: ExplanationTrace | None = None

@@ -1,10 +1,12 @@
 from typing import Protocol
 from app.advisory.recommendations import RecommendationEngine
+from app.advisory.explain import build_explanation
 from app.advisory.registry import AgentRegistry
 from app.advisory.rules import RULE_VERSION
 from app.advisory.state import PlanningState
 from app.advisory.planning_types import AdvisoryResultV2
 from app.advisory.types import AgentSelection, OrchestratorDecision
+from app.rl.selection import action_for
 
 
 class Orchestrator(Protocol):
@@ -25,5 +27,8 @@ class RuleBasedOrchestrator:
         ]
         decision = OrchestratorDecision(rule_version=RULE_VERSION, selections=selections)
         results = [registry.get(s.agent_id).analyze(state) for s in selections if s.selected]
+        advice = RecommendationEngine().build(state,decision,results)
+        action = action_for(item.agent_id for item in selections if item.selected)
         return AdvisoryResultV2(state=state,decision=decision,agent_results=results,
-                                advice=RecommendationEngine().build(state,decision,results))
+                                advice=advice,
+                                explanation=build_explanation(state, decision, action, results, advice))

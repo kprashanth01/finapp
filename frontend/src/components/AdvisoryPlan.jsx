@@ -1,8 +1,9 @@
 import { formatAmount } from '../utils/format.js'
+import ExplanationTrail from './ExplanationTrail.jsx'
 
 const statuses = { completed: 'Target reached', overdue: 'Deadline needs updating', budget_covered: 'Monthly requirement covered', underfunded: 'Monthly funding gap', missing_budget: 'Add monthly savings contribution' }
 
-export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal }) {
+export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal, showExplanation = true }) {
   const { summary, monthly_plan: plan, investment, priority_actions: actions } = result.advice
   function follow(next) {
     if (next.view === 'goals') onOpenGoal(next.goal_id)
@@ -14,6 +15,7 @@ export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal }) {
       <h3 className="mt-2 text-xl font-semibold">{summary.title}</h3><p className="mt-2 text-sm text-slate-200">{summary.text}</p>
       <button className="mt-4 rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-900" onClick={() => follow(summary.next_action)}>{summary.next_action.view === 'goals' ? 'Review goals' : 'Review profile'}</button>
     </section>
+    {showExplanation && <ExplanationTrail trace={result.explanation} />}
     <section aria-labelledby="monthly-plan-heading">
       <h3 id="monthly-plan-heading" className="text-lg font-semibold">Your monthly savings plan</h3>
       <p className="mt-1 text-sm text-slate-600">Based on {result.state.as_of_date}. These are proposed allocations, not payments or automatic balance changes. All amounts use your profile currency.</p>
