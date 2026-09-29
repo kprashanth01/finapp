@@ -1,6 +1,6 @@
 # FinApp
 
-An educational research prototype for a future RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. The Research view compares agent-selection baselines on your saved profile. Its findings are illustrative project outputs, not professional financial advice.
+An educational research prototype for an RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. The Research view compares a trained experimental agent selector with rule-based and random baselines on your saved profile. Its findings are illustrative project outputs, not professional financial advice.
 
 ## How the current flow works
 
