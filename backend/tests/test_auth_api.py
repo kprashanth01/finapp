@@ -129,3 +129,24 @@ def test_login_attempts_are_throttled_per_email_and_client(auth_client):
                           json={"email": "missing@example.org", "password": "wrong passphrase 123"})
     assert blocked.status_code == 429
     assert blocked.headers["retry-after"]
+
+
+def test_unclaimed_and_unknown_emails_use_the_same_password_verification_path(auth_client, monkeypatch):
+    import app.auth_api as auth_api
+    client, engine = auth_client
+    with Session(engine) as db:
+        db.add(User(name="Legacy", email="legacy@example.org", monthly_income=0))
+        db.commit()
+    seen = []
+    original = auth_api.verify_password
+
+    def observe(password, digest):
+        seen.append(digest)
+        return original(password, digest)
+
+    monkeypatch.setattr(auth_api, "verify_password", observe)
+    for email in ("legacy@example.org", "unknown@example.org"):
+        response = client.post("/auth/login", headers=MUTATION,
+                               json={"email": email, "password": "wrong passphrase 123"})
+        assert response.status_code == 401
+    assert seen == [auth_api.DUMMY_HASH, auth_api.DUMMY_HASH]

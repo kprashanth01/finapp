@@ -1,0 +1,56 @@
+import test, { before, after } from 'node:test'
+import assert from 'node:assert/strict'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { createServer } from 'vite'
+
+let server
+let AuthScreen
+let resolveBootState
+let createAuthRequestGate
+let api
+
+before(async () => {
+  server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
+  AuthScreen = (await server.ssrLoadModule('/src/components/AuthScreen.jsx')).default
+  ;({ resolveBootState, createAuthRequestGate } = await server.ssrLoadModule('/src/services/authState.js'))
+  ;({ api } = await server.ssrLoadModule('/src/services/api.js'))
+})
+after(async () => { await server?.close() })
+
+function markup(mode) {
+  return renderToStaticMarkup(createElement(AuthScreen, { mode, onMode: () => {}, onSubmit: () => {} }))
+}
+
+test('signup asks only for account details, and claim never trusts a browser user ID', () => {
+  const signup = markup('signup')
+  assert.match(signup, /name="name"/)
+  assert.match(signup, /name="email"/)
+  assert.match(signup, /name="password"/)
+  assert.doesNotMatch(signup, /monthly_income|Gross monthly income/)
+  const claim = markup('claim')
+  assert.match(claim, /name="code"/)
+  assert.match(claim, /one-time|one time/i)
+  assert.doesNotMatch(claim, /name="userId"|name="user_id"/)
+})
+
+test('boot separates signed-out status from unavailable API, and old auth work cannot win', async () => {
+  const signedOut = await resolveBootState(async () => { throw { response: { status: 401 } } })
+  assert.deepEqual(signedOut, { status: 'signedOut', user: null })
+  const unavailable = await resolveBootState(async () => { throw new Error('offline') })
+  assert.equal(unavailable.status, 'unavailable')
+  const gate = createAuthRequestGate()
+  assert.equal(gate.current(), 0)
+  const first = gate.begin()
+  const second = gate.begin()
+  assert.equal(gate.isCurrent(first), false)
+  assert.equal(gate.isCurrent(second), true)
+  gate.invalidate()
+  assert.equal(gate.isCurrent(second), false)
+  assert.equal(gate.current(), 3)
+})
+
+test('API uses browser cookies and sends a mutation header', () => {
+  assert.equal(api.defaults.withCredentials, true)
+  assert.equal(api.defaults.headers['X-FinApp-Request'], '1')
+})
