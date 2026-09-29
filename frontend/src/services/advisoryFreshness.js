@@ -28,5 +28,5 @@ export function hasProfileFinancialChanges(before, after) {
 }
 
 export function markSessionStale(session, changed) {
-  return session && changed ? { ...session, is_stale: true } : session
+  return session && changed ? { ...session, is_stale: true, stale_reasons: [...new Set([...(session.stale_reasons ?? []), 'inputs'])] } : session
 }

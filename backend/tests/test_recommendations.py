@@ -64,3 +64,11 @@ def test_overdue_completed_archived_and_tie_order():
 def test_exact_debt_boundary_uses_unrounded_amounts():
     assert run(state(monthly_debt_payments=D('999.99'))).advice.monthly_plan.hold_reason is None
     assert run(state(monthly_debt_payments=D('1000'))).advice.monthly_plan.hold_reason is not None
+
+
+@pytest.mark.parametrize('changes,field', [({'monthly_savings_contribution':D(0)},'monthly_savings_contribution'),
+                                        ({'investment_horizon_years':0},'investment_horizon_years')])
+def test_zero_readiness_blocker_has_actionable_summary(changes,field):
+    advice=run(state(**changes)).advice
+    assert advice.summary.title != 'Your monthly plan is ready'
+    assert advice.summary.next_action.field == field

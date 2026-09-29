@@ -24,7 +24,7 @@ test('only a changed saved financial value marks the prior session stale', () =>
   assert.equal(hasIncomeChanged({ monthly_income: '5000.00' }, { monthly_income: '5200.00' }), true)
 
   const session = { id: 1, is_stale: false, result: { priority_actions: ['old finding'] } }
-  assert.deepEqual(markSessionStale(session, true), { ...session, is_stale: true })
+  assert.deepEqual(markSessionStale(session, true), { ...session, is_stale: true, stale_reasons: ['inputs'] })
   assert.deepEqual(markSessionStale(session, false), session)
   assert.deepEqual(markSessionStale(null, true), null)
 })

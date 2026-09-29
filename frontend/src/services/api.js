@@ -62,6 +62,22 @@ export async function runAdvisorySession(userId) {
   return response.data
 }
 
+export async function getGoals(userId, { includeArchived = false } = {}) {
+  return (await api.get(`/users/${userId}/goals`, { params: { include_archived: includeArchived } })).data
+}
+
+export async function createGoal(userId, values) {
+  return (await api.post(`/users/${userId}/goals`, values)).data
+}
+
+export async function updateGoal(userId, goalId, values) {
+  return (await api.put(`/users/${userId}/goals/${goalId}`, values)).data
+}
+
+export async function setGoalArchived(userId, goalId, archived) {
+  return (await api.patch(`/users/${userId}/goals/${goalId}`, { archived })).data
+}
+
 export function explainApiError(error) {
   const detail = error.response?.data?.detail
   if (typeof detail === 'string') return detail

@@ -1,3 +1,4 @@
+import { staleMessage } from '../utils/format.js'
 import { useEffect, useRef, useState } from 'react'
 import { explainApiError, getAdvisorySessionHistory } from '../services/api.js'
 
@@ -62,7 +63,7 @@ function AdvisoryHistory({ userId, refreshKey, selectedId, onSelect }) {
   return (
     <section className="mt-8 border-t border-slate-200 pt-7" aria-labelledby="history-heading">
       <h2 id="history-heading" className="text-xl font-semibold">Saved analysis history</h2>
-      <p className="mt-1 text-sm text-slate-600">Open a past run to see the inputs and findings recorded at that time. Session IDs are database record numbers.</p>
+      <p className="mt-1 text-sm text-slate-600">Open a past run to see the inputs and findings recorded at that time.</p>
       {loading && <p className="mt-4 text-sm text-slate-600">Loading saved runs…</p>}
       {error && (
         <div role="alert" className="mt-4 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">
@@ -77,12 +78,12 @@ function AdvisoryHistory({ userId, refreshKey, selectedId, onSelect }) {
             <li key={item.id} className={`rounded-lg border p-4 ${selectedId === item.id ? 'border-slate-700 bg-slate-50' : 'border-slate-200'}`}>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <p className="font-medium">Session ID {item.id}</p>
-                  <p className="mt-1 text-xs text-slate-600">{new Date(item.created_at).toLocaleString()} · {item.method === 'rule_based' ? 'Rule-based' : item.method} · {item.rule_version}</p>
+                  <p className="font-medium">{new Date(item.created_at).toLocaleString()}</p>
+                  <p className="mt-1 text-xs text-slate-600">{item.method === 'rule_based' ? 'Rule-based' : item.method} · {item.rule_version}</p>
                 </div>
                 <button type="button" onClick={() => onSelect(item.id)} className="text-sm font-medium text-slate-800 underline underline-offset-4">Open run</button>
               </div>
-              {item.is_stale && <p className="mt-2 text-xs font-medium text-amber-800">Inputs differ from current profile</p>}
+              {item.is_stale && <p className="mt-2 text-xs font-medium text-amber-800">{staleMessage(item)}</p>}
               {item.priority_count > 0 ? (
                 <p className="mt-2 text-sm text-slate-700">{item.priority_titles.join(' · ')}</p>
               ) : <p className="mt-2 text-sm text-slate-600">No priority findings</p>}

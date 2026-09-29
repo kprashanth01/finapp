@@ -86,6 +86,8 @@ class RecommendationEngine:
             action('missing_debt_inputs','Complete debt inputs','Debt burden cannot be assessed from the saved values.',refs('debt'),field='monthly_debt_payments' if state.monthly_debt_payments is None else 'monthly_income')
         if capacity is None:
             action('missing_contribution','Add a monthly savings budget','Enter your planned monthly savings contribution to allocate money.',refs('budget'),field='monthly_savings_contribution')
+        elif capacity == 0:
+            action('zero_contribution','Review your monthly savings budget','The saved contribution is zero, so no money can be allocated.',refs('budget'),field='monthly_savings_contribution')
         for allocation in allocations:
             if allocation.status in ('underfunded','overdue'):
                 req=allocation.requirement
@@ -95,6 +97,8 @@ class RecommendationEngine:
                        allocation.source_refs,view='goals',goal_id=req.goal.id)
         if 'missing_horizon' in investment.factor_codes:
             action('missing_horizon','Add your investment horizon','A horizon is needed to assess investment readiness.',refs('investment'),field='investment_horizon_years')
+        if 'zero_horizon' in investment.factor_codes:
+            action('zero_horizon','Review your investment horizon','The saved horizon is zero; investment consideration needs a positive horizon.',refs('investment'),field='investment_horizon_years')
         if state.monthly_income <= 0:
             action('income_required','Review monthly income','Positive income is required for ratio and readiness checks.',refs('investment'),field='monthly_income')
         summary = PlanSummary(
