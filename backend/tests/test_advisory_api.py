@@ -58,9 +58,26 @@ def test_research_comparison_uses_saved_profile_without_creating_advisory_histor
     assert data["policies"]["rule"]["total_reward"] == pytest.approx(
         sum(data["policies"]["rule"]["reward_components"].values())
     )
+    assert data["model"]["status"] == "available"
+    assert data["model"]["training"]["held_out_benchmark"]["case_count"] == 384
+    assert data["model"]["training"]["scenario_source"].startswith("generated coverage")
+    assert 1 <= len(data["policies"]["learned"]["selected_agents"]) <= 6
+    assert data["policies"]["learned"]["total_reward"] == pytest.approx(
+        sum(data["policies"]["learned"]["reward_components"].values())
+    )
     assert client.post(path, json={"seed": 17}).json() == data
     assert client.get(f"/users/{user['id']}/advisory-sessions").json()["items"] == []
     assert client.post(path, json={"seed": -1}).status_code == 422
+
+
+def test_research_comparison_remains_available_without_model(client, monkeypatch, tmp_path):
+    from app.rl import api as research_api
+
+    user, _ = create_profile(client)
+    monkeypatch.setattr(research_api, "MODEL_PATH", tmp_path / "missing.json")
+    data = client.post(f"/users/{user['id']}/research/comparison", json={"seed": 17}).json()
+    assert data["model"]["status"] == "unavailable"
+    assert set(data["policies"]) == {"rule", "random"}
 
 
 def test_research_comparison_requires_profile_and_owner(client):
