@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_session
+from app.auth_dependencies import require_owner
 from app.advisory.service import financial_state, run_advisory, planning_date
 from app.advisory.session_types import AdvisoryHistoryPage, AdvisorySessionRead, AdvisorySessionSummary, get_priority_actions
 from app.advisory.state import PlanningState
@@ -17,7 +18,7 @@ from app.services.financial_analysis import FinancialAnalysisService
 router = APIRouter()
 
 
-@router.get("/users/{user_id}", response_model=UserRead)
+@router.get("/users/{user_id}", response_model=UserRead, dependencies=[Depends(require_owner)])
 def get_user(user_id: int, session: Session = Depends(get_session)) -> User:
     user = session.get(User, user_id)
     if user is None:
@@ -25,7 +26,7 @@ def get_user(user_id: int, session: Session = Depends(get_session)) -> User:
     return user
 
 
-@router.put("/users/{user_id}", response_model=UserRead)
+@router.put("/users/{user_id}", response_model=UserRead, dependencies=[Depends(require_owner)])
 def update_user(
     user_id: int, payload: UserCreate, session: Session = Depends(get_session)
 ) -> User:
@@ -44,7 +45,7 @@ def update_user(
     return user
 
 
-@router.put("/users/{user_id}/financial-profile", response_model=ProfileRead)
+@router.put("/users/{user_id}/financial-profile", response_model=ProfileRead, dependencies=[Depends(require_owner)])
 def save_profile(
     user_id: int, payload: ProfileWrite, session: Session = Depends(get_session)
 ) -> FinancialProfile:
@@ -64,7 +65,7 @@ def save_profile(
     return profile
 
 
-@router.get("/users/{user_id}/financial-profile", response_model=ProfileRead)
+@router.get("/users/{user_id}/financial-profile", response_model=ProfileRead, dependencies=[Depends(require_owner)])
 def get_profile(user_id: int, session: Session = Depends(get_session)) -> FinancialProfile:
     profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
     if profile is None:
@@ -72,7 +73,7 @@ def get_profile(user_id: int, session: Session = Depends(get_session)) -> Financ
     return profile
 
 
-@router.get("/users/{user_id}/financial-analysis", response_model=AnalysisRead)
+@router.get("/users/{user_id}/financial-analysis", response_model=AnalysisRead, dependencies=[Depends(require_owner)])
 def get_financial_analysis(user_id: int, session: Session = Depends(get_session)) -> AnalysisRead:
     user = session.get(User, user_id)
     if user is None:
@@ -116,7 +117,8 @@ def _session_read(row: AnalysisSession, current_state: PlanningState) -> Advisor
     )
 
 
-@router.post("/users/{user_id}/advisory-sessions", response_model=AdvisorySessionRead, status_code=201)
+@router.post("/users/{user_id}/advisory-sessions", response_model=AdvisorySessionRead, status_code=201,
+             dependencies=[Depends(require_owner)])
 def create_advisory_session(
     user_id: int, session: Session = Depends(get_session)
 ) -> AdvisorySessionRead:
@@ -135,7 +137,8 @@ def create_advisory_session(
     return _session_read(row, result.state)
 
 
-@router.get("/users/{user_id}/advisory-sessions/latest", response_model=AdvisorySessionRead)
+@router.get("/users/{user_id}/advisory-sessions/latest", response_model=AdvisorySessionRead,
+            dependencies=[Depends(require_owner)])
 def get_latest_advisory_session(
     user_id: int, session: Session = Depends(get_session)
 ) -> AdvisorySessionRead:
@@ -151,7 +154,8 @@ def get_latest_advisory_session(
     return _session_read(row, financial_state(user, profile, load_active_goals(session, user_id), planning_date()))
 
 
-@router.get("/users/{user_id}/advisory-sessions", response_model=AdvisoryHistoryPage)
+@router.get("/users/{user_id}/advisory-sessions", response_model=AdvisoryHistoryPage,
+            dependencies=[Depends(require_owner)])
 def list_advisory_sessions(
     user_id: int,
     limit: int = Query(default=10, ge=1, le=50),
@@ -192,7 +196,8 @@ def list_advisory_sessions(
     return AdvisoryHistoryPage(items=items, next_before_id=next_before_id)
 
 
-@router.get("/users/{user_id}/advisory-sessions/{session_id}", response_model=AdvisorySessionRead)
+@router.get("/users/{user_id}/advisory-sessions/{session_id}", response_model=AdvisorySessionRead,
+            dependencies=[Depends(require_owner)])
 def get_advisory_session(
     user_id: int, session_id: int, session: Session = Depends(get_session)
 ) -> AdvisorySessionRead:

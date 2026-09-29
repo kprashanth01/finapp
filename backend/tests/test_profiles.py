@@ -1,5 +1,5 @@
 import pytest
-from fastapi.testclient import TestClient
+from tests.support import AuthenticatedTestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -21,7 +21,7 @@ def client(tmp_path):
             yield session
 
     app.dependency_overrides[get_session] = session_override
-    with TestClient(app) as test_client:
+    with AuthenticatedTestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
     engine.dispose()

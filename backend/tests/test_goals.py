@@ -1,5 +1,5 @@
 import pytest
-from fastapi.testclient import TestClient
+from tests.support import AuthenticatedTestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -15,7 +15,7 @@ def client(tmp_path):
         with Session(engine) as session:
             yield session
     app.dependency_overrides[get_session] = override
-    with TestClient(app) as client:
+    with AuthenticatedTestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
     engine.dispose()
@@ -31,6 +31,7 @@ def goal(**changes):
 
 def test_goal_lifecycle_and_owner_scope(client):
     owner, other = user(client), user(client, 'other@example.org')
+    assert client.sign_in('goal@example.org').status_code == 200
     path = f'/users/{owner}/goals'
     created = client.post(path, json=goal())
     assert created.status_code == 201
@@ -40,7 +41,10 @@ def test_goal_lifecycle_and_owner_scope(client):
     item = f"{path}/{record['id']}"
     assert client.put(f"/users/{other}/goals/{record['id']}", json=goal()).status_code == 404
     assert client.patch(f"/users/{other}/goals/{record['id']}", json={'archived': True}).status_code == 404
+    assert client.get(f'/users/{other}/goals').status_code == 404
+    assert client.sign_in('other@example.org').status_code == 200
     assert client.get(f'/users/{other}/goals').json() == []
+    assert client.sign_in('goal@example.org').status_code == 200
     for _ in range(2):
         assert client.patch(item, json={'archived': True}).json()['archived'] is True
     assert client.get(path).json() == []
