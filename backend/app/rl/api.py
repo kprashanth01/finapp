@@ -2,7 +2,6 @@
 
 from pathlib import Path
 
-import numpy as np
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -13,11 +12,12 @@ from app.auth_dependencies import require_owner
 from app.database import get_session
 from app.goal_api import load_active_goals
 from app.models import FinancialProfile, User
+from app.rl.baselines import RandomBaseline, RuleBaseline
 from app.rl.environment import AgentSelectionEnv
 from app.rl.observation import FEATURE_NAMES, OBSERVATION_VERSION
 from app.rl.policy import FittedQPolicy, POLICY_VERSION
 from app.rl.reward import REWARD_VERSION
-from app.rl.selection import ACTION_COUNT, ACTION_VERSION, DEFAULT_CATALOG, rule_action
+from app.rl.selection import ACTION_VERSION, DEFAULT_CATALOG
 
 
 router = APIRouter()
@@ -51,6 +51,7 @@ def _outcome(state, action, *, include_agent_results=False):
         "selected_agents": info["selected_agents"],
         "total_reward": reward,
         "reward_components": info["reward_components"],
+        "reward_audit": info["reward_audit"],
         "plan_readiness": info["plan_readiness"],
         "findings": [
             {"agent_id": result["agent_id"], "title": finding["title"],
@@ -98,9 +99,10 @@ def compare_policies(user_id: int, payload: ComparisonRequest,
     state = _saved_state(user_id, session)
     environment = AgentSelectionEnv(state)
     observation, _ = environment.reset(seed=payload.seed)
-    random_action = int(np.random.default_rng(payload.seed).integers(ACTION_COUNT))
+    rule_action = RuleBaseline().choose_action(state, environment.catalog)
+    random_action = RandomBaseline(seed=payload.seed).choose_action(state, environment.catalog)
     policies = {
-        "rule": _outcome(state, rule_action(state)),
+        "rule": _outcome(state, rule_action),
         "random": _outcome(state, random_action),
     }
     try:

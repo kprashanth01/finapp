@@ -9,7 +9,7 @@ from gymnasium import spaces
 from app.advisory.registry import AgentRegistry
 from app.advisory.state import PlanningState
 from app.rl.observation import FEATURE_NAMES, encode_observation
-from app.rl.reward import reward_components
+from app.rl.reward import audit_reward
 from app.rl.selection import ActionCatalog, assess_plan_readiness
 
 
@@ -45,12 +45,14 @@ class AgentSelectionEnv(gym.Env):
             raise ValueError("Action is outside the discrete agent-selection space.")
         selected = self.catalog.agents_for(int(action))
         results = [self.registry.get(agent_id).analyze(self.state) for agent_id in selected]
-        components = reward_components(self.state, selected)
+        audit = audit_reward(self.state, selected)
+        components = audit.components
         self._done = True
         return encode_observation(self.state), sum(components.values()), True, False, {
             "selected_agents": list(selected),
             "action_version": self.catalog.version,
             "plan_readiness": assess_plan_readiness(self.state, selected),
             "reward_components": components,
+            "reward_audit": audit.to_dict(),
             "agent_results": [result.model_dump(mode="json") for result in results],
         }

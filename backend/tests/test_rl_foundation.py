@@ -2,6 +2,7 @@
 
 from datetime import date
 from decimal import Decimal as D
+import importlib.util
 from types import SimpleNamespace
 
 import numpy as np
@@ -12,6 +13,7 @@ from app.advisory.registry import AgentRegistry
 from app.services.financial_analysis import FinancialAnalysisService
 from app.rl.environment import AgentSelectionEnv
 from app.rl.observation import FEATURE_NAMES, encode_observation
+from app.rl import reward
 from app.rl.selection import (
     AGENT_IDS, ACTION_VERSION, ActionCatalog, action_for, agents_for,
     assess_plan_readiness, rule_action,
@@ -148,3 +150,64 @@ def test_environment_respects_injected_catalog_and_registry():
     with pytest.raises(ValueError, match="unregistered"):
         AgentSelectionEnv(state, registry=AgentRegistry.default(),
                           catalog=ActionCatalog.from_agents(("unknown",)))
+
+
+def test_reward_audit_identifies_covered_and_missed_critical_checks():
+    assert hasattr(reward, "audit_reward")
+    state = planning_state(debt="1000", goal=True)
+    report = reward.audit_reward(state, ("budget", "emergency"))
+    assert report.version == reward.REWARD_VERSION
+    assert report.components == {
+        "relevant_coverage": 2.0,
+        "critical_coverage": 2.0,
+        "missed_critical_penalty": -3.0,
+        "unneeded_agent_penalty": 0.0,
+        "agent_call_penalty": -0.3,
+    }
+    assert report.total == pytest.approx(0.7)
+    assert report.relevant_agents == AGENT_IDS
+    assert report.critical_agents == ("emergency", "goal")
+    assert report.missed_critical_agents == ("goal",)
+    checks = {check.agent_id: check for check in report.checks}
+    assert checks["emergency"].value == "1.33"
+    assert checks["emergency"].threshold == "3"
+    assert checks["emergency"].operator == "<"
+    assert checks["emergency"].critical is True
+    assert checks["debt"].value == "4.00"
+    assert checks["debt"].threshold == "20"
+    assert checks["debt"].critical is False
+    assert checks["goal"].value == "1"
+    assert checks["goal"].critical is True
+
+
+def test_reward_audit_labels_missing_debt_input_and_zero_expenses():
+    assert hasattr(reward, "audit_reward")
+    state = planning_state(debt="1000").model_copy(update={
+        "monthly_debt_payments": None, "debt_to_income_percent": None,
+        "monthly_expenses": D("0"), "emergency_fund_months": None,
+    })
+    report = reward.audit_reward(state, ("budget",))
+    checks = {check.agent_id: check for check in report.checks}
+    assert checks["debt"].value is None
+    assert checks["debt"].input_status == "unavailable"
+    assert checks["debt"].critical is True
+    assert checks["emergency"].value is None
+    assert checks["emergency"].input_status == "not_applicable"
+    assert checks["emergency"].critical is False
+    assert checks["goal"].input_status == "not_applicable"
+    assert report.missed_critical_agents == ("debt",)
+
+
+def test_baselines_choose_valid_actions_and_random_seed_repeats():
+    assert importlib.util.find_spec("app.rl.baselines") is not None
+    from app.rl.baselines import RandomBaseline, RuleBaseline
+
+    state = planning_state(debt="1000", goal=True)
+    catalog = ActionCatalog.from_agents(AGENT_IDS)
+    assert RuleBaseline().choose_action(state, catalog) == rule_action(state)
+    first = RandomBaseline(seed=28)
+    second = RandomBaseline(seed=28)
+    choices = [first.choose_action(state, catalog) for _ in range(20)]
+    assert choices == [second.choose_action(state, catalog) for _ in range(20)]
+    assert all(0 <= action < catalog.action_count for action in choices)
+    assert len(set(choices)) > 1

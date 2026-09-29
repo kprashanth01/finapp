@@ -16,13 +16,48 @@ const scoreNames = {
   agent_call_penalty: 'Agent call cost',
 }
 
+function checkValueText(check) {
+  if (check.input_status === 'not_applicable') return 'Not applicable.'
+  const criterion = check.unit === 'months' ? `Critical below ${check.threshold} months.`
+    : check.unit === '%' ? `Critical at ${check.threshold}% or above (or when debt exists and the ratio is unavailable).`
+      : 'Critical when at least one goal is unfinished.'
+  if (check.input_status === 'unavailable') return `Unavailable. ${criterion}`
+  const value = check.unit === 'goals'
+    ? `${check.value} unfinished ${check.value === '1' ? 'goal' : 'goals'}`
+    : check.unit === '%' ? `${check.value}%` : `${check.value} ${check.unit}`
+  return `${value}. ${criterion}`
+}
+
+export function RewardAuditDetails({ audit, collapsible = false }) {
+  const content = <>
+    <dl className="research-score-list">{Object.entries(audit.components).map(([key, value]) => <div key={key}>
+      <dt>{scoreNames[key] ?? key}</dt><dd>{value > 0 ? '+' : ''}{value.toFixed(2)}</dd>
+    </div>)}</dl>
+    <p>Relevant under this project score: {audit.relevant_agents.map((id) => agentNames[id] ?? id).join(', ')}.</p>
+    {audit.missed_critical_agents.length > 0 && <p>Missed critical checks: {audit.missed_critical_agents.map((id) => agentNames[id] ?? id).join(', ')}.</p>}
+    {audit.unneeded_agents.length > 0 && <p>Unneeded checks under this score: {audit.unneeded_agents.map((id) => agentNames[id] ?? id).join(', ')}.</p>}
+    <ul className="research-audit-checks">{audit.checks.map((check) => <li key={check.agent_id}>
+      <strong>{check.label}</strong>{' '}
+      <span>{checkValueText(check)}</span>
+      {check.critical && <span className="research-audit-status">{check.selected
+        ? `Covered critical check: ${agentNames[check.agent_id] ?? check.agent_id}`
+        : `Missed critical check: ${agentNames[check.agent_id] ?? check.agent_id}`}</span>}
+      <p>{check.note}</p>
+    </li>)}</ul>
+    <p className="research-audit-caveat">This proxy score does not measure financial improvement or prove which method gives better advice.</p>
+  </>
+  return collapsible
+    ? <details className="research-score-audit"><summary>Why this score?</summary>{content}</details>
+    : <div className="research-score-audit"><h4>Why this score?</h4>{content}</div>
+}
+
 function PolicyResult({ title, explanation, outcome }) {
   return <article className="research-result">
     <div className="research-result-head"><div><h3>{title}</h3><p>{explanation}</p></div><strong>{outcome.total_reward.toFixed(2)} <small>points</small></strong></div>
     <p className="research-small-label">AGENTS SELECTED</p>
     <div className="research-agent-list">{outcome.selected_agents.map((id) => <span key={id}>{agentNames[id] ?? id}</span>)}</div>
     <details className="research-details"><summary>See score and findings</summary>
-      <dl className="research-score-list">{Object.entries(outcome.reward_components).map(([key, value]) => <div key={key}><dt>{scoreNames[key] ?? key}</dt><dd>{value > 0 ? '+' : ''}{value.toFixed(2)}</dd></div>)}</dl>
+      <RewardAuditDetails audit={outcome.reward_audit} />
       <div className="research-findings">{outcome.findings.map((finding, index) => <p key={`${finding.agent_id}-${index}`}><strong>{finding.title}:</strong> {finding.reason}</p>)}</div>
     </details>
   </article>
@@ -102,6 +137,7 @@ function ManualExperiment({ userId }) {
           : `A complete Advisor plan also needs: ${result.plan_readiness.missing_agents.map((id) => agentNames[id] ?? id).join(', ')}.`}
       </p>
       <p>Selection score: <strong>{result.total_reward.toFixed(2)}</strong> project points. This score does not measure financial improvement.</p>
+      <RewardAuditDetails audit={result.reward_audit} collapsible />
       <div className="research-manual-findings">{result.agent_results.map((agent) => <section key={agent.agent_id}>
         <h4>{agentNames[agent.agent_id] ?? agent.agent_id}</h4>
         {agent.findings.length ? agent.findings.map((finding) => <div key={finding.code}>
@@ -119,11 +155,13 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
   const [comparison, setComparison] = useState(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
+  const [seed, setSeed] = useState('42')
 
-  async function run() {
+  async function run(event) {
+    event.preventDefault()
     if (running) return
     setRunning(true); setError('')
-    try { setComparison(await compareResearchPolicies(userId)) }
+    try { setComparison(await compareResearchPolicies(userId, Number(seed))) }
     catch (requestError) { setError(explainApiError(requestError)) }
     finally { setRunning(false) }
   }
@@ -131,7 +169,11 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
   return <section className="research-page" aria-labelledby="research-heading">
     <div className="research-intro"><div><h2 id="research-heading">Agent selection, explained</h2>
       <p>Compare the trained selector with the rule-based and random methods on your current saved profile.</p></div>
-      {hasProfile ? <button type="button" className="primary-action" onClick={run} disabled={running}>{running ? 'Comparing…' : comparison ? 'Run comparison again' : 'Compare methods'}</button>
+      {hasProfile ? <form className="research-compare-controls" onSubmit={run}>
+        <label>Random seed<input type="number" min="0" max="1000000000" step="1" required value={seed}
+          onChange={(event) => setSeed(event.target.value)} /></label>
+        <button type="submit" className="primary-action" disabled={running}>{running ? 'Comparing…' : comparison ? 'Run comparison again' : 'Compare methods'}</button>
+      </form>
         : <button type="button" className="primary-action" onClick={onOpenProfile}>Create a profile</button>}
     </div>
     <div className="research-explainer"><strong>What this score means</strong><p>The score rewards relevant and critical checks, then subtracts points for missed needs and extra agent calls. It does not measure a change in your finances or prove that one method gives better advice.</p></div>
@@ -140,12 +182,12 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
     {error && <p role="alert" className="research-error">{error}</p>}
     {comparison && <><p className="research-meta">Based on your saved profile as of {comparison.as_of_date}. Seed {comparison.seed}. No advisory session was saved.</p>
       {comparison.model.status === 'available' ? <><div className="research-results">
-        <PolicyResult title="Trained selector" explanation="A one-step model fitted to the project’s proxy score." outcome={comparison.policies.learned} />
-        <PolicyResult title="Rule-based selection" explanation="The app’s current, explicit selection logic." outcome={comparison.policies.rule} />
-        <PolicyResult title="Random baseline" explanation="A seeded comparison point." outcome={comparison.policies.random} />
+        <PolicyResult title="Trained selector" explanation="A fitted model chose these agents. The score audit explains the points, not the model’s internal cause." outcome={comparison.policies.learned} />
+        <PolicyResult title="Rule-based selection" explanation="The app’s explicit selection logic; the score uses overlapping conditions." outcome={comparison.policies.rule} />
+        <PolicyResult title="Random baseline" explanation={`A repeatable random choice using seed ${comparison.seed}.`} outcome={comparison.policies.random} />
       </div><Benchmark training={comparison.model.training} /></> : <><p className="research-error" role="status">{comparison.model.reason}</p>
-        <div className="research-results"><PolicyResult title="Rule-based selection" explanation="The app’s current, explicit selection logic." outcome={comparison.policies.rule} />
-          <PolicyResult title="Random baseline" explanation="A seeded comparison point." outcome={comparison.policies.random} /></div></>}
+        <div className="research-results"><PolicyResult title="Rule-based selection" explanation="The app’s explicit selection logic; the score uses overlapping conditions." outcome={comparison.policies.rule} />
+          <PolicyResult title="Random baseline" explanation={`A repeatable random choice using seed ${comparison.seed}.`} outcome={comparison.policies.random} /></div></>}
       <p className="research-footnote">The Advisor continues to use the complete rule-based plan. This comparison does not save an advisory session or change your profile.</p></>}
   </section>
 }

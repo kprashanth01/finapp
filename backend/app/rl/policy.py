@@ -7,8 +7,9 @@ from pathlib import Path
 import numpy as np
 
 from app.rl.observation import FEATURE_NAMES, OBSERVATION_VERSION, encode_observation
+from app.rl.baselines import RandomBaseline, RuleBaseline
 from app.rl.reward import REWARD_VERSION, reward_components
-from app.rl.selection import ACTION_COUNT, ACTION_VERSION, agents_for, rule_action
+from app.rl.selection import ACTION_COUNT, ACTION_VERSION, DEFAULT_CATALOG, agents_for
 
 POLICY_VERSION = "fitted-proxy-q-v1"
 
@@ -122,13 +123,14 @@ def train_policy(states, *, seed=42, epochs=100, hidden=48, learning_rate=0.004)
 def evaluate_policy(states, policy, *, seed=42):
     if not states:
         raise ValueError("Benchmark needs held-out cases.")
-    rng = np.random.default_rng(seed)
     matrix = reward_matrix(states)
     observations = np.stack([encode_observation(state) for state in states])
+    rule = RuleBaseline()
+    random = RandomBaseline(seed=seed)
     actions = {
         "learned": np.argmax(policy.predict_rewards(observations), axis=1),
-        "rule": np.asarray([rule_action(state) for state in states]),
-        "random": rng.integers(ACTION_COUNT, size=len(states)),
+        "rule": np.asarray([rule.choose_action(state, DEFAULT_CATALOG) for state in states]),
+        "random": np.asarray([random.choose_action(state, DEFAULT_CATALOG) for state in states]),
         "oracle": np.argmax(matrix, axis=1),
     }
     results = {}
