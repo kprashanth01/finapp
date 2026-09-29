@@ -94,6 +94,17 @@ export async function compareResearchPolicies(userId, seed = 42) {
   return response.data
 }
 
+export async function explainSavedSession(userId, sessionId) {
+  return (await api.post(`/users/${userId}/advisory-sessions/${sessionId}/reasoning`, {}, { timeout: 20000 })).data
+}
+
+export async function explainLiveRun(userId, result) {
+  return (await api.post(`/users/${userId}/research/orchestration-reasoning`, {
+    mode: result.mode, seed: result.seed ?? 42,
+    state_fingerprint: result.state_fingerprint, action: result.action,
+  }, { timeout: 30000 })).data
+}
+
 export async function runOrchestration(userId, mode, seed = 42) {
   return (await api.post(`/users/${userId}/research/orchestration-run`, { mode, seed }, {
     timeout: mode === 'rl' ? 30000 : 5000,
