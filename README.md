@@ -1,6 +1,6 @@
 # FinApp
 
-An educational research prototype for a future RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. Its findings are illustrative project outputs, not professional financial advice.
+An educational research prototype for an RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. The Research view compares a trained experimental agent selector with rule-based and random baselines on your saved profile. Its findings are illustrative project outputs, not professional financial advice.
 
 ## How the current flow works
 
@@ -31,7 +31,7 @@ The app creates no demo users or financial data. The browser keeps a host-only, 
 - Node.js 20.19+ or 22.12+ and npm
 - PostgreSQL with a database and login for this project
 
-Docker, API keys, LLM providers, and ML packages are not needed for this issue.
+The backend requirements include NumPy and Gymnasium for the research environment. Installing `backend/requirements.txt` installs both. Docker, API keys, LLM providers, PyTorch, and model downloads are not needed for this issue. No new environment variable or database migration is needed.
 
 ## One-time setup
 
@@ -132,7 +132,7 @@ Set-Location frontend
 npm run dev
 ```
 
-Open the URL printed by Vite, normally <http://localhost:5173>. Sign in, create an account, or claim an earlier local profile. New accounts first enter gross monthly income in **Profile → User details**, then save their financial profile. **Dashboard** shows current saved amounts, calculated metrics, and the latest advisory summary. **Goals** stores measurable targets. **Advisor** runs an analysis and lists saved sessions. Refreshing the page reloads the signed-in account. **Sign out** revokes its session. The API health endpoint remains at <http://localhost:8000/health>.
+Open the URL printed by Vite, normally <http://localhost:5173>. Sign in, create an account, or claim an earlier local profile. New accounts first enter gross monthly income in **Profile → User details**, then save their financial profile. **Dashboard** shows current saved amounts, calculated metrics, and the latest advisory summary. **Goals** stores measurable targets. **Advisor** runs an analysis and lists saved sessions. **Research** compares agent-selection methods on the signed-in user's saved profile without saving an advisory session. The desktop sidebar becomes bottom navigation on narrow screens. Refreshing the page reloads the signed-in account. **Sign out** revokes its session. The API health endpoint remains at <http://localhost:8000/health>.
 
 The income field means **gross monthly income before tax** for the ratios below. Monthly expenses should include monthly debt payments; the separate debt-payment input identifies the portion used for DTI and cannot exceed total expenses. Savings and outstanding debt are balances, while monthly savings contributions and debt payments are flows. Existing profiles keep working because the two new flow inputs are optional.
 
@@ -187,7 +187,21 @@ Every run stores immutable inputs, goal snapshots, one UTC planning date, agent 
 
 Earlier v1 sessions retain their original three-agent payload and six captured financial amounts. They are labeled as an earlier format, with no newly reconstructed historical goals or risk fields. History loads newest first in pages of ten. Expand **Why this plan** for the allocation policy and **Research details** for agents, evidence, and version information.
 
-The pipeline uses a replaceable orchestrator interface and structured agent facts as the baseline for future RL work. No trained RL policy or LLM is used yet.
+The Advisor uses the replaceable rule-based orchestrator and structured agent facts. Research has an experimental trained selector; neither the trained selector nor an LLM generates the saved Advisor plan.
+
+### Research comparison and RL foundation
+
+**Research → Compare methods** evaluates a trained selector, the current rule-based selection, and a seeded random selection on exactly the same saved planning state. The page also shows a separate held-out benchmark. None of these comparisons changes balances, creates goals, or saves an advisory session. The Advisor still uses its complete rule-based plan.
+
+`backend/app/rl/` contains the versioned numerical observation, a stable nonempty subset action mapping for the six agents (`0` through `62`), a one-step Gymnasium environment, and an explicit proxy reward. The observation uses bounded ratios for income, expenses, savings contribution, debt, reserve coverage, goals, and horizon; it also includes risk preference and missing-input flags. Agent selection is the action. One step executes the selected agents and ends the episode. It returns the same financial observation because receiving advice cannot itself change someone's finances.
+
+The 16 observation features are documented in `FEATURE_NAMES` in their stable order. Expense, savings-contribution, and debt-payment ratios relate monthly flows to income. Reserve months divided by six and debt balance divided by annual income describe the available buffer and outstanding burden. Active-goal count divided by five, nearest goal's years remaining, and remaining goal amount divided by annual income describe target size and urgency. Horizon divided by 20 and three one-hot risk-preference values describe the recorded investment context. Three flags distinguish absent savings, debt-payment, and horizon inputs from real zeroes; an income flag marks a missing denominator. Values are clipped to bounded ranges so unusually large amounts cannot dominate the vector. Names and order must be versioned together with any future trained model.
+
+The proxy reward is the sum of five visible components: +1 per relevant check, +2 per covered critical check, −3 per missed critical check, −0.75 per unneeded check, and −0.15 per agent call. Here “critical” means a reserve below three months of expenses, high or unknown debt burden when debt exists, or an unfinished goal. These are deliberately transparent project choices, not observed financial outcomes. The reward can compare selection methods under its own assumptions; it cannot establish which method gives better real-world advice.
+
+`python -m app.rl.train` from `backend/` rebuilds `backend/app/rl/model.json` using only NumPy. It generates 1,536 in-memory training scenarios and 384 separate test scenarios with fixed seeds. Scenarios vary income, expenses, debt, emergency reserve, contribution, risk, horizon, and goal timing. They are **generated coverage cases**, not household survey records, saved user profiles, or observed financial outcomes. The trainer calculates all 63 proxy rewards for each training case and fits a small neural network to predict them. The one-step environment makes this a **contextual bandit / one-step RL selection task**, not a long-term financial planning policy. The model artifact includes schema versions, a checksum, seeds, and aggregate benchmark metrics; a missing or incompatible artifact leaves the rule and random comparison available.
+
+The current held-out proxy benchmark (384 generated cases) gives the trained selector **7.79**, the rule-based selector **7.88**, and seeded random selection **1.33** mean points. Critical checks were missed in **0%**, **0%**, and **61.2%** of cases respectively. The rule-based selector matches the proxy oracle here because its selection logic and the reward definition overlap. The learned model is slightly worse under that proxy and **has not demonstrated better financial advice**. A defensible next research step is independent household-data stress testing and an outcome or expert-labelled evaluation target; a survey of financial inputs alone does not provide an advice-quality reward or observed sequential effects.
 
 ## API available now
 
@@ -209,6 +223,7 @@ The pipeline uses a replaceable orchestrator interface and structured agent fact
 | PUT | `/users/{id}/goals/{goal_id}` | Update a goal, preserving archive state |
 | PATCH | `/users/{id}/goals/{goal_id}` | Archive/restore with `{ "archived": true/false }` |
 | POST | `/users/{id}/advisory-sessions` | Run and save a rule-based advisory session |
+| POST | `/users/{id}/research/comparison` | Compare trained, rule, and seeded random selection on the owner's saved profile without saving data; optional JSON `{ "seed": 42 }` |
 | GET | `/users/{id}/advisory-sessions/latest` | Load the latest run and its stale status |
 | GET | `/users/{id}/advisory-sessions?limit=10&before_id=<id>` | List newest session summaries with a cursor for older pages |
 | GET | `/users/{id}/advisory-sessions/{session_id}` | Load one owned historical run and its stale status |
@@ -224,7 +239,7 @@ Set-Location backend
 ..\.venv\Scripts\python -m pytest -q
 ```
 
-These tests use a temporary SQLite database for API, auth, rule, persistence, history, and ownership checks. Apply Alembic migrations through `0006_private_accounts` and check signup/sign-in, profile/goals/advisor, reload, and sign-out against PostgreSQL. From `frontend/`, run `npm test` and `npm run build`.
+These tests use a temporary SQLite database for API, auth, rule, persistence, history, research, and ownership checks. Apply Alembic migrations through `0006_private_accounts` and check signup/sign-in, profile/goals/advisor/research, reload, and sign-out against PostgreSQL. From `frontend/`, run `npm test` and `npm run build`.
 
 ## Current structure
 
@@ -232,6 +247,7 @@ These tests use a temporary SQLite database for API, auth, rule, persistence, hi
 backend/app/             API, validation schemas, and database models
 backend/app/services/    Deterministic financial analysis
 backend/app/advisory/    State, agents, registry, orchestration, and findings
+backend/app/rl/          Observation, agent actions, reward, environment, trained research selector, and comparison API
 backend/alembic/         PostgreSQL schema migration
 backend/tests/           Focused API behavior checks
 frontend/src/components/ Entry forms, dashboard, and analysis/history views
@@ -244,4 +260,4 @@ Each meaningful feature is tracked in a GitHub issue and built on a feature bran
 
 This remains a research prototype, not a financial advisory product. Passwords use Argon2id hashes, sessions are revocable and expire after seven days, and each user-scoped API route checks the signed-in owner. Mutating browser calls carry a custom request header; credentialed CORS is limited to explicit frontend origins. Local loopback HTTP uses a development cookie; non-loopback deployments require HTTPS and a Secure cookie. Set `FINAPP_ALLOWED_ORIGINS` to an explicit comma-separated list of your frontend origins when deploying. Serve only the authenticated API build; an older API process pointed at the same database would still expose its older routes.
 
-Email verification, password recovery, MFA, and deployment-level rate limiting are not in this issue. Use practice values until those controls and a reviewed HTTPS deployment are in place. Trained RL policies, LLM reasoning, and experiment comparisons remain future milestones.
+Email verification, password recovery, MFA, and deployment-level rate limiting are not in this issue. Use practice values until those controls and a reviewed HTTPS deployment are in place. An independently evaluated RL orchestrator for complete Advisor plans, LLM reasoning, and broader experiments remain future milestones.

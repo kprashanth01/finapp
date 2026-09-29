@@ -67,6 +67,8 @@ def test_every_private_path_requires_account_and_exact_owner(accounts):
     assert second.patch(f"{owner_path}/goals/{goal['id']}", headers=MUTATION,
                         json={"archived": True}).status_code == 404
     assert second.post(f"{owner_path}/advisory-sessions", headers=MUTATION).status_code == 404
+    assert anonymous.post(f"{owner_path}/research/comparison", headers=MUTATION, json={"seed": 1}).status_code == 401
+    assert second.post(f"{owner_path}/research/comparison", headers=MUTATION, json={"seed": 1}).status_code == 404
     assert first.get(f"{owner_path}/advisory-sessions/{run['id']}").status_code == 200
     assert first.get(f"/users/{other}/advisory-sessions/{run['id']}").status_code == 404
 

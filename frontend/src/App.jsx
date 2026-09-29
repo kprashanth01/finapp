@@ -117,11 +117,16 @@ export default function App() {
     </>
   }
 
-  return <main className="min-h-screen bg-slate-50 px-5 py-10 text-slate-900 sm:py-16">
-    <div className="mx-auto max-w-lg">
-      <header className="mb-8"><h1 className="text-3xl font-semibold tracking-tight">FinApp</h1>
-        <p className="mt-2 text-slate-600">Your saved financial profile, goals, and explained advisory plans.</p></header>
-      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+  return <main className="auth-page">
+    <div className="auth-layout">
+      <aside className="auth-story">
+        <div className="auth-brand"><span className="app-brand-mark" aria-hidden="true"><span /><span /><span /></span>FinApp</div>
+        <div className="auth-story-copy"><h1>Make sense of your financial picture.</h1>
+          <p>Keep your profile and goals in one place. See the calculations behind a monthly plan, and inspect how the advisory agents were chosen.</p></div>
+        <p className="auth-story-note">Educational research prototype · Use practice financial values</p>
+      </aside>
+      <section className="auth-panel">
+        <div className="auth-mobile-brand">FinApp</div>
         {auth.status === 'checking' ? <p role="status">Checking your session…</p>
           : auth.status === 'unavailable' ? <div role="alert"><h2 className="text-xl font-semibold">API unavailable</h2>
             <p className="mt-2 text-sm text-slate-600">Your account status could not be checked. Check the backend and try again.</p>
@@ -129,7 +134,6 @@ export default function App() {
             : <AuthScreen key={mode} mode={mode} pending={pending} error={error} onSubmit={submit}
                 onMode={(next) => { setMode(next); setError('') }} />}
       </section>
-      <p className="mt-5 text-sm text-slate-500">Educational research prototype. Use practice financial values.</p>
     </div>
   </main>
 }
