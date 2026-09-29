@@ -11,12 +11,13 @@ let createAuthRequestGate
 let subscribeToAuthChanges
 let settleAuthSuccess
 let api
+let defaultApiBaseUrl
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
   AuthScreen = (await server.ssrLoadModule('/src/components/AuthScreen.jsx')).default
   ;({ resolveBootState, createAuthRequestGate, subscribeToAuthChanges, settleAuthSuccess } = await server.ssrLoadModule('/src/services/authState.js'))
-  ;({ api } = await server.ssrLoadModule('/src/services/api.js'))
+  ;({ api, defaultApiBaseUrl } = await server.ssrLoadModule('/src/services/api.js'))
 })
 after(async () => { await server?.close() })
 
@@ -55,6 +56,11 @@ test('boot separates signed-out status from unavailable API, and old auth work c
 test('API uses browser cookies and sends a mutation header', () => {
   assert.equal(api.defaults.withCredentials, true)
   assert.equal(api.defaults.headers['X-FinApp-Request'], '1')
+})
+
+test('local API uses the same hostname as the page so strict session cookies are sent', () => {
+  assert.equal(defaultApiBaseUrl({ protocol: 'http:', hostname: '127.0.0.1' }), 'http://127.0.0.1:8000')
+  assert.equal(defaultApiBaseUrl({ protocol: 'http:', hostname: 'localhost' }), 'http://localhost:8000')
 })
 
 test('another tab changing account immediately invalidates its displayed workspace', () => {

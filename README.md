@@ -74,7 +74,7 @@ Edit the root `.env` file and set:
 DATABASE_URL=postgresql+psycopg://finapp_dev:YOUR_URL_ENCODED_PASSWORD@127.0.0.1:5432/finapp
 ```
 
-URL-encode special characters in the database password. The `.env` file is Git-ignored. Keep the password there; do not send or commit it. FastAPI and Alembic read this root file. The `frontend/.env.example` file is only for changing the frontend's API address; the default is `http://localhost:8000`. Keep the browser and API on the same hostname (`localhost` or `127.0.0.1`) so the local session cookie works.
+URL-encode special characters in the database password. The `.env` file is Git-ignored. Keep the password there; do not send or commit it. FastAPI and Alembic read this root file. The frontend defaults to port 8000 on the **same hostname as the page**: a page at `127.0.0.1:5173` calls `127.0.0.1:8000`, while a page at `localhost:5173` calls `localhost:8000`. This keeps the local session cookie on one host. Use `frontend/.env.example` only if the API is elsewhere.
 
 ### 3. Install packages
 
