@@ -8,12 +8,13 @@ let server
 let AuthScreen
 let resolveBootState
 let createAuthRequestGate
+let subscribeToAuthChanges
 let api
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
   AuthScreen = (await server.ssrLoadModule('/src/components/AuthScreen.jsx')).default
-  ;({ resolveBootState, createAuthRequestGate } = await server.ssrLoadModule('/src/services/authState.js'))
+  ;({ resolveBootState, createAuthRequestGate, subscribeToAuthChanges } = await server.ssrLoadModule('/src/services/authState.js'))
   ;({ api } = await server.ssrLoadModule('/src/services/api.js'))
 })
 after(async () => { await server?.close() })
@@ -53,4 +54,16 @@ test('boot separates signed-out status from unavailable API, and old auth work c
 test('API uses browser cookies and sends a mutation header', () => {
   assert.equal(api.defaults.withCredentials, true)
   assert.equal(api.defaults.headers['X-FinApp-Request'], '1')
+})
+
+test('another tab changing account immediately invalidates its displayed workspace', () => {
+  let changes = 0
+  const channel = { onmessage: null, close() { this.closed = true } }
+  const unsubscribe = subscribeToAuthChanges(channel, () => { changes += 1 })
+  channel.onmessage({ data: { type: 'account-changed' } })
+  assert.equal(changes, 1)
+  channel.onmessage({ data: { type: 'unrelated' } })
+  assert.equal(changes, 1)
+  unsubscribe()
+  assert.equal(channel.closed, true)
 })

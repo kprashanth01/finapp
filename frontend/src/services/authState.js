@@ -17,3 +17,10 @@ export function createAuthRequestGate() {
 }
 
 export const identityEpoch = createAuthRequestGate()
+
+export function subscribeToAuthChanges(channel, onChange) {
+  channel.onmessage = (event) => {
+    if (event.data?.type === 'account-changed') onChange()
+  }
+  return () => { channel.onmessage = null; channel.close() }
+}

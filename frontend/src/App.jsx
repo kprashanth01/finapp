@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import AuthScreen from './components/AuthScreen.jsx'
 import Workspace from './Workspace.jsx'
-import { createAuthRequestGate, identityEpoch, resolveBootState } from './services/authState.js'
+import { createAuthRequestGate, identityEpoch, resolveBootState, subscribeToAuthChanges } from './services/authState.js'
 import { claimEarlierProfile, createUser, explainApiError, getCurrentUser, signIn, signOut } from './services/api.js'
 
 export default function App() {
@@ -12,6 +12,11 @@ export default function App() {
   const [startView, setStartView] = useState('dashboard')
   const requests = useRef(createAuthRequestGate())
   const authInFlight = useRef(false)
+  const accountChannel = useRef(null)
+
+  function announceAccountChange() {
+    accountChannel.current?.postMessage({ type: 'account-changed' })
+  }
 
   async function checkSession() {
     const token = requests.current.begin()
@@ -32,8 +37,25 @@ export default function App() {
       setError('Your session ended. Sign in again to continue.')
     }
     window.addEventListener('finapp:session-expired', expired)
+    let unsubscribe
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('finapp-auth')
+      accountChannel.current = channel
+      unsubscribe = subscribeToAuthChanges(channel, () => {
+        requests.current.invalidate()
+        identityEpoch.invalidate()
+        setPending(false)
+        setError('')
+        checkSession()
+      })
+    }
     checkSession()
-    return () => { requests.current.invalidate(); window.removeEventListener('finapp:session-expired', expired) }
+    return () => {
+      requests.current.invalidate()
+      window.removeEventListener('finapp:session-expired', expired)
+      unsubscribe?.()
+      accountChannel.current = null
+    }
   }, [])
 
   async function submit(selectedMode, values) {
@@ -50,6 +72,7 @@ export default function App() {
       identityEpoch.invalidate()
       setStartView(selectedMode === 'signup' ? 'profile' : 'dashboard')
       setAuth({ status: 'signedIn', user: account })
+      announceAccountChange()
     } catch (requestError) {
       if (requests.current.isCurrent(token)) setError(explainApiError(requestError))
     } finally {
@@ -70,6 +93,7 @@ export default function App() {
       if (!requests.current.isCurrent(token)) return
       setAuth({ status: 'signedOut', user: null })
       setMode('login')
+      announceAccountChange()
     } catch (requestError) {
       if (requests.current.isCurrent(token)) setError(`Sign out failed: ${explainApiError(requestError)}`)
     } finally {
