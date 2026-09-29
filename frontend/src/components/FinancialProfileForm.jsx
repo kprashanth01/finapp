@@ -38,10 +38,10 @@ function FinancialProfileForm({ profile, onSave, saving, disabled }) {
   return (
     <form onSubmit={submit} className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">2. Financial profile</h2>
+        <h2 className="text-xl font-semibold">Financial profile</h2>
         <p className="mt-1 text-sm text-slate-600">Use the same currency for every amount. The monthly flow fields help calculate the analysis below.</p>
       </div>
-      <div className="grid gap-5 sm:grid-cols-2">
+      <fieldset disabled={saving || disabled} className="grid gap-5 sm:grid-cols-2">
         <label className={labelClass}>
           Monthly expenses (including debt payments)
           <input className={inputClass} name="monthly_expenses" type="number" min="0" step="0.01" value={fields.monthly_expenses} onChange={update} required />
@@ -81,11 +81,7 @@ function FinancialProfileForm({ profile, onSave, saving, disabled }) {
           Investment horizon in years (optional)
           <input className={inputClass} name="investment_horizon_years" type="number" min="0" max="80" step="1" value={fields.investment_horizon_years} onChange={update} />
         </label>
-      </div>
-      <label className={labelClass}>
-        Financial goal (optional)
-        <input className={inputClass} name="financial_goal" value={fields.financial_goal} onChange={update} maxLength="200" placeholder="Describe a goal in your own words" />
-      </label>
+      </fieldset>
       <button type="submit" disabled={saving || disabled} className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
         {saving ? 'Saving…' : profile ? 'Update profile' : 'Save profile'}
       </button>

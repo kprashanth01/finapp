@@ -4,8 +4,11 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_session
-from app.advisory.service import financial_state, run_advisory
-from app.advisory.types import AdvisoryHistoryPage, AdvisorySessionRead, AdvisorySessionSummary
+from app.advisory.service import financial_state, run_advisory, planning_date
+from app.advisory.session_types import AdvisoryHistoryPage, AdvisorySessionRead, AdvisorySessionSummary, get_priority_actions
+from app.advisory.state import PlanningState
+from app.advisory.rules import RULE_VERSION
+from app.goal_api import load_active_goals
 from app.models import AnalysisSession, FinancialProfile, User
 from app.schemas import AnalysisRead, ProfileRead, ProfileWrite, UserCreate, UserRead
 from app.services.financial_analysis import FinancialAnalysisService
@@ -103,14 +106,25 @@ def _saved_financial_data(user_id: int, session: Session) -> tuple[User, Financi
     return user, profile
 
 
-def _session_read(row: AnalysisSession, current_fingerprint: str) -> AdvisorySessionRead:
+def _session_read(row: AnalysisSession, current_state: PlanningState) -> AdvisorySessionRead:
+    reasons = []
+    stored = row.result_payload['state']
+    # Early v1 rows predate the explicit state-version field.
+    if stored.get('schema_version', 'financial-state-v1') == 'financial-state-v2':
+        if row.input_fingerprint != current_state.fingerprint():
+            reasons.append('inputs')
+        if stored['as_of_date'] != current_state.as_of_date.isoformat():
+            reasons.append('planning_date')
+    if row.rule_version != RULE_VERSION:
+        reasons.append('rule_version')
     return AdvisorySessionRead(
         id=row.id,
         user_id=row.user_id,
         created_at=row.created_at,
         method=row.method,
         rule_version=row.rule_version,
-        is_stale=row.input_fingerprint != current_fingerprint,
+        is_stale=bool(reasons),
+        stale_reasons=reasons,
         result=row.result_payload,
     )
 
@@ -120,7 +134,7 @@ def create_advisory_session(
     user_id: int, session: Session = Depends(get_session)
 ) -> AdvisorySessionRead:
     user, profile = _saved_financial_data(user_id, session)
-    result = run_advisory(user, profile)
+    result = run_advisory(user, profile, load_active_goals(session, user_id), planning_date())
     row = AnalysisSession(
         user_id=user_id,
         method=result.decision.method,
@@ -131,7 +145,7 @@ def create_advisory_session(
     session.add(row)
     session.commit()
     session.refresh(row)
-    return _session_read(row, result.state.fingerprint())
+    return _session_read(row, result.state)
 
 
 @router.get("/users/{user_id}/advisory-sessions/latest", response_model=AdvisorySessionRead)
@@ -147,7 +161,7 @@ def get_latest_advisory_session(
     )
     if row is None:
         raise HTTPException(status_code=404, detail="No advisory session has been run yet.")
-    return _session_read(row, financial_state(user, profile).fingerprint())
+    return _session_read(row, financial_state(user, profile, load_active_goals(session, user_id), planning_date()))
 
 
 @router.get("/users/{user_id}/advisory-sessions", response_model=AdvisoryHistoryPage)
@@ -170,11 +184,11 @@ def list_advisory_sessions(
     rows = session.scalars(query.order_by(AnalysisSession.id.desc()).limit(limit + 1)).all()
     page_rows = rows[:limit]
     next_before_id = page_rows[-1].id if len(rows) > limit else None
-    fingerprint = financial_state(user, profile).fingerprint() if page_rows else ""
+    fingerprint = financial_state(user, profile, load_active_goals(session, user_id), planning_date()) if page_rows else ""
     items = []
     for row in page_rows:
         saved = _session_read(row, fingerprint)
-        titles = [action.title for action in saved.result.priority_actions]
+        titles = [action.title for action in get_priority_actions(saved.result)]
         items.append(
             AdvisorySessionSummary(
                 id=saved.id,
@@ -183,6 +197,7 @@ def list_advisory_sessions(
                 method=saved.method,
                 rule_version=saved.rule_version,
                 is_stale=saved.is_stale,
+                stale_reasons=saved.stale_reasons,
                 priority_titles=titles,
                 priority_count=len(titles),
             )
@@ -202,4 +217,4 @@ def get_advisory_session(
     )
     if row is None:
         raise HTTPException(status_code=404, detail="Advisory session not found.")
-    return _session_read(row, financial_state(user, profile).fingerprint())
+    return _session_read(row, financial_state(user, profile, load_active_goals(session, user_id), planning_date()))

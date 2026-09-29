@@ -1,0 +1,149 @@
+{
+  "state": {
+    "schema_version": "financial-state-v1",
+    "monthly_income": "5000",
+    "monthly_expenses": "3000",
+    "monthly_savings_contribution": "500",
+    "monthly_debt_payments": "200",
+    "existing_debt": "1000",
+    "emergency_fund": "4000",
+    "savings_rate_percent": "10.00",
+    "debt_to_income_percent": "4.00",
+    "expense_to_income_percent": "60.00",
+    "emergency_fund_months": "1.33",
+    "input_fingerprint": "5a6ea894a5bed628fb51cc8036f5c5b03d7bfdef184d94d748fbdf8ba9b3bad9"
+  },
+  "decision": {
+    "method": "rule_based",
+    "rule_version": "rule-based-v1",
+    "selections": [
+      {
+        "agent_id": "budget",
+        "selected": true,
+        "reason": "Budget ratios are relevant to every saved profile."
+      },
+      {
+        "agent_id": "debt",
+        "selected": true,
+        "reason": "Saved debt balance or payment is present."
+      },
+      {
+        "agent_id": "emergency",
+        "selected": true,
+        "reason": "Emergency reserve coverage is relevant to every saved profile."
+      }
+    ]
+  },
+  "agent_results": [
+    {
+      "agent_id": "budget",
+      "status": "ok",
+      "findings": [
+        {
+          "code": "budget_ratios",
+          "title": "Budget ratios",
+          "reason": "These ratios describe the saved monthly amounts; no budget priority was triggered.",
+          "priority": false,
+          "evidence": [
+            {
+              "label": "Expense-to-income ratio",
+              "value": "60.00",
+              "unit": "%"
+            },
+            {
+              "label": "Savings rate",
+              "value": "10.00",
+              "unit": "%"
+            }
+          ],
+          "limitations": [
+            "Ratios use gross income; they do not show spendable cash."
+          ]
+        }
+      ],
+      "limitations": [
+        "Ratios use gross income; they do not show spendable cash."
+      ]
+    },
+    {
+      "agent_id": "debt",
+      "status": "ok",
+      "findings": [
+        {
+          "code": "debt_ratio",
+          "title": "Debt payment ratio",
+          "reason": "No debt-payment priority was triggered by the available inputs.",
+          "priority": false,
+          "evidence": [
+            {
+              "label": "Debt-to-income ratio",
+              "value": "4.00",
+              "unit": "%"
+            },
+            {
+              "label": "Outstanding debt",
+              "value": "1000",
+              "unit": "currency"
+            }
+          ],
+          "limitations": []
+        }
+      ],
+      "limitations": []
+    },
+    {
+      "agent_id": "emergency",
+      "status": "ok",
+      "findings": [
+        {
+          "code": "emergency_gap",
+          "title": "Review emergency reserve",
+          "reason": "Coverage is below the illustrative 3-month target.",
+          "priority": true,
+          "evidence": [
+            {
+              "label": "Emergency fund coverage",
+              "value": "1.33",
+              "unit": "months"
+            },
+            {
+              "label": "Gap to illustrative target",
+              "value": "5000",
+              "unit": "currency"
+            }
+          ],
+          "limitations": [
+            "The 3-month target is an illustrative project rule."
+          ]
+        }
+      ],
+      "limitations": [
+        "The 3-month target is an illustrative project rule."
+      ]
+    }
+  ],
+  "priority_actions": [
+    {
+      "code": "review_emergency",
+      "title": "Review emergency reserve",
+      "reason": "Coverage is below the illustrative 3-month target.",
+      "agent_id": "emergency",
+      "finding_code": "emergency_gap",
+      "evidence": [
+        {
+          "label": "Emergency fund coverage",
+          "value": "1.33",
+          "unit": "months"
+        },
+        {
+          "label": "Gap to illustrative target",
+          "value": "5000",
+          "unit": "currency"
+        }
+      ],
+      "limitations": [
+        "The 3-month target is an illustrative project rule."
+      ]
+    }
+  ]
+}

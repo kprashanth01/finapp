@@ -2,12 +2,13 @@
 
 import hashlib
 import json
+from datetime import date
 from decimal import Decimal
-from typing import Literal
+from typing import Literal, Sequence
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models import FinancialProfile, User
+from app.models import FinancialGoal, FinancialProfile, User
 from app.schemas import AnalysisRead
 
 
@@ -65,3 +66,49 @@ class FinancialState(BaseModel):
 
     def fingerprint(self) -> str:
         return self.input_fingerprint
+
+
+class GoalSnapshot(BaseModel):
+    model_config = ConfigDict(frozen=True, from_attributes=True)
+    id: int
+    name: str
+    target_amount: Decimal
+    saved_amount: Decimal
+    target_date: date
+    priority: Literal["high", "medium", "low"]
+
+
+class PlanningState(FinancialState):
+    schema_version: Literal["financial-state-v2"] = "financial-state-v2"
+    savings: Decimal
+    risk_tolerance: Literal["conservative", "moderate", "aggressive"]
+    investment_horizon_years: int | None
+    financial_goal: str | None
+    goals: tuple[GoalSnapshot, ...]
+    as_of_date: date
+
+
+def build_planning_state(user: User, profile: FinancialProfile, analysis: AnalysisRead,
+                         goals: Sequence[FinancialGoal], as_of_date: date) -> PlanningState:
+    legacy = FinancialState.from_saved(user, profile, analysis)
+    snapshot = PlanningState(**legacy.model_dump(exclude={"schema_version"}),
+        savings=profile.savings, risk_tolerance=profile.risk_tolerance,
+        investment_horizon_years=profile.investment_horizon_years,
+        financial_goal=profile.financial_goal,
+        goals=tuple(GoalSnapshot.model_validate(g) for g in sorted(goals, key=lambda g: g.id) if not g.archived),
+        as_of_date=as_of_date)
+
+    def canonical(value):
+        if isinstance(value, Decimal):
+            return format(value.quantize(Decimal('0.01')), 'f')
+        if isinstance(value, date):
+            return value.isoformat()
+        if isinstance(value, dict):
+            return {key: canonical(item) for key, item in value.items()}
+        if isinstance(value, (tuple, list)):
+            return [canonical(item) for item in value]
+        return value
+
+    inputs = snapshot.model_dump(exclude={'input_fingerprint', 'as_of_date'})
+    digest = hashlib.sha256(json.dumps(canonical(inputs), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    return snapshot.model_copy(update={'input_fingerprint': digest})

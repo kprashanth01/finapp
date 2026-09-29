@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Index, Numeric, String, UniqueConstraint, func
+from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, ForeignKey, Index, Numeric, String, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -28,6 +28,7 @@ class User(Base):
     analysis_sessions: Mapped[list["AnalysisSession"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    goals: Mapped[list["FinancialGoal"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class FinancialProfile(Base):
@@ -74,6 +75,27 @@ class FinancialProfile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="profile")
+
+
+class FinancialGoal(Base):
+    __tablename__ = "financial_goals"
+    __table_args__ = (
+        CheckConstraint("target_amount > 0", name="ck_goals_target"),
+        CheckConstraint("saved_amount >= 0", name="ck_goals_saved"),
+        CheckConstraint("priority IN ('high', 'medium', 'low')", name="ck_goals_priority"),
+        Index("ix_goals_user_archived", "user_id", "archived"),
+    )
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
+    target_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    saved_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    target_date: Mapped[date] = mapped_column(Date)
+    priority: Mapped[str] = mapped_column(String(10))
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    user: Mapped[User] = relationship(back_populates="goals")
 
 
 class AnalysisSession(Base):

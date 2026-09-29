@@ -30,10 +30,10 @@ function UserForm({ user, onSave, saving, disabled }) {
   return (
     <form onSubmit={submit} className="space-y-5">
       <div>
-        <h2 className="text-xl font-semibold">1. {user ? 'User details' : 'Create a user'}</h2>
+        <h2 className="text-xl font-semibold">{user ? 'User details' : 'Create a user'}</h2>
         <p className="mt-1 text-sm text-slate-600">{user ? 'Update the details attached to this profile.' : 'This gives your financial profile a record to belong to.'}</p>
       </div>
-      <div className="grid gap-5 sm:grid-cols-2">
+      <fieldset disabled={saving || disabled} className="grid gap-5 sm:grid-cols-2">
         <label className={labelClass}>
           Name
           <input className={inputClass} name="name" value={fields.name} onChange={update} required maxLength="100" />
@@ -53,9 +53,9 @@ function UserForm({ user, onSave, saving, disabled }) {
         <label className={labelClass}>
           Gross monthly income (before tax)
           <input className={inputClass} name="monthly_income" type="number" min="0" step="0.01" value={fields.monthly_income} onChange={update} required />
-          <span className="mt-1 block text-xs font-normal text-slate-500">Used for income-based ratios. Edit earlier entries if you entered take-home income.</span>
+          <span className="mt-1 block text-xs font-normal text-slate-500">Used for income-based ratios.</span>
         </label>
-      </div>
+      </fieldset>
       <button type="submit" disabled={saving || disabled} className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">
         {saving ? 'Saving…' : user ? 'Update user' : 'Create user'}
       </button>
