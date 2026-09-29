@@ -36,7 +36,7 @@ class AgentSelection(BaseModel):
 
 
 class OrchestratorDecision(BaseModel):
-    method: Literal["rule_based"] = "rule_based"
+    method: Literal["rule_based", "random", "rl"] = "rule_based"
     rule_version: str
     selections: list[AgentSelection]
 

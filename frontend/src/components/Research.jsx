@@ -109,7 +109,7 @@ export function TrainingEvidenceCard({ evidence }) {
         </tr>)}</tbody>
       </table></div>
     </details>
-    <p className="research-training-limit">Each episode makes one agent-selection decision. This is a one-step experiment using a rule-defined proxy reward, not evidence of improved financial outcomes. The DQN is not yet used by Advisor; the comparison below still uses the earlier fitted proxy selector.</p>
+    <p className="research-training-limit">Each episode makes one agent-selection decision. This is a one-step experiment using a rule-defined proxy reward, not evidence of improved financial outcomes. You can now run the trained DQN in Advisor's experimental selector; the comparison below still uses the earlier fitted proxy selector.</p>
   </section>
 }
 
@@ -231,6 +231,6 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
       </div><Benchmark training={comparison.model.training} /></> : <><p className="research-error" role="status">{comparison.model.reason}</p>
         <div className="research-results"><PolicyResult title="Rule-based selection" explanation="The app’s explicit selection logic; the score uses overlapping conditions." outcome={comparison.policies.rule} />
           <PolicyResult title="Random baseline" explanation={`A repeatable random choice using seed ${comparison.seed}.`} outcome={comparison.policies.random} /></div></>}
-      <p className="research-footnote">The Advisor continues to use the complete rule-based plan. This comparison does not save an advisory session or change your profile.</p></>}
+      <p className="research-footnote">The saved Advisor plan remains rule based. Advisor also offers read-only experimental mode runs, including the trained DQN. This comparison does not save an advisory session or change your profile.</p></>}
   </section>
 }

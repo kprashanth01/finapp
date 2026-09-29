@@ -94,6 +94,12 @@ export async function compareResearchPolicies(userId, seed = 42) {
   return response.data
 }
 
+export async function runOrchestration(userId, mode, seed = 42) {
+  return (await api.post(`/users/${userId}/research/orchestration-run`, { mode, seed }, {
+    timeout: mode === 'rl' ? 30000 : 5000,
+  })).data
+}
+
 export async function getResearchActions(userId) {
   return (await api.get(`/users/${userId}/research/actions`)).data
 }
@@ -132,5 +138,6 @@ export function explainApiError(error) {
     return `${field}: ${detail[0].msg}`
   }
   if (error.response) return 'The API could not complete the request. Check the backend terminal and database setup.'
+  if (error.code === 'ECONNABORTED') return 'The request timed out. The trained selector may still be loading; retry in a moment.'
   return 'Could not reach the API. Check that the backend is running.'
 }

@@ -45,6 +45,66 @@ def create_profile(client, email="example@sample-finapp.org"):
     return user, profile
 
 
+def test_orchestration_run_is_owned_read_only_and_reports_actual_agents(client):
+    user, profile = create_profile(client)
+    path = f"/users/{user['id']}/research/orchestration-run"
+    rule = client.post(path, json={"mode": "rule_based", "seed": 42})
+    assert rule.status_code == 200, rule.text
+    data = rule.json()
+    assert data["source"] == "saved_profile"
+    assert data["mode"] == "rule_based"
+    assert data["selected_agents"] == [item["agent_id"] for item in data["agent_results"]]
+    assert data["plan_readiness"]["can_build_full_plan"] is True
+    assert data["advice"]["summary"]["title"]
+    assert data["total_reward"] == pytest.approx(sum(data["reward_components"].values()))
+    random_one = client.post(path, json={"mode": "random", "seed": 17})
+    assert random_one.status_code == 200, random_one.text
+    assert client.post(path, json={"mode": "random", "seed": 17}).json() == random_one.json()
+    assert client.get(f"/users/{user['id']}/advisory-sessions").json()["items"] == []
+    assert client.post(path, json={"mode": "other"}).status_code == 422
+    assert client.post(path, json={"mode": "random", "seed": -1}).status_code == 422
+    other, _ = create_profile(client, email="other-run@sample-finapp.org")
+    assert client.post(path, json={"mode": "rule_based"}).status_code == 404
+    assert client.post(f"/users/{other['id']}/research/orchestration-run", json={"mode": "rule_based"}).status_code == 200
+    assert client.sign_in(user["email"]).status_code == 200
+    profile["emergency_fund"] = "12000.00"
+    assert client.put(f"/users/{user['id']}/financial-profile", json=profile).status_code == 200
+    changed = client.post(path, json={"mode": "rule_based"}).json()
+    assert changed["state_fingerprint"] != data["state_fingerprint"]
+
+
+def test_orchestration_run_reports_missing_rl_runtime_without_fallback(client, monkeypatch):
+    from app.rl import orchestration
+
+    user, _ = create_profile(client)
+    def unavailable():
+        raise FileNotFoundError("missing model")
+    monkeypatch.setattr(orchestration, "load_dqn_artifact", unavailable)
+    orchestration.cached_dqn_model.cache_clear()
+    try:
+        response = client.post(f"/users/{user['id']}/research/orchestration-run", json={"mode": "rl"})
+        assert response.status_code == 503
+        assert "trained RL selector is unavailable" in response.json()["detail"]
+        assert client.get(f"/users/{user['id']}/advisory-sessions").json()["items"] == []
+    finally:
+        orchestration.cached_dqn_model.cache_clear()
+
+
+def test_committed_dqn_runs_on_saved_profile_when_rl_runtime_is_installed(client):
+    pytest.importorskip("stable_baselines3")
+    from app.rl.dqn_artifact import MODEL_VERSION
+
+    user, _ = create_profile(client)
+    result = client.post(f"/users/{user['id']}/research/orchestration-run", json={"mode": "rl"})
+    assert result.status_code == 200, result.text
+    payload = result.json()
+    assert payload["policy_version"] == MODEL_VERSION
+    assert 0 <= payload["action"] < 63
+    assert payload["selected_agents"] == [item["agent_id"] for item in payload["agent_results"]]
+    assert payload["total_reward"] == pytest.approx(sum(payload["reward_components"].values()))
+    assert client.get(f"/users/{user['id']}/advisory-sessions").json()["items"] == []
+
+
 def test_research_comparison_uses_saved_profile_without_creating_advisory_history(client):
     user, _ = create_profile(client)
     path = f"/users/{user['id']}/research/comparison"

@@ -1,6 +1,7 @@
 """Authenticated, read-only policy comparison on the owner's saved profile."""
 
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -16,6 +17,7 @@ from app.rl.baselines import RandomBaseline, RuleBaseline
 from app.rl.dqn_artifact import DEFAULT_ARTIFACT_DIR, read_training_evidence
 from app.rl.environment import AgentSelectionEnv
 from app.rl.observation import FEATURE_NAMES, OBSERVATION_VERSION
+from app.rl.orchestration import ModelUnavailableError, run_orchestration
 from app.rl.policy import FittedQPolicy, POLICY_VERSION
 from app.rl.reward import REWARD_VERSION
 from app.rl.selection import ACTION_VERSION, DEFAULT_CATALOG
@@ -32,6 +34,11 @@ class ComparisonRequest(BaseModel):
 
 class ManualActionRequest(BaseModel):
     selected_agents: list[str] = Field(min_length=1, max_length=6)
+
+
+class OrchestrationRunRequest(BaseModel):
+    mode: Literal["rule_based", "random", "rl"]
+    seed: int = Field(default=42, ge=0, le=1_000_000_000)
 
 
 def _saved_state(user_id: int, session: Session):
@@ -82,6 +89,16 @@ def get_training_evidence(user_id: int, session: Session = Depends(get_session))
     if session.get(User, user_id) is None:
         raise HTTPException(status_code=404, detail="User not found.")
     return read_training_evidence(DQN_ARTIFACT_DIR)
+
+
+@router.post("/users/{user_id}/research/orchestration-run", dependencies=[Depends(require_owner)])
+def run_policy_on_saved_profile(user_id: int, payload: OrchestrationRunRequest,
+                                session: Session = Depends(get_session)):
+    state = _saved_state(user_id, session)
+    try:
+        return run_orchestration(state, mode=payload.mode, seed=payload.seed)
+    except ModelUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
 
 
 @router.post("/users/{user_id}/research/manual-action", dependencies=[Depends(require_owner)])

@@ -3,6 +3,7 @@ import Goals from './components/Goals.jsx'
 import useGoals from './hooks/useGoals.js'
 import { createOperationGate } from './services/operationGate.js'
 import AdvisorySession from './components/AdvisorySession.jsx'
+import OrchestrationLab from './components/OrchestrationLab.jsx'
 import AdvisoryHistory from './components/AdvisoryHistory.jsx'
 import Dashboard from './components/Dashboard.jsx'
 import AppShell from './components/AppShell.jsx'
@@ -333,6 +334,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                     historical={selectedSession != null}
                     onShowLatest={() => { selectionToken.current += 1; setSelectedSession(null); setSelectedSessionError(''); setSelectedSessionLoading(false) }}
                   />
+                  <OrchestrationLab userId={user.id} onOpenProfile={openProfile} onOpenGoal={openGoal} />
                   <AdvisoryHistory
                     userId={user.id}
                     refreshKey={historyRefreshKey}
