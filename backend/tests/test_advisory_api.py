@@ -39,6 +39,7 @@ def create_profile(client, email="example@sample-finapp.org"):
         "monthly_savings_contribution": "500.00",
         "monthly_debt_payments": "200.00",
         "risk_tolerance": "moderate",
+        "investment_horizon_years": 7,
     }
     assert client.put(f"/users/{user['id']}/financial-profile", json=profile).status_code == 200
     return user, profile
@@ -53,8 +54,8 @@ def test_run_persists_result_and_latest_can_reload_it(client):
     assert session["id"] > 0
     assert session["method"] == "rule_based"
     assert session["is_stale"] is False
-    assert session["result"]["priority_actions"][0]["agent_id"] == "emergency"
-    assert session["result"]["priority_actions"][0]["evidence"][1]["value"] == "5000.00"
+    assert session["result"]["advice"]["priority_actions"][0]["source_refs"][0]["agent_id"] == "emergency"
+    assert session["result"]["agent_results"][2]["findings"][0]["evidence"][1]["value"] == "5000.00"
 
     latest = client.get(f"{path}/latest")
     assert latest.status_code == 200
@@ -92,7 +93,7 @@ def test_profile_edit_marks_old_run_stale_without_rewriting_it(client):
     second = client.post(path).json()
     assert second["id"] != first["id"]
     assert second["is_stale"] is False
-    assert second["result"]["priority_actions"] == []
+    assert second["result"]["advice"]["priority_actions"] == []
     assert client.get(f"{path}/latest").json()["id"] == second["id"]
 
 
@@ -167,3 +168,54 @@ def test_history_detail_is_owned_and_immutable(client):
     }
     assert client.get(f"/users/{other['id']}/advisory-sessions/{original['id']}").status_code == 404
     assert client.get(f"{path}/999").status_code == 404
+
+
+def test_goal_edits_archive_and_planning_date_freshness(client, monkeypatch):
+    from datetime import date
+    import app.api as api
+    monkeypatch.setattr(api, 'planning_date', lambda: date(2026,9,29))
+    user,_=create_profile(client)
+    goals=f"/users/{user['id']}/goals"
+    path=f"/users/{user['id']}/advisory-sessions"
+    values=dict(name='Course',target_amount='6000',saved_amount='0',target_date='2027-09-24',priority='high')
+    g=client.post(goals,json=values).json()
+    first=client.post(path).json()
+    values['saved_amount']='100'
+    client.put(f"{goals}/{g['id']}",json=values)
+    assert client.get(f'{path}/latest').json()['stale_reasons'] == ['inputs']
+    client.patch(f"{goals}/{g['id']}",json={'archived':True})
+    no_goals=client.post(path).json()
+    values['saved_amount']='200'
+    client.put(f"{goals}/{g['id']}",json=values)
+    assert client.get(f'{path}/latest').json()['is_stale'] is False
+    monkeypatch.setattr(api, 'planning_date', lambda: date(2026,9,30))
+    assert client.get(f'{path}/latest').json()['stale_reasons'] == ['planning_date']
+    client.patch(f"{goals}/{g['id']}",json={'archived':False})
+    assert client.get(f'{path}/latest').json()['stale_reasons'] == ['inputs','planning_date']
+    assert client.get(f"{path}/{first['id']}").json()['result'] == first['result']
+    assert client.get(f"{path}/{no_goals['id']}").json()['result']['state']['goals'] == []
+
+
+def test_fixed_v1_payload_reads_without_new_fields(client):
+    import json
+    from pathlib import Path
+    from app.models import AnalysisSession
+    from app.advisory.types import AdvisoryResult
+    from app.advisory.session_types import get_priority_actions
+    user,_=create_profile(client)
+    payload=json.loads((Path(__file__).parent/'fixtures/advisory_v1.json').read_text())
+    assert get_priority_actions(AdvisoryResult.model_validate(payload))[0].title == 'Review emergency reserve'
+    with next(app.dependency_overrides[get_session]()) as db:
+        row=AnalysisSession(user_id=user['id'],method='rule_based',rule_version='rule-based-v1',
+                            input_fingerprint=payload['state']['input_fingerprint'],result_payload=payload)
+        db.add(row); db.commit(); db.refresh(row); row_id=row.id
+    path=f"/users/{user['id']}/advisory-sessions"
+    for suffix in ('latest',str(row_id)):
+        result=client.get(f'{path}/{suffix}').json()
+        assert result['result'] == payload
+        assert result['stale_reasons'] == ['rule_version']
+        assert 'advice' not in result['result']
+        assert 'goals' not in result['result']['state']
+    assert client.get(path).json()['items'][0]['priority_titles'] == ['Review emergency reserve']
+    with next(app.dependency_overrides[get_session]()) as db:
+        assert db.get(AnalysisSession,row_id).result_payload == payload

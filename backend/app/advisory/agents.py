@@ -6,6 +6,7 @@ from typing import Protocol
 from app.advisory.rules import EMERGENCY_TARGET_MONTHS, HIGH_DTI_PERCENT, HIGH_EXPENSE_PERCENT
 from app.advisory.state import FinancialState
 from app.advisory.types import AgentResult, Evidence, Finding
+from app.advisory.planning_types import BudgetFacts, DebtFacts, EmergencyFacts, PlanningAgentResult
 
 
 class Agent(Protocol):
@@ -43,7 +44,8 @@ class BudgetAgent:
             ],
             limitations=limitations,
         )
-        return AgentResult(
+        return PlanningAgentResult(
+            facts=BudgetFacts(capacity=state.monthly_savings_contribution),
             agent_id=self.agent_id,
             status="limited" if expense_ratio is None or savings_rate is None else "ok",
             findings=[finding],
@@ -78,7 +80,8 @@ class DebtAgent:
             ],
             limitations=limitations,
         )
-        return AgentResult(
+        return PlanningAgentResult(
+            facts=DebtFacts(review_required=priority or dti is None, reason_code='high_debt' if priority else 'unknown_debt' if dti is None else None),
             agent_id=self.agent_id,
             status="limited" if dti is None else "ok",
             findings=[finding],
@@ -116,7 +119,8 @@ class EmergencyAgent:
             ],
             limitations=limitations,
         )
-        return AgentResult(
+        return PlanningAgentResult(
+            facts=EmergencyFacts(gap=gap, coverage=coverage),
             agent_id=self.agent_id,
             status="limited" if coverage is None else "ok",
             findings=[finding],
