@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  compareResearchPolicies, explainApiError, getResearchActions, getResearchTrainingEvidence,
+  compareResearchPolicies, explainApiError, getResearchActions, getResearchEvaluation, getResearchTrainingEvidence,
   runManualResearchAction,
 } from '../services/api.js'
 
@@ -79,6 +79,61 @@ function Benchmark({ training }) {
       </tr>)}</tbody>
     </table></div>
     <p className="research-benchmark-note">The rule-based method defines most of the reward, so this benchmark cannot establish that the trained selector gives better advice. “Best proxy score” is an upper bound for these cases.</p>
+  </section>
+}
+
+const evaluationLabels = { random: 'Seeded random', rule_based: 'Rule based', rl: 'Trained DQN' }
+const segmentLabels = {
+  low_reserve: 'Reserve below 3 months',
+  high_or_unknown_debt_payment: 'High or unknown debt payment',
+  unfinished_goal: 'Unfinished goal',
+  expenses_at_or_above_income: 'Expenses at or above income',
+}
+
+export function EvaluationReportCard({ evidence }) {
+  if (!evidence) return <section className="research-evaluation" aria-label="Paired evaluation"><p role="status">Loading evaluation…</p></section>
+  if (evidence.status !== 'available') return <section className="research-evaluation" aria-label="Paired evaluation">
+    <h3>Paired evaluation</h3><p role="status">{evidence.reason}</p>
+  </section>
+  const report = evidence.report
+  const pct = (value) => value == null ? '—' : `${(value * 100).toFixed(1)}%`
+  const names = ['random', 'rule_based', 'rl']
+  return <section className="research-evaluation" aria-labelledby="evaluation-heading">
+    <p className="research-small-label">FIXED COHORT · MEASURED RESULTS</p>
+    <h3 id="evaluation-heading">How the three selectors performed</h3>
+    <p>Each method ran on the same {report.cohort.case_count} generated financial cases. Random used {report.random_seeds.length} fixed seeds; the other selectors ran once per case. These results come from the committed trained DQN, not the earlier fitted proxy model.</p>
+    <div className="research-table-scroll"><table>
+      <thead><tr><th scope="col">Selector</th><th scope="col">Average proxy score</th><th scope="col">Score variance</th><th scope="col">Missed critical check</th><th scope="col">Relevant checks covered</th><th scope="col">Avg. agents</th><th scope="col">Full plan possible</th></tr></thead>
+      <tbody>{names.map((name) => {
+        const m = report.methods[name].metrics
+        return <tr key={name}><th scope="row">{evaluationLabels[name]}</th><td>{m.mean_reward.toFixed(2)}</td>
+          <td>{m.reward_variance.toFixed(2)}</td><td>{pct(m.critical_miss_rate)}</td>
+          <td>{pct(m.relevant_coverage_rate)}</td><td>{m.mean_agent_calls.toFixed(2)}</td>
+          <td>{pct(m.full_plan_rate)}</td></tr>
+      })}</tbody>
+    </table></div>
+    <p className="research-paired-note">On the paired cases, DQN chose the same agents as the rule based selector in <strong>{report.paired_rl_vs_rule.same_selection_count} of {report.cohort.case_count}</strong> cases. Its proxy score was lower in {report.paired_rl_vs_rule.rl_lower_score_count}, equal in {report.paired_rl_vs_rule.equal_score_count}, and higher in {report.paired_rl_vs_rule.rl_higher_score_count}. It omitted agents needed for a full plan in {report.paired_rl_vs_rule.rl_partial_plan_count} cases.</p>
+    <details className="research-evaluation-details"><summary>Coverage, scenario groups, and method</summary>
+      <div className="research-table-scroll"><table>
+        <thead><tr><th scope="col">Selector</th><th scope="col">Risk check selected</th><th scope="col">Goal check on unfinished goals</th><th scope="col">Mean execution</th></tr></thead>
+        <tbody>{names.map((name) => {
+          const m = report.methods[name].metrics
+          return <tr key={name}><th scope="row">{evaluationLabels[name]}</th><td>{pct(m.risk_coverage_rate)}</td>
+            <td>{pct(m.goal_alignment_rate)}</td><td>{m.mean_execution_ms.toFixed(2)} ms</td></tr>
+        })}</tbody>
+      </table></div>
+      <h4>Where the checks were needed</h4>
+      <div className="research-table-scroll"><table>
+        <thead><tr><th scope="col">Scenario group</th><th scope="col">Cases</th><th scope="col">Random score</th><th scope="col">Rule score</th><th scope="col">DQN score</th></tr></thead>
+        <tbody>{Object.entries(report.methods.rule_based.segments).map(([key, segment]) => <tr key={key}>
+          <th scope="row">{segmentLabels[key] ?? key}</th><td>{segment.case_count}</td>
+          {names.map((name) => <td key={name}>{report.methods[name].segments[key]?.mean_reward.toFixed(2) ?? '—'}</td>)}
+        </tr>)}</tbody>
+      </table></div>
+      <p>Groups overlap: a case can have both a low reserve and an unfinished goal. Random aggregates {report.methods.random.evaluations} selections across five seeds; rule based and DQN each have {report.cohort.case_count}. The score variance is across selections, not a confidence interval. Timing includes selection and agent execution on the evaluation machine, excluding model load; it is diagnostic only.</p>
+      <p>Reproduce with <code>python -m app.rl.evaluation</code> from the backend using the RL dependencies. Cohort seed {report.cohort.seed}; cohort fingerprint <code>{report.cohort.sha256.slice(0, 16)}…</code>. The report is read only and uses no saved profiles.</p>
+    </details>
+    <p className="research-benchmark-note">The proxy score uses criteria close to the rule based selector, so its scores cannot establish which method gives better financial advice. Cases are generated from one designed scenario generator, without real outcomes. Recommendation consistency and conflicts are not measured because no validated definitions exist yet.</p>
   </section>
 }
 
@@ -185,6 +240,7 @@ function ManualExperiment({ userId }) {
 
 export default function Research({ userId, hasProfile, onOpenProfile }) {
   const [comparison, setComparison] = useState(null)
+  const [evaluation, setEvaluation] = useState(null)
   const [trainingEvidence, setTrainingEvidence] = useState(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
@@ -193,6 +249,10 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
   useEffect(() => {
     let active = true
     setTrainingEvidence(null)
+    setEvaluation(null)
+    getResearchEvaluation(userId)
+      .then((value) => { if (active) setEvaluation(value) })
+      .catch((requestError) => { if (active) setEvaluation({ status: 'unavailable', reason: explainApiError(requestError) }) })
     getResearchTrainingEvidence(userId)
       .then((value) => { if (active) setTrainingEvidence(value) })
       .catch((requestError) => { if (active) setTrainingEvidence({ status: 'unavailable', reason: explainApiError(requestError) }) })
@@ -210,7 +270,7 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
 
   return <section className="research-page" aria-labelledby="research-heading">
     <div className="research-intro"><div><h2 id="research-heading">Agent selection, explained</h2>
-      <p>Inspect the DQN training run, then compare the earlier fitted proxy selector with rule-based and random methods on your saved profile.</p></div>
+      <p>See the measured three-way evaluation, inspect DQN training, and explore agent choices for your own saved profile.</p></div>
       {hasProfile ? <form className="research-compare-controls" onSubmit={run}>
         <label>Random seed<input type="number" min="0" max="1000000000" step="1" required value={seed}
           onChange={(event) => setSeed(event.target.value)} /></label>
@@ -219,7 +279,10 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
         : <button type="button" className="primary-action" onClick={onOpenProfile}>Create a profile</button>}
     </div>
     <div className="research-explainer"><strong>What this score means</strong><p>The score rewards relevant and critical checks, then subtracts points for missed needs and extra agent calls. It does not measure a change in your finances or prove that one method gives better advice.</p></div>
+    <EvaluationReportCard evidence={evaluation} />
     <TrainingEvidenceCard evidence={trainingEvidence} />
+    <h3 className="research-personal-heading">Explore your saved profile</h3>
+    <p className="research-meta">The comparison below uses the earlier fitted proxy selector; the fixed cohort above evaluates the trained DQN. Advisor can run the trained DQN on your profile.</p>
     {!hasProfile && <p className="research-empty">Add a financial profile first. This comparison uses your saved values; it does not create a demo account.</p>}
     {hasProfile && <ManualExperiment userId={userId} />}
     {error && <p role="alert" className="research-error">{error}</p>}

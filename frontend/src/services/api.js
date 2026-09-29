@@ -108,6 +108,10 @@ export async function getResearchTrainingEvidence(userId) {
   return (await api.get(`/users/${userId}/research/training-evidence`)).data
 }
 
+export async function getResearchEvaluation(userId) {
+  return (await api.get(`/users/${userId}/research/evaluation`)).data
+}
+
 export async function runManualResearchAction(userId, selectedAgents) {
   return (await api.post(`/users/${userId}/research/manual-action`, {
     selected_agents: selectedAgents,
