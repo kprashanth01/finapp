@@ -12,7 +12,7 @@ from pathlib import Path
 from app.rl.baselines import RandomBaseline, RuleBaseline
 from app.rl.dqn_artifact import DEFAULT_ARTIFACT_DIR, load_dqn_artifact, verified_metadata
 from app.rl.environment import AgentSelectionEnv
-from app.rl.observation import OBSERVATION_VERSION, encode_observation
+from app.rl.observation import OBSERVATION_VERSION
 from app.rl.reward import REWARD_VERSION
 from app.rl.scenarios import SCENARIO_VERSION, generate_scenarios
 from app.rl.selection import ACTION_VERSION
