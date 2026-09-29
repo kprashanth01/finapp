@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import AuthScreen from './components/AuthScreen.jsx'
 import Workspace from './Workspace.jsx'
-import { createAuthRequestGate, identityEpoch, resolveBootState, subscribeToAuthChanges } from './services/authState.js'
+import { createAuthRequestGate, identityEpoch, resolveBootState, settleAuthSuccess, subscribeToAuthChanges } from './services/authState.js'
 import { claimEarlierProfile, createUser, explainApiError, getCurrentUser, signIn, signOut } from './services/api.js'
 
 export default function App() {
@@ -23,6 +23,13 @@ export default function App() {
     setAuth({ status: 'checking', user: null })
     const next = await resolveBootState(getCurrentUser)
     if (requests.current.isCurrent(token)) setAuth(next)
+  }
+
+  function reconcileChangedCookie() {
+    identityEpoch.invalidate()
+    setPending(false)
+    announceAccountChange()
+    return checkSession()
   }
 
   useEffect(() => {
@@ -68,11 +75,12 @@ export default function App() {
     try {
       const account = selectedMode === 'signup' ? await createUser(values)
         : selectedMode === 'claim' ? await claimEarlierProfile(values) : await signIn(values)
-      if (!requests.current.isCurrent(token)) return
-      identityEpoch.invalidate()
-      setStartView(selectedMode === 'signup' ? 'profile' : 'dashboard')
-      setAuth({ status: 'signedIn', user: account })
-      announceAccountChange()
+      await settleAuthSuccess(requests.current, token, () => {
+        identityEpoch.invalidate()
+        setStartView(selectedMode === 'signup' ? 'profile' : 'dashboard')
+        setAuth({ status: 'signedIn', user: account })
+        announceAccountChange()
+      }, reconcileChangedCookie)
     } catch (requestError) {
       if (requests.current.isCurrent(token)) setError(explainApiError(requestError))
     } finally {
@@ -90,10 +98,11 @@ export default function App() {
     setError('')
     try {
       await signOut()
-      if (!requests.current.isCurrent(token)) return
-      setAuth({ status: 'signedOut', user: null })
-      setMode('login')
-      announceAccountChange()
+      await settleAuthSuccess(requests.current, token, () => {
+        setAuth({ status: 'signedOut', user: null })
+        setMode('login')
+        announceAccountChange()
+      }, reconcileChangedCookie)
     } catch (requestError) {
       if (requests.current.isCurrent(token)) setError(`Sign out failed: ${explainApiError(requestError)}`)
     } finally {

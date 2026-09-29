@@ -95,7 +95,9 @@ def login(payload: Login, request: Request, response: Response, db: Session = De
         raise HTTPException(status_code=429, detail="Too many attempts. Try again in 15 minutes.",
                             headers={"Retry-After": "900"})
     user = db.scalar(select(User).where(func.lower(User.email) == email))
-    if not verify_password(payload.password, user.password_hash if user and user.password_hash else DUMMY_HASH):
+    password_hash = user.password_hash if user and user.password_hash else DUMMY_HASH
+    verified = verify_password(payload.password, password_hash)
+    if not user or not user.password_hash or not verified:
         db.add(AuthFailure(email_digest=keys[0], ip_digest=keys[1], created_at=utc_now()))
         db.commit()
         raise HTTPException(status_code=401, detail="Invalid email or password.")

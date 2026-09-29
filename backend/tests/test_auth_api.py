@@ -150,3 +150,15 @@ def test_unclaimed_and_unknown_emails_use_the_same_password_verification_path(au
                                json={"email": email, "password": "wrong passphrase 123"})
         assert response.status_code == 401
     assert seen == [auth_api.DUMMY_HASH, auth_api.DUMMY_HASH]
+
+
+def test_placeholder_password_never_authenticates_an_unclaimed_or_missing_account(auth_client):
+    client, engine = auth_client
+    with Session(engine) as db:
+        db.add(User(name="Legacy", email="legacy@example.org", monthly_income=0))
+        db.commit()
+    for email in ("legacy@example.org", "missing@example.org"):
+        response = client.post("/auth/login", headers=MUTATION,
+                               json={"email": email, "password": "invalid account placeholder password"})
+        assert response.status_code == 401
+        assert client.get("/auth/me").status_code == 401

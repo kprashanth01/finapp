@@ -9,12 +9,13 @@ let AuthScreen
 let resolveBootState
 let createAuthRequestGate
 let subscribeToAuthChanges
+let settleAuthSuccess
 let api
 
 before(async () => {
   server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
   AuthScreen = (await server.ssrLoadModule('/src/components/AuthScreen.jsx')).default
-  ;({ resolveBootState, createAuthRequestGate, subscribeToAuthChanges } = await server.ssrLoadModule('/src/services/authState.js'))
+  ;({ resolveBootState, createAuthRequestGate, subscribeToAuthChanges, settleAuthSuccess } = await server.ssrLoadModule('/src/services/authState.js'))
   ;({ api } = await server.ssrLoadModule('/src/services/api.js'))
 })
 after(async () => { await server?.close() })
@@ -66,4 +67,29 @@ test('another tab changing account immediately invalidates its displayed workspa
   assert.equal(changes, 1)
   unsubscribe()
   assert.equal(channel.closed, true)
+})
+
+test('a delayed login success reconciles both tabs after another tab changed the cookie', async () => {
+  const gate = createAuthRequestGate()
+  const token = gate.begin()
+  let releaseLogin
+  const delayedLogin = new Promise((resolve) => { releaseLogin = resolve })
+  let cookieAccount = 'B'
+  const shown = { first: 'B', second: 'B' }
+  let broadcasts = 0
+  const firstTab = delayedLogin.then(async (account) => {
+    cookieAccount = account
+    await settleAuthSuccess(gate, token,
+      () => { shown.first = account },
+      async () => {
+        shown.first = (await resolveBootState(async () => cookieAccount)).user
+        broadcasts += 1
+        shown.second = (await resolveBootState(async () => cookieAccount)).user
+      })
+  })
+  gate.invalidate() // Tab 2 signed in to B while tab 1's login to A was in flight.
+  releaseLogin('A')
+  await firstTab
+  assert.equal(broadcasts, 1)
+  assert.deepEqual(shown, { first: 'A', second: 'A' })
 })

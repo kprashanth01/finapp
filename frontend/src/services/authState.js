@@ -24,3 +24,8 @@ export function subscribeToAuthChanges(channel, onChange) {
   }
   return () => { channel.onmessage = null; channel.close() }
 }
+
+export async function settleAuthSuccess(gate, token, applyCurrent, reconcileStale) {
+  if (gate.isCurrent(token)) await applyCurrent()
+  else await reconcileStale()
+}
