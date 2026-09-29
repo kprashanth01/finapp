@@ -25,6 +25,9 @@ def test_rule_and_seeded_random_use_the_same_selection_flow():
     assert random_one["action"] == random_two["action"]
     assert random_one["total_reward"] == random_two["total_reward"]
     assert random_one["seed"] == 42
+    assert random_one["explanation"] == random_two["explanation"]
+    assert random_one["explanation"]["seed"] == 42
+    assert "did not cause this selection" in random_one["explanation"]["policy_explanation"]
 
 
 def test_partial_selection_never_builds_a_complete_monthly_plan(monkeypatch):

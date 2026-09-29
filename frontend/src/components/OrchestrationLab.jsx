@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import AdvisoryPlan from './AdvisoryPlan.jsx'
+import ExplanationTrail from './ExplanationTrail.jsx'
 import { RewardAuditDetails } from './Research.jsx'
 import { explainApiError, runOrchestration } from '../services/api.js'
 
@@ -28,10 +29,12 @@ export function OrchestrationResult({ result, onOpenProfile = () => {}, onOpenGo
       <div className="orchestration-score"><strong>{result.total_reward.toFixed(2)}</strong><span>proxy points</span></div>
     </div>
     <p className="orchestration-meta">Saved profile as of {result.as_of_date} · {result.policy_version} · Action catalogue {result.action_version}</p>
-    <div className="orchestration-selected"><h4>Agents that ran</h4>
+    <ExplanationTrail trace={result.explanation} />
+    {!result.explanation && <div className="orchestration-selected"><h4>Agents that ran</h4>
       <ul>{result.selected_agents.map((id) => <li key={id}>{agentNames[id] ?? id}</li>)}</ul></div>
+    }
     {!complete && <p className="orchestration-partial">A complete monthly plan was withheld. It also needs: {result.plan_readiness.missing_agents.map((id) => agentNames[id] ?? id).join(', ')}.</p>}
-    <div className="orchestration-findings"><h4>What the selected agents found</h4>
+    <details className="orchestration-findings"><summary>All raw agent findings</summary>
       {result.agent_results.map((agent) => <section key={agent.agent_id}>
         <h5>{agentNames[agent.agent_id] ?? agent.agent_id}</h5>
         {agent.findings.length ? agent.findings.map((finding) => <div key={finding.code}>
@@ -40,9 +43,9 @@ export function OrchestrationResult({ result, onOpenProfile = () => {}, onOpenGo
         </div>) : <p>No finding returned from this agent.</p>}
         {agent.limitations?.map((limit) => <p key={limit} className="orchestration-limit">{limit}</p>)}
       </section>)}
-    </div>
+    </details>
     {complete && result.advice && <details className="orchestration-plan"><summary>See coordinated plan from these agents</summary>
-      <AdvisoryPlan result={result} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} /></details>}
+      <AdvisoryPlan result={result} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} showExplanation={false} /></details>}
     <RewardAuditDetails audit={result.reward_audit} collapsible />
     <p className="orchestration-disclaimer">This experimental run is not saved. The score follows project rules and does not measure financial improvement or prove advice quality.</p>
   </div>
