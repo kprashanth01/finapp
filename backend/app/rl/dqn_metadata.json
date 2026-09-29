@@ -1,0 +1,87 @@
+{
+  "model_version": "dqn-bandit-v1",
+  "algorithm": "DQN",
+  "observation_version": "planning-observation-v1",
+  "action_version": "agent-subset-v1",
+  "reward_version": "selection-proxy-v1",
+  "scenario_version": "coverage-scenarios-v1",
+  "feature_names": [
+    "expense_income_scaled",
+    "savings_income_scaled",
+    "debt_payment_income_scaled",
+    "emergency_months_scaled",
+    "debt_balance_yearly_income_scaled",
+    "active_goals_scaled",
+    "nearest_goal_years_scaled",
+    "goal_gap_yearly_income_scaled",
+    "horizon_scaled",
+    "risk_conservative",
+    "risk_moderate",
+    "risk_aggressive",
+    "savings_missing",
+    "debt_payment_missing",
+    "horizon_missing",
+    "income_missing"
+  ],
+  "action_count": 63,
+  "scenario_source": "generated coverage cases; no saved profiles",
+  "split_seeds": {
+    "training": 20260929,
+    "validation": 20260930,
+    "test": 20261001
+  },
+  "split_counts": {
+    "training": 1536,
+    "validation": 384,
+    "test": 384
+  },
+  "training_seed": 137,
+  "total_timesteps": 12000,
+  "validation_interval": 3000,
+  "selected_step": 12000,
+  "gradient_updates": 2936,
+  "validation_history": [
+    {
+      "step": 3000,
+      "case_count": 384,
+      "mean_reward": 7.635,
+      "critical_miss_rate": 0.0,
+      "mean_agent_calls": 5.74
+    },
+    {
+      "step": 6000,
+      "case_count": 384,
+      "mean_reward": 7.447,
+      "critical_miss_rate": 0.0443,
+      "mean_agent_calls": 5.607
+    },
+    {
+      "step": 9000,
+      "case_count": 384,
+      "mean_reward": 7.706,
+      "critical_miss_rate": 0.0,
+      "mean_agent_calls": 5.469
+    },
+    {
+      "step": 12000,
+      "case_count": 384,
+      "mean_reward": 7.827,
+      "critical_miss_rate": 0.0,
+      "mean_agent_calls": 5.44
+    }
+  ],
+  "test": {
+    "case_count": 384,
+    "mean_reward": 7.823,
+    "critical_miss_rate": 0.0,
+    "mean_agent_calls": 5.435
+  },
+  "environment": "one-step contextual bandit; no balance changes or observed outcomes",
+  "dependencies": {
+    "python": "3.12.10",
+    "gymnasium": "1.3.0",
+    "stable_baselines3": "2.9.0",
+    "torch": "2.14.0+cpu"
+  },
+  "artifact_sha256": "3158475c12fd75c9ad87e2ffb483301ccabd247e15f1c7c2c11a5e568d9f5ed8"
+}

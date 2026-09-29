@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
-  compareResearchPolicies, explainApiError, getResearchActions, runManualResearchAction,
+  compareResearchPolicies, explainApiError, getResearchActions, getResearchTrainingEvidence,
+  runManualResearchAction,
 } from '../services/api.js'
 
 const agentNames = {
@@ -66,7 +67,7 @@ function PolicyResult({ title, explanation, outcome }) {
 function Benchmark({ training }) {
   const benchmark = training.held_out_benchmark
   if (!benchmark) return null
-  const labels = { learned: 'Trained selector', rule: 'Rule-based', random: 'Random', oracle: 'Best proxy score' }
+  const labels = { learned: 'Fitted proxy selector', rule: 'Rule-based', random: 'Random', oracle: 'Best proxy score' }
   return <section className="research-benchmark" aria-labelledby="benchmark-heading">
     <h3 id="benchmark-heading">How it did on separate test cases</h3>
     <p>{benchmark.case_count} generated cases were kept out of training. These scores measure the project’s own selection rules, not financial outcomes.</p>
@@ -78,6 +79,37 @@ function Benchmark({ training }) {
       </tr>)}</tbody>
     </table></div>
     <p className="research-benchmark-note">The rule-based method defines most of the reward, so this benchmark cannot establish that the trained selector gives better advice. “Best proxy score” is an upper bound for these cases.</p>
+  </section>
+}
+
+export function TrainingEvidenceCard({ evidence }) {
+  if (!evidence) return <section className="research-training" aria-label="DQN training evidence"><p role="status">Loading RL training evidence…</p></section>
+  if (evidence.status !== 'available') return <section className="research-training" aria-label="DQN training evidence">
+    <h3>RL training evidence</h3><p role="status">{evidence.reason}</p>
+  </section>
+  const run = evidence.metadata
+  const count = (value) => Number(value).toLocaleString('en-US')
+  return <section className="research-training" aria-labelledby="training-evidence-heading">
+    <div className="research-training-head"><div>
+      <p className="research-small-label">OFFLINE EXPERIMENT</p>
+      <h3 id="training-evidence-heading">How the RL selector was trained</h3>
+    </div><span>{run.algorithm} · {run.model_version}</span></div>
+    <p>A neural selector learned from actions and rewards in generated financial scenarios. The cases were split into {count(run.split_counts.training)} training, {count(run.split_counts.validation)} validation, and {count(run.split_counts.test)} held-out test cases.</p>
+    <div className="research-training-summary">
+      <div><small>Chosen checkpoint</small><strong>{count(run.selected_step)} steps</strong><span>Selected on validation cases</span></div>
+      <div><small>Held-out proxy score</small><strong>{run.test.mean_reward.toFixed(2)}</strong><span>Across {count(run.test.case_count)} new cases</span></div>
+      <div><small>Missed critical checks</small><strong>{(run.test.critical_miss_rate * 100).toFixed(1)}%</strong><span>Under this project's reward rule</span></div>
+    </div>
+    <details className="research-training-details"><summary>See validation progression and limits</summary>
+      <div className="research-table-scroll"><table>
+        <thead><tr><th scope="col">Training step</th><th scope="col">Validation proxy score</th><th scope="col">Missed critical checks</th></tr></thead>
+        <tbody>{run.validation_history.map((row) => <tr key={row.step}>
+          <th scope="row">{count(row.step)}</th><td>{row.mean_reward.toFixed(2)}</td>
+          <td>{(row.critical_miss_rate * 100).toFixed(1)}%</td>
+        </tr>)}</tbody>
+      </table></div>
+    </details>
+    <p className="research-training-limit">Each episode makes one agent-selection decision. This is a one-step experiment using a rule-defined proxy reward, not evidence of improved financial outcomes. The DQN is not yet used by Advisor; the comparison below still uses the earlier fitted proxy selector.</p>
   </section>
 }
 
@@ -153,9 +185,19 @@ function ManualExperiment({ userId }) {
 
 export default function Research({ userId, hasProfile, onOpenProfile }) {
   const [comparison, setComparison] = useState(null)
+  const [trainingEvidence, setTrainingEvidence] = useState(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState('')
   const [seed, setSeed] = useState('42')
+
+  useEffect(() => {
+    let active = true
+    setTrainingEvidence(null)
+    getResearchTrainingEvidence(userId)
+      .then((value) => { if (active) setTrainingEvidence(value) })
+      .catch((requestError) => { if (active) setTrainingEvidence({ status: 'unavailable', reason: explainApiError(requestError) }) })
+    return () => { active = false }
+  }, [userId])
 
   async function run(event) {
     event.preventDefault()
@@ -168,7 +210,7 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
 
   return <section className="research-page" aria-labelledby="research-heading">
     <div className="research-intro"><div><h2 id="research-heading">Agent selection, explained</h2>
-      <p>Compare the trained selector with the rule-based and random methods on your current saved profile.</p></div>
+      <p>Inspect the DQN training run, then compare the earlier fitted proxy selector with rule-based and random methods on your saved profile.</p></div>
       {hasProfile ? <form className="research-compare-controls" onSubmit={run}>
         <label>Random seed<input type="number" min="0" max="1000000000" step="1" required value={seed}
           onChange={(event) => setSeed(event.target.value)} /></label>
@@ -177,12 +219,13 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
         : <button type="button" className="primary-action" onClick={onOpenProfile}>Create a profile</button>}
     </div>
     <div className="research-explainer"><strong>What this score means</strong><p>The score rewards relevant and critical checks, then subtracts points for missed needs and extra agent calls. It does not measure a change in your finances or prove that one method gives better advice.</p></div>
+    <TrainingEvidenceCard evidence={trainingEvidence} />
     {!hasProfile && <p className="research-empty">Add a financial profile first. This comparison uses your saved values; it does not create a demo account.</p>}
     {hasProfile && <ManualExperiment userId={userId} />}
     {error && <p role="alert" className="research-error">{error}</p>}
     {comparison && <><p className="research-meta">Based on your saved profile as of {comparison.as_of_date}. Seed {comparison.seed}. No advisory session was saved.</p>
       {comparison.model.status === 'available' ? <><div className="research-results">
-        <PolicyResult title="Trained selector" explanation="A fitted model chose these agents. The score audit explains the points, not the model’s internal cause." outcome={comparison.policies.learned} />
+        <PolicyResult title="Fitted proxy selector" explanation="This earlier fitted model predicts all action scores. The score audit explains the points, not the model’s internal cause." outcome={comparison.policies.learned} />
         <PolicyResult title="Rule-based selection" explanation="The app’s explicit selection logic; the score uses overlapping conditions." outcome={comparison.policies.rule} />
         <PolicyResult title="Random baseline" explanation={`A repeatable random choice using seed ${comparison.seed}.`} outcome={comparison.policies.random} />
       </div><Benchmark training={comparison.model.training} /></> : <><p className="research-error" role="status">{comparison.model.reason}</p>
