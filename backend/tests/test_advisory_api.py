@@ -58,6 +58,14 @@ def test_research_comparison_uses_saved_profile_without_creating_advisory_histor
     assert data["policies"]["rule"]["total_reward"] == pytest.approx(
         sum(data["policies"]["rule"]["reward_components"].values())
     )
+    audit = data["policies"]["rule"]["reward_audit"]
+    assert audit["version"] == data["reward_version"]
+    assert audit["critical_agents"] == ["emergency"]
+    assert audit["missed_critical_agents"] == []
+    reserve = next(check for check in audit["checks"] if check["agent_id"] == "emergency")
+    assert reserve["value"] == "1.33"
+    assert reserve["threshold"] == "3"
+    assert reserve["selected"] is True
     assert data["model"]["status"] == "available"
     assert data["model"]["training"]["held_out_benchmark"]["case_count"] == 384
     assert data["model"]["training"]["scenario_source"].startswith("generated coverage")
@@ -107,6 +115,11 @@ def test_manual_research_action_uses_saved_profile_without_writing_history(clien
     assert result["plan_readiness"]["can_build_full_plan"] is False
     assert set(result["plan_readiness"]["missing_agents"]) == {"debt", "risk", "investment"}
     assert result["total_reward"] == pytest.approx(sum(result["reward_components"].values()))
+    assert result["reward_audit"]["critical_agents"] == ["emergency"]
+    assert result["reward_audit"]["missed_critical_agents"] == []
+    assert result["reward_audit"]["relevant_agents"] == [
+        "budget", "debt", "emergency", "risk", "investment"
+    ]
 
     complete = client.post(f"{root}/manual-action", json={
         "selected_agents": ["investment", "risk", "emergency", "debt", "budget"]
