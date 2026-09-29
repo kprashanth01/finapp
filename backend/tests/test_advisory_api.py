@@ -45,6 +45,32 @@ def create_profile(client, email="example@sample-finapp.org"):
     return user, profile
 
 
+def test_research_comparison_uses_saved_profile_without_creating_advisory_history(client):
+    user, _ = create_profile(client)
+    path = f"/users/{user['id']}/research/comparison"
+    first = client.post(path, json={"seed": 17})
+    assert first.status_code == 200, first.text
+    data = first.json()
+    assert data["source"] == "saved_profile"
+    assert data["policies"]["rule"]["selected_agents"] == [
+        "budget", "debt", "emergency", "risk", "investment"
+    ]
+    assert data["policies"]["rule"]["total_reward"] == pytest.approx(
+        sum(data["policies"]["rule"]["reward_components"].values())
+    )
+    assert client.post(path, json={"seed": 17}).json() == data
+    assert client.get(f"/users/{user['id']}/advisory-sessions").json()["items"] == []
+    assert client.post(path, json={"seed": -1}).status_code == 422
+
+
+def test_research_comparison_requires_profile_and_owner(client):
+    user = client.post("/users", json={"name": "No Profile", "email": "research@sample-finapp.org",
+                                        "monthly_income": "5000"}).json()
+    path = f"/users/{user['id']}/research/comparison"
+    assert client.post(path, json={"seed": 1}).status_code == 404
+    assert client.post("/users/999/research/comparison", json={"seed": 1}).status_code == 404
+
+
 def test_run_persists_result_and_latest_can_reload_it(client):
     user, _ = create_profile(client)
     path = f"/users/{user['id']}/advisory-sessions"

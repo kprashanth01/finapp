@@ -89,6 +89,11 @@ export async function runAdvisorySession(userId) {
   return response.data
 }
 
+export async function compareResearchPolicies(userId, seed = 42) {
+  const response = await api.post(`/users/${userId}/research/comparison`, { seed })
+  return response.data
+}
+
 export async function getGoals(userId, { includeArchived = false } = {}) {
   return (await api.get(`/users/${userId}/goals`, { params: { include_archived: includeArchived } })).data
 }

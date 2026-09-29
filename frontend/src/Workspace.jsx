@@ -5,6 +5,8 @@ import { createOperationGate } from './services/operationGate.js'
 import AdvisorySession from './components/AdvisorySession.jsx'
 import AdvisoryHistory from './components/AdvisoryHistory.jsx'
 import Dashboard from './components/Dashboard.jsx'
+import AppShell from './components/AppShell.jsx'
+import Research from './components/Research.jsx'
 import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
 import UserForm from './components/UserForm.jsx'
@@ -49,6 +51,12 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
 
   function openProfile(field) { setFocusTarget(field ?? null); setActiveView('profile') }
   function openGoal(id) { setFocusGoalId(id ?? null); setActiveView('goals') }
+  function navigate(view) {
+    setMessage('')
+    setFocusGoalId(null); setFocusTarget(null)
+    if (view === 'advisor' && !profile) setActiveView('profile')
+    else setActiveView(view)
+  }
   useEffect(() => {
     if (activeView !== 'profile' || !focusTarget) return
     const input = document.querySelector(`[name="${focusTarget}"]`)
@@ -256,23 +264,11 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-5 py-10 text-slate-900 sm:py-16">
-      <div className="mx-auto max-w-3xl">
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight">FinApp</h1>
-          <p className="mt-2 text-slate-600">Save your financial profile, review transparent calculations, and run an explained rule-based analysis.</p>
-        </header>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="mb-7 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
-            <div className="flex items-center gap-2 text-sm" role="status" aria-live="polite">
-              <span className={`h-2.5 w-2.5 rounded-full ${connection === 'connected' ? 'bg-emerald-500' : connection === 'checking' ? 'bg-amber-400' : 'bg-rose-500'}`} aria-hidden="true" />
-              <span>{connection === 'connected' ? 'API connected' : connection === 'checking' ? 'Checking API connection…' : 'API unavailable'}</span>
-            </div>
-            <button type="button" onClick={() => checkConnection()} className="text-sm font-medium text-slate-700 underline underline-offset-4 hover:text-slate-900">
-              Retry connection
-            </button>
-          </div>
+    <AppShell activeView={activeView} onChangeView={navigate} user={user} connection={connection}
+      onRetryConnection={() => checkConnection()} onSignOut={onSignOut}
+      signOutDisabled={saving || advisoryRunning || goalsState.pending}>
+      <div className="workspace-content">
+        <section className="workspace-surface">
 
           {error && <p role="alert" className="mb-5 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
           {message && <p role="status" className="mb-5 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
@@ -281,29 +277,6 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
             <p className="text-slate-600">Loading saved profile…</p>
           ) : user ? (
             <>
-              <div className="mb-8 flex flex-wrap items-start justify-between gap-3 rounded-lg bg-slate-50 p-4 text-sm">
-                <div><p className="font-medium">Signed in as {user.name}</p><p className="mt-1 text-slate-600">{user.email}</p></div>
-                <button type="button" onClick={onSignOut} disabled={saving || advisoryRunning || goalsState.pending} className="font-medium underline disabled:opacity-50">Sign out</button>
-              </div>
-              <nav aria-label="FinApp views" className="mb-8 flex flex-wrap gap-2 border-b border-slate-200 pb-4">
-                {[
-                  ['dashboard', 'Dashboard'],
-                  ['profile', 'Profile'],
-                  ['goals', 'Goals'],
-                  ['advisor', 'Advisor'],
-                ].map(([view, label]) => (
-                  <button
-                    key={view}
-                    type="button"
-                    onClick={() => { setActiveView(view); setFocusGoalId(null); setFocusTarget(null) }}
-                    disabled={saving || (view === 'advisor' && !profile)}
-                    aria-current={activeView === view ? 'page' : undefined}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40 ${activeView === view ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </nav>
               {activeView === 'dashboard' && (
                 <Dashboard
                   user={user}
@@ -368,14 +341,15 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                   />
                 </>
               )}
+              {activeView === 'research' && <Research userId={user.id} hasProfile={!!profile} onOpenProfile={() => openProfile(null)} />}
             </>
           ) : (
             <p role="alert">The account could not be loaded. Refresh to retry.</p>
           )}
         </section>
-        <p className="mx-auto mt-5 max-w-3xl text-sm text-slate-500">Educational research prototype. Use practice values.</p>
+        <p className="app-disclaimer">Educational research prototype. Use practice values for your profile.</p>
       </div>
-    </main>
+    </AppShell>
   )
 }
 
