@@ -1,5 +1,7 @@
-import { useState } from 'react'
-import { compareResearchPolicies, explainApiError } from '../services/api.js'
+import { useEffect, useState } from 'react'
+import {
+  compareResearchPolicies, explainApiError, getResearchActions, runManualResearchAction,
+} from '../services/api.js'
 
 const agentNames = {
   budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', goal: 'Goal planning',
@@ -44,6 +46,75 @@ function Benchmark({ training }) {
   </section>
 }
 
+function ManualExperiment({ userId }) {
+  const [catalog, setCatalog] = useState(null)
+  const [selected, setSelected] = useState([])
+  const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    setCatalog(null); setSelected([]); setResult(null); setError(''); setLoading(true)
+    getResearchActions(userId).then((actions) => { if (active) setCatalog(actions) })
+      .catch((requestError) => { if (active) setError(explainApiError(requestError)) })
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [userId])
+
+  function toggle(agentId) {
+    setSelected((current) => current.includes(agentId) ? current.filter((id) => id !== agentId) : [...current, agentId])
+    setResult(null)
+  }
+
+  async function run(event) {
+    event.preventDefault()
+    if (running || !selected.length) return
+    setRunning(true); setError(''); setResult(null)
+    try { setResult(await runManualResearchAction(userId, selected)) }
+    catch (requestError) { setError(explainApiError(requestError)) }
+    finally { setRunning(false) }
+  }
+
+  return <details className="research-manual">
+    <summary>Try your own agent selection</summary>
+    <p>Choose specialists to run on your saved profile. This shows their findings without changing your profile or saving an Advisor plan.</p>
+    {loading && <p role="status">Loading available agents…</p>}
+    {error && <p className="research-error" role="alert">{error}</p>}
+    {catalog && <form onSubmit={run}>
+      <fieldset disabled={running}><legend>Select at least one agent</legend>
+        <div className="research-manual-choices">{catalog.agents.map((id) => <label key={id}>
+          <input type="checkbox" checked={selected.includes(id)} onChange={() => toggle(id)} />
+          <span>{agentNames[id] ?? id}</span>
+        </label>)}</div>
+      </fieldset>
+      <button type="submit" className="primary-action" disabled={running || selected.length === 0}>
+        {running ? 'Running…' : 'Run selected agents'}
+      </button>
+      <small>{catalog.action_count} available combinations · Action version {catalog.action_version}</small>
+    </form>}
+    {result && <div className="research-manual-result" aria-live="polite">
+      <h3>Action ID {result.action}: {result.selected_agents.map((id) => agentNames[id] ?? id).join(', ')}</h3>
+      <p className={result.plan_readiness.can_build_full_plan ? 'research-ready' : 'research-incomplete'}>
+        {result.plan_readiness.can_build_full_plan
+          ? 'This selection includes the agents needed for a complete Advisor plan. This experiment did not generate or save one.'
+          : `A complete Advisor plan also needs: ${result.plan_readiness.missing_agents.map((id) => agentNames[id] ?? id).join(', ')}.`}
+      </p>
+      <p>Selection score: <strong>{result.total_reward.toFixed(2)}</strong> project points. This score does not measure financial improvement.</p>
+      <div className="research-manual-findings">{result.agent_results.map((agent) => <section key={agent.agent_id}>
+        <h4>{agentNames[agent.agent_id] ?? agent.agent_id}</h4>
+        {agent.findings.length ? agent.findings.map((finding) => <div key={finding.code}>
+          <strong>{finding.title}</strong><p>{finding.reason}</p>
+          {finding.evidence?.length > 0 && <ul>{finding.evidence.map((item, index) => <li key={index}>
+            {item.label}: {item.value}{item.unit ? ` ${item.unit}` : ''}
+          </li>)}</ul>}
+        </div>) : <p>No findings returned.</p>}
+      </section>)}</div>
+    </div>}
+  </details>
+}
+
 export default function Research({ userId, hasProfile, onOpenProfile }) {
   const [comparison, setComparison] = useState(null)
   const [running, setRunning] = useState(false)
@@ -65,6 +136,7 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
     </div>
     <div className="research-explainer"><strong>What this score means</strong><p>The score rewards relevant and critical checks, then subtracts points for missed needs and extra agent calls. It does not measure a change in your finances or prove that one method gives better advice.</p></div>
     {!hasProfile && <p className="research-empty">Add a financial profile first. This comparison uses your saved values; it does not create a demo account.</p>}
+    {hasProfile && <ManualExperiment userId={userId} />}
     {error && <p role="alert" className="research-error">{error}</p>}
     {comparison && <><p className="research-meta">Based on your saved profile as of {comparison.as_of_date}. Seed {comparison.seed}. No advisory session was saved.</p>
       {comparison.model.status === 'available' ? <><div className="research-results">

@@ -14,5 +14,9 @@ class AgentRegistry:
     def default(cls) -> "AgentRegistry":
         return cls([BudgetAgent(), DebtAgent(), EmergencyAgent(), GoalPlanningAgent(), RiskAssessmentAgent(), InvestmentAgent()])
 
+    @property
+    def agent_ids(self) -> tuple[str, ...]:
+        return tuple(self._agents)
+
     def get(self, agent_id: str) -> Agent:
         return self._agents[agent_id]

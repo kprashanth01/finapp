@@ -94,6 +94,16 @@ export async function compareResearchPolicies(userId, seed = 42) {
   return response.data
 }
 
+export async function getResearchActions(userId) {
+  return (await api.get(`/users/${userId}/research/actions`)).data
+}
+
+export async function runManualResearchAction(userId, selectedAgents) {
+  return (await api.post(`/users/${userId}/research/manual-action`, {
+    selected_agents: selectedAgents,
+  })).data
+}
+
 export async function getGoals(userId, { includeArchived = false } = {}) {
   return (await api.get(`/users/${userId}/goals`, { params: { include_archived: includeArchived } })).data
 }
