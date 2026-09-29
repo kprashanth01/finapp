@@ -120,7 +120,7 @@ npm run dev
 
 Open the URL printed by Vite, normally <http://localhost:5173>. Enter a user, then use **Profile** to save the financial inputs. **Dashboard** shows the current saved amounts, calculated snapshot, and latest advisory summary. **Advisor** runs an analysis and lists saved sessions; open a past run to see its stored inputs and findings. Refreshing the page loads the current dashboard and latest run again. The API health endpoint remains at <http://localhost:8000/health>.
 
-The income field means **gross monthly income before tax** for the ratios below. If you entered take-home pay in an earlier version, edit it. Monthly expenses should include monthly debt payments; the separate debt-payment input identifies the portion used for DTI and cannot exceed total expenses. Savings and outstanding debt are balances, while monthly savings contributions and debt payments are flows. Existing profiles keep working because the two new flow inputs are optional.
+The income field means **gross monthly income before tax** for the ratios below. Monthly expenses should include monthly debt payments; the separate debt-payment input identifies the portion used for DTI and cannot exceed total expenses. Savings and outstanding debt are balances, while monthly savings contributions and debt payments are flows. Existing profiles keep working because the two new flow inputs are optional.
 
 ## Financial snapshot
 
@@ -137,21 +137,43 @@ The **educational health score** is a fixed project heuristic from 0 to 100. It 
 
 The DTI input and formula follow the [Consumer Financial Protection Bureau definition](https://www.consumerfinance.gov/ask-cfpb/what-is-a-debt-to-income-ratio-en-1791/): monthly debt payments divided by gross monthly income.
 
-## Advisory session
+## Goals and the monthly advisory plan
 
-The advisory session is an explicit run on the **saved** user and profile. It does not read unsaved form values. Three agents return structured findings:
+Use **Goals** to create a measurable target: a name, target amount, amount already earmarked, target date, and priority. Edit progress as you save; archive a goal to exclude it from new plans and restore it whenever needed. Completed and overdue goals are supported. No goals are seeded. An earlier free-text goal note stays available under **Earlier goal note**; converting it requires filling and saving a goal form.
 
-| Agent | When it runs | Illustrative priority rule |
+Click **Run analysis with saved goals** or run from **Advisor**. The result shows the next step, a monthly savings plan, goal funding gaps, and investment readiness. It uses saved inputs; proposed allocations do not transfer money or change balances. Editing a profile or goal does not automatically run analysis.
+
+### Six independent agents, one shared budget
+
+| Agent | When selected | Output |
 | --- | --- | --- |
-| Budget | Every saved profile | Expense-to-gross-income ratio is at least 80% |
-| Debt | Outstanding debt or a positive monthly debt payment is recorded | DTI is at least 20% |
-| Emergency fund | Every saved profile | Reserve covers less than 3 months of expenses |
+| Budget | Every saved profile | Expense/savings ratios and recorded monthly savings capacity; expense priority at 80% of gross income |
+| Debt | Debt balance or positive payments present | Payment burden; review at 20% DTI or when burden is unknown |
+| Emergency fund | Every saved profile | Coverage and gap to three months of expenses |
+| Goal planning | Active goals present | Remaining target and required monthly contribution per goal |
+| Risk assessment | Every saved profile | Stated preference capped by horizon, with explicit readiness factors |
+| Investment | Every saved profile | Prerequisites for investment consideration; coordinator also checks goal funding |
 
-Priority findings appear in emergency, debt, then budget order. Open **How agents were selected and what they found** to see every selection reason, the supporting numbers, and any unavailable inputs. If no threshold is crossed, the app says so rather than generating a generic recommendation. The rules compare unrounded saved amounts, although displayed ratios are rounded to two decimal places. They are centralized in `backend/app/advisory/rules.py` and are research examples, not validated advice. In particular, a gross-income ratio cannot establish how much cash is available after tax. The health score does not drive agent selection.
+The coordinator allocates **only the recorded monthly savings contribution**, once:
 
-Each run is saved as an immutable `analysis_sessions` row with state and rule versions, an input fingerprint, and a structured result. Editing saved financial inputs marks affected runs as stale; it does not rewrite their historical results. Click **Run analysis again** to create a new run. Name and email edits do not mark financial findings stale. The history lists newest sessions first and loads ten at a time; **Load more** appears only when older rows exist. A displayed **session ID** is a database record number, not the number of analyses that user has run.
+1. Cover the emergency reserve gap up to the available budget. Three months means the reserve should cover three months of expenses; it is not a deadline.
+2. Hold the remainder unassigned if debt burden needs review. No extra debt payoff amount is invented. Unknown reserve needs (zero expenses) also hold capacity unassigned.
+3. Allocate to future goals in high/medium/low priority order, then earliest deadline, then stable ID. Each receives at most its monthly requirement, remaining target, and available budget.
+4. Show remaining money as unassigned. Allocations plus unassigned money always equal the known savings contribution. Missing contribution is unknown; zero is a known zero budget.
 
-Opening a past session shows the six financial inputs captured with its result: gross monthly income, monthly expenses, monthly savings contribution, monthly debt payments, outstanding debt, and emergency fund. Other profile fields are part of its change fingerprint but were not stored as historical values, so the app does not reconstruct them. The dashboard always shows the *current* saved profile. If a history request fails, the current advisory result remains visible and history offers a retry.
+A future goal's approximate months are rounded up from days remaining divided by 30. Its required monthly amount is the remaining target divided by those months, rounded up to cents. Completed goals require zero; incomplete goals due today or earlier need a revised deadline and receive no automatic allocation. Goal earmarks do not increase the savings balance; avoid counting emergency money again as goal savings.
+
+For example, with a 500 monthly contribution and a 5,000 reserve gap, the plan allocates 500 to the reserve. If the reserve is already met and two goals need 400 each, the higher-priority goal gets 400 and the second gets 100, leaving a 300 monthly gap. Adjusting a goal, date, or contribution and rerunning produces a new saved plan.
+
+Investment readiness requires positive income and contribution, the reserve target met, no high/unknown debt burden, a positive horizon, and no underfunded or overdue goals. Known blockers yield **Address priorities first**; otherwise missing prerequisites yield **More information needed**. A category appears only when ready: horizons under 3 years cap preference at conservative, 3 to under 7 at moderate, and 7 or more allow the stated preference. These are illustrative project rules, not suitability claims, investment selections, or predictions. No growth or interest is assumed.
+
+### Saved history and reproducibility
+
+Every run stores immutable inputs, goal snapshots, one UTC planning date, agent selection reasons, numerical findings, source references, and the coordinated result. The API separately reports changes to financial inputs, planning date, and rule version. An old run remains visible with its original values; run again explicitly to update it. Name/email edits alone do not mark financial inputs stale. Archived goal edits do not affect active planning inputs.
+
+Earlier v1 sessions retain their original three-agent payload and six captured financial amounts. They are labeled as an earlier format, with no newly reconstructed historical goals or risk fields. History loads newest first in pages of ten. Expand **Why this plan** for the allocation policy and **Research details** for agents, evidence, and version information.
+
+The pipeline uses a replaceable orchestrator interface and structured agent facts as the baseline for future RL work. No trained RL policy or LLM is used yet.
 
 ## API available now
 
@@ -164,6 +186,10 @@ Opening a past session shows the six financial inputs captured with its result: 
 | PUT | `/users/{id}/financial-profile` | Create or update the user's profile |
 | GET | `/users/{id}/financial-profile` | Load the user's profile |
 | GET | `/users/{id}/financial-analysis` | Calculate a snapshot from saved inputs |
+| GET | `/users/{id}/goals?include_archived=false` | List active goals (optionally include archived) |
+| POST | `/users/{id}/goals` | Create a goal |
+| PUT | `/users/{id}/goals/{goal_id}` | Update a goal, preserving archive state |
+| PATCH | `/users/{id}/goals/{goal_id}` | Archive/restore with `{ "archived": true/false }` |
 | POST | `/users/{id}/advisory-sessions` | Run and save a rule-based advisory session |
 | GET | `/users/{id}/advisory-sessions/latest` | Load the latest run and its stale status |
 | GET | `/users/{id}/advisory-sessions?limit=10&before_id=<id>` | List newest session summaries with a cursor for older pages |
@@ -180,7 +206,7 @@ Set-Location backend
 ..\.venv\Scripts\python -m pytest -q
 ```
 
-These tests use a temporary local SQLite database for fast API, rule, persistence, history-order, and ownership checks. Apply Alembic migration `0004_analysis_sessions` and check the browser dashboard/save/run/history/edit/rerun/reload flow against PostgreSQL. From `frontend/`, run `npm test` for the freshness rules and `npm run build` for the production build.
+These tests use a temporary local SQLite database for fast API, rule, persistence, history-order, and ownership checks. Apply Alembic migrations through `0005_financial_goals` and check the browser dashboard/save/run/history/edit/rerun/reload flow against PostgreSQL. From `frontend/`, run `npm test` for the freshness rules and `npm run build` for the production build.
 
 ## Current structure
 
@@ -198,4 +224,4 @@ frontend/src/services/   Axios requests
 
 Each meaningful feature is tracked in a GitHub issue and built on a feature branch. Verify it, commit it, open a pull request, and merge only after review.
 
-This is a research prototype, not a financial advisory product. There is no login or access control, so use practice values rather than sensitive real-world information. The database supports multiple user records, but this browser remembers only one user ID and has no profile switcher. Clearing browser storage loses that local link. Goal planning, investment and risk agents, RL, LLM reasoning, and experiment results are not implemented yet.
+This is a research prototype, not a financial advisory product. There is no login or access control, so use practice values rather than sensitive real-world information. The database supports multiple user records, but this browser remembers only one user ID and has no profile switcher. Clearing browser storage loses that local link. Authentication and ownership enforcement, trained RL policies, LLM reasoning, and experiment comparisons are future milestones. User-ID scoping keeps routes consistent but is not authentication.

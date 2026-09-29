@@ -196,7 +196,8 @@ def test_goal_edits_archive_and_planning_date_freshness(client, monkeypatch):
     assert client.get(f"{path}/{no_goals['id']}").json()['result']['state']['goals'] == []
 
 
-def test_fixed_v1_payload_reads_without_new_fields(client):
+@pytest.mark.parametrize('explicit_version', [True, False])
+def test_fixed_v1_payload_reads_without_new_fields(client, explicit_version):
     import json
     from pathlib import Path
     from app.models import AnalysisSession
@@ -204,6 +205,8 @@ def test_fixed_v1_payload_reads_without_new_fields(client):
     from app.advisory.session_types import get_priority_actions
     user,_=create_profile(client)
     payload=json.loads((Path(__file__).parent/'fixtures/advisory_v1.json').read_text())
+    if not explicit_version:
+        payload['state'].pop('schema_version')
     assert get_priority_actions(AdvisoryResult.model_validate(payload))[0].title == 'Review emergency reserve'
     with next(app.dependency_overrides[get_session]()) as db:
         row=AnalysisSession(user_id=user['id'],method='rule_based',rule_version='rule-based-v1',
@@ -212,7 +215,8 @@ def test_fixed_v1_payload_reads_without_new_fields(client):
     path=f"/users/{user['id']}/advisory-sessions"
     for suffix in ('latest',str(row_id)):
         result=client.get(f'{path}/{suffix}').json()
-        assert result['result'] == payload
+        expected = {**payload, 'state': {'schema_version': 'financial-state-v1', **payload['state']}}
+        assert result['result'] == expected
         assert result['stale_reasons'] == ['rule_version']
         assert 'advice' not in result['result']
         assert 'goals' not in result['result']['state']

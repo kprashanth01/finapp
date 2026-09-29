@@ -109,7 +109,8 @@ def _saved_financial_data(user_id: int, session: Session) -> tuple[User, Financi
 def _session_read(row: AnalysisSession, current_state: PlanningState) -> AdvisorySessionRead:
     reasons = []
     stored = row.result_payload['state']
-    if stored['schema_version'] == 'financial-state-v2':
+    # Early v1 rows predate the explicit state-version field.
+    if stored.get('schema_version', 'financial-state-v1') == 'financial-state-v2':
         if row.input_fingerprint != current_state.fingerprint():
             reasons.append('inputs')
         if stored['as_of_date'] != current_state.as_of_date.isoformat():
