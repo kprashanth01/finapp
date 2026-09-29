@@ -1,412 +1,135 @@
 import { useEffect, useRef, useState } from 'react'
-import Goals from './components/Goals.jsx'
-import useGoals from './hooks/useGoals.js'
-import { createOperationGate } from './services/operationGate.js'
-import AdvisorySession from './components/AdvisorySession.jsx'
-import AdvisoryHistory from './components/AdvisoryHistory.jsx'
-import Dashboard from './components/Dashboard.jsx'
-import FinancialAnalysis from './components/FinancialAnalysis.jsx'
-import FinancialProfileForm from './components/FinancialProfileForm.jsx'
-import UserForm from './components/UserForm.jsx'
-import { canStartRun, canStartSave, hasIncomeChanged, hasProfileFinancialChanges, markSessionStale } from './services/advisoryFreshness.js'
-import {
-  createUser,
-  explainApiError,
-  getFinancialAnalysis,
-  getFinancialProfile,
-  getHealth,
-  getLatestAdvisorySession,
-  getAdvisorySession,
-  getUser,
-  saveFinancialProfile,
-  runAdvisorySession,
-  updateUser,
-} from './services/api.js'
+import AuthScreen from './components/AuthScreen.jsx'
+import Workspace from './Workspace.jsx'
+import { createAuthRequestGate, identityEpoch, resolveBootState, settleAuthSuccess, subscribeToAuthChanges } from './services/authState.js'
+import { claimEarlierProfile, createUser, explainApiError, getCurrentUser, signIn, signOut } from './services/api.js'
 
-const savedUserKey = 'finapp.userId'
-
-function App() {
-  const [activeView, setActiveView] = useState('dashboard')
-  const [savedUserId, setSavedUserId] = useState(() => localStorage.getItem(savedUserKey))
-  const [connection, setConnection] = useState('checking')
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [user, setUser] = useState(null)
-  const [profile, setProfile] = useState(null)
-  const [analysis, setAnalysis] = useState(null)
-  const [advisorySession, setAdvisorySession] = useState(null)
-  const [advisoryLoading, setAdvisoryLoading] = useState(false)
-  const [advisoryRunning, setAdvisoryRunning] = useState(false)
-  const [advisoryError, setAdvisoryError] = useState('')
-  const [selectedSession, setSelectedSession] = useState(null)
-  const [selectedSessionError, setSelectedSessionError] = useState('')
-  const [selectedSessionLoading, setSelectedSessionLoading] = useState(false)
-  const selectionToken = useRef(0)
-  const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
-  const [message, setMessage] = useState('')
+export default function App() {
+  const [auth, setAuth] = useState({ status: 'checking', user: null })
+  const [mode, setMode] = useState('login')
   const [error, setError] = useState('')
-  const goalsState = useGoals(user?.id)
-  const operations = useRef(createOperationGate())
-  const advisoryToken = useRef(0)
-  const [focusTarget, setFocusTarget] = useState(null)
-  const [focusGoalId, setFocusGoalId] = useState(null)
+  const [pending, setPending] = useState(false)
+  const [startView, setStartView] = useState('dashboard')
+  const requests = useRef(createAuthRequestGate())
+  const authInFlight = useRef(false)
+  const accountChannel = useRef(null)
 
-  function openProfile(field) { setFocusTarget(field ?? null); setActiveView('profile') }
-  function openGoal(id) { setFocusGoalId(id ?? null); setActiveView('goals') }
-  useEffect(() => {
-    if (activeView !== 'profile' || !focusTarget) return
-    const input = document.querySelector(`[name="${focusTarget}"]`)
-    const details = input?.closest('details')
-    if (details) details.open = true
-    input?.focus()
-    input?.scrollIntoView({ block: 'center' })
-  }, [activeView, focusTarget])
-
-  async function mutateGoal(operation) {
-    if (advisoryRunning || advisoryLoading || goalsState.loading) return null
-    const release = operations.current.begin()
-    if (!release) return null
-    advisoryToken.current += 1
-    selectionToken.current += 1
-    setSaving(true)
-    try {
-      const saved = await operation()
-      if (!saved) return null
-      setAdvisorySession((current) => markSessionStale(current, true))
-      setSelectedSession(null); setSelectedSessionError(''); setSelectedSessionLoading(false)
-      if (profile) await refreshAdvisory(user.id)
-      setHistoryRefreshKey((key) => key + 1)
-      return saved
-    } finally { setSaving(false); release() }
+  function announceAccountChange() {
+    accountChannel.current?.postMessage({ type: 'account-changed' })
   }
 
-  async function checkConnection(signal) {
-    setConnection('checking')
-    try {
-      const health = await getHealth(signal)
-      setConnection(health.status === 'ok' ? 'connected' : 'unavailable')
-    } catch (requestError) {
-      if (requestError.name !== 'CanceledError') setConnection('unavailable')
-    }
+  async function checkSession() {
+    const token = requests.current.begin()
+    setAuth({ status: 'checking', user: null })
+    const next = await resolveBootState(getCurrentUser)
+    if (requests.current.isCurrent(token)) setAuth(next)
   }
 
-  async function refreshAdvisory(userId) {
-    const token = ++advisoryToken.current
-    setAdvisoryLoading(true)
-    setAdvisoryError('')
-    try {
-      const saved = await getLatestAdvisorySession(userId)
-      if (token === advisoryToken.current) setAdvisorySession(saved)
-    } catch (requestError) {
-      if (token !== advisoryToken.current) return
-      if (requestError.response?.status === 404) setAdvisorySession(null)
-      else setAdvisoryError(`Could not verify whether the saved session is current: ${explainApiError(requestError)}`)
-    } finally {
-      if (token === advisoryToken.current) setAdvisoryLoading(false)
-    }
-  }
-
-  async function loadSavedUser(userId) {
-    setLoading(true)
-    setError('')
-    try {
-      const loadedUser = await getUser(userId)
-      let loadedProfile = null
-      try {
-        loadedProfile = await getFinancialProfile(userId)
-      } catch (requestError) {
-        if (requestError.response?.status !== 404) throw requestError
-      }
-      setUser(loadedUser)
-      setProfile(loadedProfile)
-      if (loadedProfile) {
-        try {
-          setAnalysis(await getFinancialAnalysis(userId))
-        } catch (analysisError) {
-          setAnalysis(null)
-          setError(`Profile loaded, but analysis could not load: ${explainApiError(analysisError)}`)
-        }
-        await refreshAdvisory(userId)
-      } else {
-        setAnalysis(null)
-        setAdvisorySession(null)
-      }
-    } catch (requestError) {
-      if (requestError.response?.status === 404) {
-        localStorage.removeItem(savedUserKey)
-        setSavedUserId(null)
-        setUser(null)
-        setProfile(null)
-        setAnalysis(null)
-        setAdvisorySession(null)
-        selectionToken.current += 1
-        setSelectedSession(null)
-        setMessage('The saved user was not found. Create a new user to continue.')
-      } else {
-        setError(explainApiError(requestError))
-      }
-    } finally {
-      setLoading(false)
-    }
+  function reconcileChangedCookie() {
+    identityEpoch.invalidate()
+    setPending(false)
+    announceAccountChange()
+    return checkSession()
   }
 
   useEffect(() => {
-    const controller = new AbortController()
-    checkConnection(controller.signal)
-    if (savedUserId) loadSavedUser(savedUserId)
-    else setLoading(false)
-    return () => controller.abort()
+    // Earlier builds stored a user ID here. It is never an authentication credential.
+    localStorage.removeItem('finapp.userId')
+    function expired() {
+      requests.current.invalidate()
+      identityEpoch.invalidate()
+      setAuth({ status: 'signedOut', user: null })
+      setPending(false)
+      setMode('login')
+      setError('Your session ended. Sign in again to continue.')
+    }
+    window.addEventListener('finapp:session-expired', expired)
+    let unsubscribe
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('finapp-auth')
+      accountChannel.current = channel
+      unsubscribe = subscribeToAuthChanges(channel, () => {
+        requests.current.invalidate()
+        identityEpoch.invalidate()
+        setPending(false)
+        setError('')
+        checkSession()
+      })
+    }
+    checkSession()
+    return () => {
+      requests.current.invalidate()
+      window.removeEventListener('finapp:session-expired', expired)
+      unsubscribe?.()
+      accountChannel.current = null
+    }
   }, [])
 
-  async function handleSaveUser(values) {
-    if (!canStartSave({ saving: saving || goalsState.pending || advisoryLoading, running: advisoryRunning })) return
-    const release = operations.current.begin()
-    if (!release) return
-    advisoryToken.current += 1
-    setSaving(true)
+  async function submit(selectedMode, values) {
+    if (authInFlight.current) return
+    authInFlight.current = true
+    const token = requests.current.begin()
+    identityEpoch.invalidate()
     setError('')
-    setMessage('')
+    setPending(true)
     try {
-      const saved = user ? await updateUser(user.id, values) : await createUser(values)
-      if (user && hasIncomeChanged(user, saved)) {
-        setAdvisorySession((current) => markSessionStale(current, true))
-      }
-      if (!user) {
-        localStorage.setItem(savedUserKey, String(saved.id))
-        setSavedUserId(String(saved.id))
-        setActiveView('profile')
-      }
-      setUser(saved)
-      setMessage(user ? 'User details updated.' : 'User created. Now save a financial profile.')
-      if (user && profile) {
-        try {
-          setAnalysis(await getFinancialAnalysis(saved.id))
-        } catch (analysisError) {
-          setAnalysis(null)
-          setError(`User details saved, but analysis could not load: ${explainApiError(analysisError)}`)
-        }
-        await refreshAdvisory(saved.id)
-        selectionToken.current += 1
-        setSelectedSession(null)
-        setSelectedSessionError('')
-        setSelectedSessionLoading(false)
-        setHistoryRefreshKey((value) => value + 1)
-      }
+      const account = selectedMode === 'signup' ? await createUser(values)
+        : selectedMode === 'claim' ? await claimEarlierProfile(values) : await signIn(values)
+      await settleAuthSuccess(requests.current, token, () => {
+        identityEpoch.invalidate()
+        setStartView(selectedMode === 'signup' ? 'profile' : 'dashboard')
+        setAuth({ status: 'signedIn', user: account })
+        announceAccountChange()
+      }, reconcileChangedCookie)
     } catch (requestError) {
-      setError(explainApiError(requestError))
+      if (requests.current.isCurrent(token)) setError(explainApiError(requestError))
     } finally {
-      setSaving(false)
-      release()
+      if (requests.current.isCurrent(token)) setPending(false)
+      authInFlight.current = false
     }
   }
 
-  async function handleSaveProfile(values, nextView = 'dashboard') {
-    if (!canStartSave({ saving: saving || goalsState.pending || advisoryLoading, running: advisoryRunning })) return
-    const release = operations.current.begin()
-    if (!release) return
-    advisoryToken.current += 1
-    setSaving(true)
+  async function logout() {
+    if (authInFlight.current) return
+    authInFlight.current = true
+    const token = requests.current.begin()
+    identityEpoch.invalidate()
+    setPending(true)
     setError('')
-    setMessage('')
     try {
-      const saved = await saveFinancialProfile(user.id, values)
-      setAdvisorySession((current) => markSessionStale(current, hasProfileFinancialChanges(profile, saved)))
-      setProfile(saved)
-      setMessage('Financial profile saved.')
-      setActiveView(nextView)
-      try {
-        setAnalysis(await getFinancialAnalysis(user.id))
-      } catch (analysisError) {
-        setAnalysis(null)
-        setError(`Profile saved, but analysis could not load: ${explainApiError(analysisError)}`)
-      }
-      await refreshAdvisory(user.id)
-      selectionToken.current += 1
-      setSelectedSession(null)
-      setSelectedSessionError('')
-      setSelectedSessionLoading(false)
-      setHistoryRefreshKey((value) => value + 1)
+      await signOut()
+      await settleAuthSuccess(requests.current, token, () => {
+        setAuth({ status: 'signedOut', user: null })
+        setMode('login')
+        announceAccountChange()
+      }, reconcileChangedCookie)
     } catch (requestError) {
-      setError(explainApiError(requestError))
+      if (requests.current.isCurrent(token)) setError(`Sign out failed: ${explainApiError(requestError)}`)
     } finally {
-      setSaving(false)
-      release()
+      if (requests.current.isCurrent(token)) setPending(false)
+      authInFlight.current = false
     }
   }
 
-  async function handleRunAdvisory() {
-    if (!profile || !canStartRun({ saving: saving || goalsState.pending, loading: advisoryLoading || goalsState.loading || !!goalsState.error, running: advisoryRunning })) return
-    const release = operations.current.begin()
-    if (!release) return
-    advisoryToken.current += 1
-    setActiveView('advisor')
-    setAdvisoryRunning(true)
-    setAdvisoryError('')
-    try {
-      setAdvisorySession(await runAdvisorySession(user.id))
-      selectionToken.current += 1
-      setSelectedSession(null)
-      setSelectedSessionError('')
-      setSelectedSessionLoading(false)
-      setHistoryRefreshKey((value) => value + 1)
-    } catch (requestError) {
-      setAdvisoryError(explainApiError(requestError))
-    } finally {
-      setAdvisoryRunning(false)
-      release()
-    }
+  if (auth.status === 'signedIn' && auth.user) {
+    return <><Workspace key={auth.user.id} initialUser={auth.user} startView={startView} onSignOut={logout} />
+      {error && <p role="alert" className="mx-auto max-w-3xl px-5 text-sm text-rose-800">{error}</p>}
+    </>
   }
 
-  async function handleSelectSession(sessionId) {
-    if (saving || advisoryRunning || goalsState.pending) return
-    const requestId = ++selectionToken.current
-    setSelectedSessionError('')
-    if (sessionId === advisorySession?.id) {
-      setSelectedSession(null)
-      setSelectedSessionLoading(false)
-      return
-    }
-    setSelectedSessionLoading(true)
-    try {
-      const saved = await getAdvisorySession(user.id, sessionId)
-      if (requestId === selectionToken.current) setSelectedSession(saved)
-    } catch (requestError) {
-      if (requestId === selectionToken.current) setSelectedSessionError(`Could not open that saved run: ${explainApiError(requestError)}`)
-    } finally {
-      if (requestId === selectionToken.current) setSelectedSessionLoading(false)
-    }
-  }
-
-  return (
-    <main className="min-h-screen bg-slate-50 px-5 py-10 text-slate-900 sm:py-16">
-      <div className="mx-auto max-w-3xl">
-        <header className="mb-8">
-          <h1 className="text-3xl font-semibold tracking-tight">FinApp</h1>
-          <p className="mt-2 text-slate-600">Save your financial profile, review transparent calculations, and run an explained rule-based analysis.</p>
-        </header>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-          <div className="mb-7 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-5">
-            <div className="flex items-center gap-2 text-sm" role="status" aria-live="polite">
-              <span className={`h-2.5 w-2.5 rounded-full ${connection === 'connected' ? 'bg-emerald-500' : connection === 'checking' ? 'bg-amber-400' : 'bg-rose-500'}`} aria-hidden="true" />
-              <span>{connection === 'connected' ? 'API connected' : connection === 'checking' ? 'Checking API connection…' : 'API unavailable'}</span>
-            </div>
-            <button type="button" onClick={() => checkConnection()} className="text-sm font-medium text-slate-700 underline underline-offset-4 hover:text-slate-900">
-              Retry connection
-            </button>
-          </div>
-
-          {error && <p role="alert" className="mb-5 rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
-          {message && <p role="status" className="mb-5 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
-
-          {loading ? (
-            <p className="text-slate-600">Loading saved profile…</p>
-          ) : user ? (
-            <>
-              <div className="mb-8 rounded-lg bg-slate-50 p-4 text-sm">
-                <p className="font-medium">User: {user.name}</p>
-                <p className="mt-1 text-slate-600">{user.email}</p>
-                <p className="mt-2 text-slate-500">This browser remembers your profile. Login is not implemented yet.</p>
-              </div>
-              <nav aria-label="FinApp views" className="mb-8 flex flex-wrap gap-2 border-b border-slate-200 pb-4">
-                {[
-                  ['dashboard', 'Dashboard'],
-                  ['profile', 'Profile'],
-                  ['goals', 'Goals'],
-                  ['advisor', 'Advisor'],
-                ].map(([view, label]) => (
-                  <button
-                    key={view}
-                    type="button"
-                    onClick={() => { setActiveView(view); setFocusGoalId(null); setFocusTarget(null) }}
-                    disabled={saving || (view === 'advisor' && !profile)}
-                    aria-current={activeView === view ? 'page' : undefined}
-                    className={`rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-40 ${activeView === view ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </nav>
-              {activeView === 'dashboard' && (
-                <Dashboard
-                  user={user}
-                  goals={goalsState.goals}
-                  goalsLoading={goalsState.loading}
-                  goalsError={goalsState.error}
-                  onOpenGoals={() => openGoal(null)}
-                  profile={profile}
-                  analysis={analysis}
-                  advisorySession={advisorySession}
-                  advisoryLoading={advisoryLoading}
-                  advisoryError={advisoryError}
-                  saving={saving}
-                  onRetryAdvisory={() => refreshAdvisory(user.id)}
-                  onOpenProfile={() => openProfile(null)}
-                  onOpenAdvisor={() => setActiveView('advisor')}
-                />
-              )}
-              {activeView === 'goals' && <Goals {...goalsState} disabled={saving || advisoryRunning || advisoryLoading} hasProfile={!!profile}
-                onCreate={(values) => mutateGoal(() => goalsState.create(values))}
-                onUpdate={(id, values) => mutateGoal(() => goalsState.update(id, values))}
-                onArchive={(id, archived) => mutateGoal(() => goalsState.setArchived(id, archived))}
-                onRetry={goalsState.reload} legacyNote={profile?.financial_goal} focusGoalId={focusGoalId}
-                onClearLegacyNote={() => handleSaveProfile({ ...profile, financial_goal: null }, 'goals')}
-                onRunAnalysis={handleRunAdvisory} onOpenProfile={() => openProfile(null)} />}
-              {activeView === 'goals' && advisoryError && <p role="alert" className="mt-4 text-sm text-amber-900">Your goal changes are saved. {advisoryError} <button className="underline" disabled={saving || advisoryRunning} onClick={() => refreshAdvisory(user.id)}>Retry plan status</button></p>}
-              {activeView === 'profile' && (
-                <>
-                  <details className="mb-8 rounded-lg border border-slate-200 p-4">
-                    <summary className="cursor-pointer text-sm font-medium">Edit user details</summary>
-                    <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} disabled={advisoryRunning || advisoryLoading} /></div>
-                  </details>
-                  <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} disabled={advisoryRunning || advisoryLoading} />
-                  {profile && (saving
-                    ? <p role="status" className="mt-8 text-sm text-slate-600">Updating financial snapshot…</p>
-                    : <FinancialAnalysis analysis={analysis} user={user} profile={profile} />)}
-                </>
-              )}
-              {activeView === 'advisor' && profile && (
-                <>
-                  {selectedSessionLoading && <p className="text-sm text-slate-600">Opening saved run…</p>}
-                  {selectedSessionError && <p role="alert" className="rounded-lg bg-rose-50 p-3 text-sm text-rose-800">{selectedSessionError}</p>}
-                  <AdvisorySession
-                    key={(selectedSession ?? advisorySession)?.id ?? 'empty'}
-                    session={selectedSession ?? advisorySession}
-                    loading={advisoryLoading}
-                    running={advisoryRunning}
-                    saving={saving || goalsState.pending || goalsState.loading || !!goalsState.error}
-                    onOpenProfile={openProfile}
-                    onOpenGoal={openGoal}
-                    error={advisoryError}
-                    onRun={handleRunAdvisory}
-                    historical={selectedSession != null}
-                    onShowLatest={() => { selectionToken.current += 1; setSelectedSession(null); setSelectedSessionError(''); setSelectedSessionLoading(false) }}
-                  />
-                  <AdvisoryHistory
-                    userId={user.id}
-                    refreshKey={historyRefreshKey}
-                    selectedId={(selectedSession ?? advisorySession)?.id}
-                    onSelect={handleSelectSession}
-                  />
-                </>
-              )}
-            </>
-          ) : savedUserId ? (
-            <div>
-              <h2 className="text-xl font-semibold">Saved user unavailable</h2>
-              <p className="mt-2 text-sm text-slate-600">The browser still remembers this user. Retry after checking the API and database connection.</p>
-              <button type="button" onClick={() => loadSavedUser(savedUserId)} className="mt-5 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700">
-                Reload saved user
-              </button>
-            </div>
-          ) : (
-            <UserForm onSave={handleSaveUser} saving={saving} />
-          )}
-        </section>
-        <p className="mx-auto mt-5 max-w-3xl text-sm text-slate-500">Local research prototype. Use practice values until authentication is added.</p>
-      </div>
-    </main>
-  )
+  return <main className="min-h-screen bg-slate-50 px-5 py-10 text-slate-900 sm:py-16">
+    <div className="mx-auto max-w-lg">
+      <header className="mb-8"><h1 className="text-3xl font-semibold tracking-tight">FinApp</h1>
+        <p className="mt-2 text-slate-600">Your saved financial profile, goals, and explained advisory plans.</p></header>
+      <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        {auth.status === 'checking' ? <p role="status">Checking your session…</p>
+          : auth.status === 'unavailable' ? <div role="alert"><h2 className="text-xl font-semibold">API unavailable</h2>
+            <p className="mt-2 text-sm text-slate-600">Your account status could not be checked. Check the backend and try again.</p>
+            <button onClick={checkSession} className="mt-4 rounded-lg bg-slate-900 px-5 py-2 text-sm text-white">Retry connection</button></div>
+            : <AuthScreen key={mode} mode={mode} pending={pending} error={error} onSubmit={submit}
+                onMode={(next) => { setMode(next); setError('') }} />}
+      </section>
+      <p className="mt-5 text-sm text-slate-500">Educational research prototype. Use practice financial values.</p>
+    </div>
+  </main>
 }
-
-export default App

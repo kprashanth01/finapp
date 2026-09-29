@@ -1,9 +1,36 @@
 import axios from 'axios'
+import { identityEpoch } from './authState.js'
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000',
+export function defaultApiBaseUrl(page = typeof window === 'undefined'
+  ? { protocol: 'http:', hostname: 'localhost' } : window.location) {
+  return `${page.protocol}//${page.hostname}:8000`
+}
+
+export const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL || defaultApiBaseUrl(),
   timeout: 5000,
+  withCredentials: true,
+  headers: { 'X-FinApp-Request': '1' },
 })
+
+api.interceptors.request.use((config) => {
+  config.finappIdentityEpoch = identityEpoch.current()
+  return config
+})
+
+api.interceptors.response.use((response) => response, (error) => {
+  const path = error.config?.url ?? ''
+  if (error.response?.status === 401 && !['/auth/login', '/auth/claim', '/auth/me'].includes(path) &&
+      error.config?.finappIdentityEpoch === identityEpoch.current() && typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('finapp:session-expired'))
+  }
+  return Promise.reject(error)
+})
+
+export async function getCurrentUser() { return (await api.get('/auth/me')).data }
+export async function signIn(values) { return (await api.post('/auth/login', values)).data }
+export async function claimEarlierProfile(values) { return (await api.post('/auth/claim', values)).data }
+export async function signOut() { await api.post('/auth/logout') }
 
 export async function getHealth(signal) {
   const response = await api.get('/health', { signal })

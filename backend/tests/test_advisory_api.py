@@ -1,5 +1,5 @@
 import pytest
-from fastapi.testclient import TestClient
+from tests.support import AuthenticatedTestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -20,7 +20,7 @@ def client(tmp_path):
             yield session
 
     app.dependency_overrides[get_session] = session_override
-    with TestClient(app) as test_client:
+    with AuthenticatedTestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
     engine.dispose()
@@ -65,12 +65,12 @@ def test_run_persists_result_and_latest_can_reload_it(client):
 
 def test_run_requires_saved_user_and_profile(client):
     missing_user = client.post("/users/999/advisory-sessions")
-    assert missing_user.status_code == 404
-    assert missing_user.json()["detail"] == "User not found."
+    assert missing_user.status_code == 401
     user = client.post(
         "/users",
         json={"name": "No Profile", "email": "none@sample-finapp.org", "monthly_income": "5000"},
     ).json()
+    assert client.post("/users/999/advisory-sessions").status_code == 404
     path = f"/users/{user['id']}/advisory-sessions"
     missing_profile = client.post(path)
     assert missing_profile.status_code == 404
@@ -153,6 +153,7 @@ def test_history_orders_pages_and_reports_stale_summaries(client):
 def test_history_detail_is_owned_and_immutable(client):
     user, profile = create_profile(client)
     other, _ = create_profile(client, email="other@sample-finapp.org")
+    assert client.sign_in(user['email']).status_code == 200
     path = f"/users/{user['id']}/advisory-sessions"
     original = client.post(path).json()
     profile["emergency_fund"] = "12000.00"
@@ -163,10 +164,13 @@ def test_history_detail_is_owned_and_immutable(client):
     assert detail.json()["is_stale"] is True
     assert detail.json()["result"] == original["result"]
     assert detail.json()["result"]["state"]["emergency_fund"] == "4000.00"
+    assert client.get(f"/users/{other['id']}/advisory-sessions").status_code == 404
+    assert client.sign_in(other['email']).status_code == 200
     assert client.get(f"/users/{other['id']}/advisory-sessions").json() == {
         "items": [], "next_before_id": None
     }
     assert client.get(f"/users/{other['id']}/advisory-sessions/{original['id']}").status_code == 404
+    assert client.sign_in(user['email']).status_code == 200
     assert client.get(f"{path}/999").status_code == 404
 
 

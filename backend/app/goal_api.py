@@ -3,10 +3,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_session
+from app.auth_dependencies import require_owner
 from app.goal_schemas import GoalArchiveWrite, GoalRead, GoalWrite
 from app.models import FinancialGoal, User
 
-router = APIRouter(prefix="/users/{user_id}/goals", tags=["goals"])
+router = APIRouter(prefix="/users/{user_id}/goals", tags=["goals"], dependencies=[Depends(require_owner)])
 
 
 def load_active_goals(session: Session, user_id: int) -> list[FinancialGoal]:

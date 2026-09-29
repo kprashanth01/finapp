@@ -1,10 +1,12 @@
 # FinApp
 
-An educational research prototype for a future RL-orchestrated, multi-agent financial advisory system. The current app lets you save a financial profile in PostgreSQL, review a dashboard of saved values and deterministic metrics, and revisit explainable rule-based advisory sessions. Its findings are illustrative project outputs, not professional financial advice.
+An educational research prototype for a future RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. Its findings are illustrative project outputs, not professional financial advice.
 
 ## How the current flow works
 
 ```text
+Sign-in form → HttpOnly session cookie → FastAPI owner check
+                                         ↓
 React form → Axios request → FastAPI validation → SQLAlchemy → PostgreSQL
                                       ↓
                          saved financial inputs
@@ -13,14 +15,14 @@ React form → Axios request → FastAPI validation → SQLAlchemy → PostgreSQ
                                       ↓
                  financial state → rule-based orchestrator
                                       ↓
-                  budget / debt / emergency agents
+          budget / debt / emergency / goal / risk / investment agents
                                       ↓
                  evidence-backed findings → saved session
                                       ↓
                                   React view
 ```
 
-The app does not create demo users or financial data. A user ID is kept in this browser's local storage so the same record can be loaded after a refresh. This is a local development convenience, not authentication.
+The app creates no demo users or financial data. The browser keeps a host-only, HttpOnly session cookie; it no longer uses a local-storage user ID as identity. An expired or revoked session requires sign-in again.
 
 ## Requirements
 
@@ -72,7 +74,7 @@ Edit the root `.env` file and set:
 DATABASE_URL=postgresql+psycopg://finapp_dev:YOUR_URL_ENCODED_PASSWORD@127.0.0.1:5432/finapp
 ```
 
-URL-encode special characters in the password. The `.env` file is Git-ignored. Keep the password there; do not send or commit it. FastAPI and Alembic read this root file. The `frontend/.env.example` file is only for changing the frontend's API address; the default is `http://localhost:8000`.
+URL-encode special characters in the database password. The `.env` file is Git-ignored. Keep the password there; do not send or commit it. FastAPI and Alembic read this root file. The frontend defaults to port 8000 on the **same hostname as the page**: a page at `127.0.0.1:5173` calls `127.0.0.1:8000`, while a page at `localhost:5173` calls `localhost:8000`. This keeps the local session cookie on one host. Use `frontend/.env.example` only if the API is elsewhere.
 
 ### 3. Install packages
 
@@ -98,7 +100,19 @@ Set-Location backend
 Set-Location ..
 ```
 
-Run migrations when a new database or a new migration is added, not for every app start. Alembic records applied migrations in the database.
+Run migrations when a new database or a new migration is added, not for every app start. Alembic records applied migrations in the database. Revision `0006_private_accounts` adds nullable credential fields and session tables without changing existing financial rows.
+
+### 5. Claim an earlier local profile once (existing installs only)
+
+Earlier user records have no password. After applying migration 0006, generate a one-time code on the machine that runs the API:
+
+```powershell
+Set-Location backend
+..\.venv\Scripts\python -m app.legacy_claim --email demo.finapp@example.com
+Set-Location ..
+```
+
+Replace the email with the exact email on the earlier record. The command prints a code valid for 30 minutes; running it again replaces the prior code. Open **Claim an earlier profile** in the app, enter that email, the code, and a new password of at least 12 characters. The record keeps its user ID, profile, goals, and saved analyses. The app does not choose or display your password. No claim command is needed again after the account is claimed. Knowing an email or an old browser user ID alone cannot claim a record.
 
 ## Start a development session
 
@@ -118,7 +132,7 @@ Set-Location frontend
 npm run dev
 ```
 
-Open the URL printed by Vite, normally <http://localhost:5173>. Enter a user, then use **Profile** to save the financial inputs. **Dashboard** shows the current saved amounts, calculated snapshot, and latest advisory summary. **Advisor** runs an analysis and lists saved sessions; open a past run to see its stored inputs and findings. Refreshing the page loads the current dashboard and latest run again. The API health endpoint remains at <http://localhost:8000/health>.
+Open the URL printed by Vite, normally <http://localhost:5173>. Sign in, create an account, or claim an earlier local profile. New accounts first enter gross monthly income in **Profile → User details**, then save their financial profile. **Dashboard** shows current saved amounts, calculated metrics, and the latest advisory summary. **Goals** stores measurable targets. **Advisor** runs an analysis and lists saved sessions. Refreshing the page reloads the signed-in account. **Sign out** revokes its session. The API health endpoint remains at <http://localhost:8000/health>.
 
 The income field means **gross monthly income before tax** for the ratios below. Monthly expenses should include monthly debt payments; the separate debt-payment input identifies the portion used for DTI and cannot exceed total expenses. Savings and outstanding debt are balances, while monthly savings contributions and debt payments are flows. Existing profiles keep working because the two new flow inputs are optional.
 
@@ -180,7 +194,11 @@ The pipeline uses a replaceable orchestrator interface and structured agent fact
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/health` | Check API availability |
-| POST | `/users` | Create a user |
+| POST | `/users` | Create and sign in to an account |
+| POST | `/auth/login` | Sign in |
+| GET | `/auth/me` | Load the current account from its cookie |
+| POST | `/auth/logout` | Revoke the current browser session |
+| POST | `/auth/claim` | Claim an earlier local record with a one-time code |
 | GET | `/users/{id}` | Load a user |
 | PUT | `/users/{id}` | Update user details, including monthly income |
 | PUT | `/users/{id}/financial-profile` | Create or update the user's profile |
@@ -206,7 +224,7 @@ Set-Location backend
 ..\.venv\Scripts\python -m pytest -q
 ```
 
-These tests use a temporary local SQLite database for fast API, rule, persistence, history-order, and ownership checks. Apply Alembic migrations through `0005_financial_goals` and check the browser dashboard/save/run/history/edit/rerun/reload flow against PostgreSQL. From `frontend/`, run `npm test` for the freshness rules and `npm run build` for the production build.
+These tests use a temporary SQLite database for API, auth, rule, persistence, history, and ownership checks. Apply Alembic migrations through `0006_private_accounts` and check signup/sign-in, profile/goals/advisor, reload, and sign-out against PostgreSQL. From `frontend/`, run `npm test` and `npm run build`.
 
 ## Current structure
 
@@ -224,4 +242,6 @@ frontend/src/services/   Axios requests
 
 Each meaningful feature is tracked in a GitHub issue and built on a feature branch. Verify it, commit it, open a pull request, and merge only after review.
 
-This is a research prototype, not a financial advisory product. There is no login or access control, so use practice values rather than sensitive real-world information. The database supports multiple user records, but this browser remembers only one user ID and has no profile switcher. Clearing browser storage loses that local link. Authentication and ownership enforcement, trained RL policies, LLM reasoning, and experiment comparisons are future milestones. User-ID scoping keeps routes consistent but is not authentication.
+This remains a research prototype, not a financial advisory product. Passwords use Argon2id hashes, sessions are revocable and expire after seven days, and each user-scoped API route checks the signed-in owner. Mutating browser calls carry a custom request header; credentialed CORS is limited to explicit frontend origins. Local loopback HTTP uses a development cookie; non-loopback deployments require HTTPS and a Secure cookie. Set `FINAPP_ALLOWED_ORIGINS` to an explicit comma-separated list of your frontend origins when deploying. Serve only the authenticated API build; an older API process pointed at the same database would still expose its older routes.
+
+Email verification, password recovery, MFA, and deployment-level rate limiting are not in this issue. Use practice values until those controls and a reviewed HTTPS deployment are in place. Trained RL policies, LLM reasoning, and experiment comparisons remain future milestones.

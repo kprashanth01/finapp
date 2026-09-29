@@ -20,6 +20,9 @@ class User(Base):
     age: Mapped[int | None]
     occupation: Mapped[str | None] = mapped_column(String(100))
     monthly_income: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    legacy_claim_digest: Mapped[str | None] = mapped_column(String(64))
+    legacy_claim_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     profile: Mapped["FinancialProfile | None"] = relationship(
@@ -29,6 +32,33 @@ class User(Base):
         back_populates="user", cascade="all, delete-orphan"
     )
     goals: Mapped[list["FinancialGoal"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    auth_sessions: Mapped[list["AuthSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+
+
+Index("uq_users_email_lower", func.lower(User.email), unique=True)
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_sessions"
+    __table_args__ = (Index("ix_auth_sessions_user", "user_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    token_digest: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    user: Mapped[User] = relationship(back_populates="auth_sessions")
+
+
+class AuthFailure(Base):
+    __tablename__ = "auth_failures"
+    __table_args__ = (Index("ix_auth_failures_lookup", "email_digest", "ip_digest", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email_digest: Mapped[str] = mapped_column(String(64))
+    ip_digest: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
 class FinancialProfile(Base):
