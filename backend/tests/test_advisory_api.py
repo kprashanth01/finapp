@@ -88,6 +88,45 @@ def test_research_comparison_requires_profile_and_owner(client):
     assert client.post("/users/999/research/comparison", json={"seed": 1}).status_code == 404
 
 
+def test_manual_research_action_uses_saved_profile_without_writing_history(client):
+    user, profile = create_profile(client)
+    root = f"/users/{user['id']}/research"
+    catalog = client.get(f"{root}/actions")
+    assert catalog.status_code == 200
+    assert catalog.json()["action_count"] == 63
+    assert catalog.json()["agents"] == ["budget", "debt", "emergency", "goal", "risk", "investment"]
+
+    incomplete = client.post(f"{root}/manual-action", json={
+        "selected_agents": ["emergency", "budget"]
+    })
+    assert incomplete.status_code == 200, incomplete.text
+    result = incomplete.json()
+    assert result["source"] == "saved_profile"
+    assert result["selected_agents"] == ["budget", "emergency"]
+    assert [agent["agent_id"] for agent in result["agent_results"]] == ["budget", "emergency"]
+    assert result["plan_readiness"]["can_build_full_plan"] is False
+    assert set(result["plan_readiness"]["missing_agents"]) == {"debt", "risk", "investment"}
+    assert result["total_reward"] == pytest.approx(sum(result["reward_components"].values()))
+
+    complete = client.post(f"{root}/manual-action", json={
+        "selected_agents": ["investment", "risk", "emergency", "debt", "budget"]
+    }).json()
+    assert complete["plan_readiness"]["can_build_full_plan"] is True
+    assert complete["plan_readiness"]["missing_agents"] == []
+    assert client.get(f"/users/{user['id']}/advisory-sessions").json()["items"] == []
+    assert client.get(f"/users/{user['id']}/financial-profile").json()["monthly_expenses"] == profile["monthly_expenses"]
+    for invalid in ([], ["budget", "budget"], ["unknown"]):
+        assert client.post(f"{root}/manual-action", json={"selected_agents": invalid}).status_code == 422
+
+
+def test_manual_research_action_requires_profile(client):
+    user = client.post("/users", json={"name": "No Profile", "email": "manual@sample-finapp.org",
+                                        "monthly_income": "5000"}).json()
+    assert client.post(f"/users/{user['id']}/research/manual-action", json={
+        "selected_agents": ["budget"]
+    }).status_code == 404
+
+
 def test_run_persists_result_and_latest_can_reload_it(client):
     user, _ = create_profile(client)
     path = f"/users/{user['id']}/advisory-sessions"

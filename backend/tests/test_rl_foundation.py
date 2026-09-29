@@ -8,10 +8,14 @@ import numpy as np
 import pytest
 
 from app.advisory.state import build_planning_state
+from app.advisory.registry import AgentRegistry
 from app.services.financial_analysis import FinancialAnalysisService
 from app.rl.environment import AgentSelectionEnv
 from app.rl.observation import FEATURE_NAMES, encode_observation
-from app.rl.selection import AGENT_IDS, action_for, agents_for, rule_action
+from app.rl.selection import (
+    AGENT_IDS, ACTION_VERSION, ActionCatalog, action_for, agents_for,
+    assess_plan_readiness, rule_action,
+)
 
 
 def planning_state(*, debt="0", emergency="4000", goal=False):
@@ -76,3 +80,71 @@ def test_environment_rejects_non_discrete_actions():
     environment.reset(seed=1)
     with pytest.raises(ValueError):
         environment.step(1.5)
+
+
+def test_configured_action_catalog_has_stable_ids_and_version():
+    full = ActionCatalog.from_agents(AGENT_IDS)
+    assert full.version == ACTION_VERSION
+    assert full.action_count == 63
+    for action in range(full.action_count):
+        expected = tuple(name for index, name in enumerate(AGENT_IDS) if (action + 1) & (1 << index))
+        assert full.agents_for(action) == expected
+    assert full.agents_for(action_for(("budget", "goal"))) == ("budget", "goal")
+    limited = ActionCatalog.from_agents(
+        ("budget", "debt", "emergency"),
+        allowed_selections=(("debt", "budget"), ("emergency",), ("budget",)),
+    )
+    reordered = ActionCatalog.from_agents(
+        ("budget", "debt", "emergency"),
+        allowed_selections=(("budget",), ("budget", "debt"), ("emergency",)),
+    )
+    assert limited == reordered
+    assert limited.version != ACTION_VERSION
+    assert [limited.agents_for(action) for action in range(limited.action_count)] == [
+        ("budget",), ("budget", "debt"), ("emergency",)
+    ]
+    with pytest.raises(ValueError):
+        limited.action_for(("debt",))
+    with pytest.raises(ValueError):
+        ActionCatalog.from_agents(("budget", "budget"))
+
+
+def test_environment_can_sample_supplied_states_and_report_plan_coverage():
+    low_debt = planning_state()
+    with_goal_and_debt = planning_state(debt="20000", goal=True)
+    environment = AgentSelectionEnv([low_debt, with_goal_and_debt])
+    first, _ = environment.reset(seed=19)
+    fingerprint = environment.state.fingerprint()
+    environment.step(action_for(("budget", "emergency")))
+    repeated, _ = environment.reset(seed=19)
+    assert np.array_equal(first, repeated)
+    assert environment.state.fingerprint() == fingerprint
+    seen = set()
+    for _ in range(20):
+        environment.reset()
+        seen.add(environment.state.fingerprint())
+    assert seen == {low_debt.fingerprint(), with_goal_and_debt.fingerprint()}
+
+    incomplete = assess_plan_readiness(with_goal_and_debt, ("budget", "emergency"))
+    assert incomplete["can_build_full_plan"] is False
+    assert set(incomplete["missing_agents"]) == {"debt", "goal", "risk", "investment"}
+    complete = assess_plan_readiness(with_goal_and_debt, AGENT_IDS)
+    assert complete["can_build_full_plan"] is True
+    assert complete["missing_agents"] == []
+
+
+def test_environment_respects_injected_catalog_and_registry():
+    state = planning_state()
+    catalog = ActionCatalog.from_agents(
+        ("budget", "emergency"), allowed_selections=(("budget",), ("emergency",))
+    )
+    environment = AgentSelectionEnv(state, registry=AgentRegistry.default(), catalog=catalog)
+    assert environment.action_space.n == 2
+    environment.reset(seed=7)
+    _, _, _, _, info = environment.step(catalog.action_for(("emergency",)))
+    assert info["selected_agents"] == ["emergency"]
+    assert [result["agent_id"] for result in info["agent_results"]] == ["emergency"]
+    assert info["action_version"] == catalog.version
+    with pytest.raises(ValueError, match="unregistered"):
+        AgentSelectionEnv(state, registry=AgentRegistry.default(),
+                          catalog=ActionCatalog.from_agents(("unknown",)))
