@@ -31,6 +31,11 @@ export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal }) {
         <ul className="mt-3 space-y-3">{plan.goal_allocations.map((a) => <li key={a.requirement.goal.id} className="rounded-xl border border-slate-200 p-4">
           <div className="flex flex-wrap justify-between gap-2"><h4 className="break-words font-semibold">{a.requirement.goal.name}</h4><span className={`text-sm ${a.status === 'underfunded' || a.status === 'overdue' ? 'text-amber-800' : 'text-slate-600'}`}>{statuses[a.status]}</span></div>
           <p className="mt-1 text-xs text-slate-500">Target {a.requirement.goal.target_date} · {a.requirement.goal.priority} priority · Remaining {formatAmount(a.requirement.remaining_amount)}</p>
+          <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+            <div><dt className="text-slate-500">Saved at this run</dt><dd className="mt-1 font-medium">{formatAmount(a.requirement.goal.saved_amount)}</dd></div>
+            <div><dt className="text-slate-500">Target amount</dt><dd className="mt-1 font-medium">{formatAmount(a.requirement.goal.target_amount)}</dd></div>
+            <div><dt className="text-slate-500">Approximate months remaining</dt><dd className="mt-1 font-medium">{a.requirement.approximate_months ?? (a.status === 'completed' ? 'Target reached' : 'Update deadline')}</dd></div>
+          </dl>
           <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">{[['Needed per month',a.requirement.required_monthly],['Planned per month',a.allocated_monthly],['Monthly gap',a.funding_gap]].map(([label,value]) => <div key={label}><dt className="text-slate-500">{label}</dt><dd className="mt-1 font-semibold">{value == null && a.status === 'overdue' ? 'Update deadline' : formatAmount(value)}</dd></div>)}</dl>
           <button onClick={() => onOpenGoal(a.requirement.goal.id)} className="mt-3 text-sm underline">Edit current goal</button>
         </li>)}</ul>}
