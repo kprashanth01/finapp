@@ -17,19 +17,6 @@ from app.services.financial_analysis import FinancialAnalysisService
 router = APIRouter()
 
 
-@router.post("/users", response_model=UserRead, status_code=201)
-def create_user(payload: UserCreate, session: Session = Depends(get_session)) -> User:
-    user = User(**payload.model_dump())
-    session.add(user)
-    try:
-        session.commit()
-    except IntegrityError as error:
-        session.rollback()
-        raise HTTPException(status_code=409, detail="This email already has a user record.") from error
-    session.refresh(user)
-    return user
-
-
 @router.get("/users/{user_id}", response_model=UserRead)
 def get_user(user_id: int, session: Session = Depends(get_session)) -> User:
     user = session.get(User, user_id)

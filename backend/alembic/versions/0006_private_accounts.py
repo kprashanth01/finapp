@@ -29,9 +29,19 @@ def upgrade() -> None:
     )
     op.create_index("ix_auth_sessions_user", "auth_sessions", ["user_id"])
     op.create_index("ix_auth_sessions_token_digest", "auth_sessions", ["token_digest"], unique=True)
+    op.create_table(
+        "auth_failures",
+        sa.Column("id", sa.Integer(), primary_key=True),
+        sa.Column("email_digest", sa.String(64), nullable=False),
+        sa.Column("ip_digest", sa.String(64), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    )
+    op.create_index("ix_auth_failures_lookup", "auth_failures", ["email_digest", "ip_digest", "created_at"])
 
 
 def downgrade() -> None:
+    op.drop_index("ix_auth_failures_lookup", table_name="auth_failures")
+    op.drop_table("auth_failures")
     op.drop_index("ix_auth_sessions_token_digest", table_name="auth_sessions")
     op.drop_index("ix_auth_sessions_user", table_name="auth_sessions")
     op.drop_table("auth_sessions")

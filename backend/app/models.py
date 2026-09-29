@@ -51,6 +51,16 @@ class AuthSession(Base):
     user: Mapped[User] = relationship(back_populates="auth_sessions")
 
 
+class AuthFailure(Base):
+    __tablename__ = "auth_failures"
+    __table_args__ = (Index("ix_auth_failures_lookup", "email_digest", "ip_digest", "created_at"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    email_digest: Mapped[str] = mapped_column(String(64))
+    ip_digest: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
 class FinancialProfile(Base):
     __tablename__ = "financial_profiles"
     __table_args__ = (
