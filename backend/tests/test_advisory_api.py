@@ -96,6 +96,48 @@ def test_research_comparison_requires_profile_and_owner(client):
     assert client.post("/users/999/research/comparison", json={"seed": 1}).status_code == 404
 
 
+def test_training_evidence_is_read_only_and_owner_scoped(client, monkeypatch, tmp_path):
+    import hashlib
+    import json
+    from app.rl import api as research_api
+    from app.rl.dqn_artifact import MODEL_VERSION
+    from app.rl.observation import FEATURE_NAMES, OBSERVATION_VERSION
+    from app.rl.reward import REWARD_VERSION
+    from app.rl.scenarios import SCENARIO_VERSION
+    from app.rl.selection import ACTION_COUNT, ACTION_VERSION
+
+    user = client.post("/users", json={"name": "Research User", "email": "training@sample-finapp.org",
+                                       "monthly_income": "5000"}).json()
+    monkeypatch.setattr(research_api, "DQN_ARTIFACT_DIR", tmp_path)
+    path = f"/users/{user['id']}/research/training-evidence"
+    missing = client.get(path)
+    assert missing.status_code == 200
+    assert missing.json()["status"] == "unavailable"
+
+    artifact = b"research-only-model"
+    (tmp_path / "dqn_policy.zip").write_bytes(artifact)
+    metadata = {
+        "model_version": MODEL_VERSION, "observation_version": OBSERVATION_VERSION,
+        "action_version": ACTION_VERSION, "reward_version": REWARD_VERSION,
+        "scenario_version": SCENARIO_VERSION, "feature_names": list(FEATURE_NAMES),
+        "action_count": ACTION_COUNT,
+        "artifact_sha256": hashlib.sha256(artifact).hexdigest(),
+        "algorithm": "DQN", "split_counts": {"training": 16, "validation": 4, "test": 4},
+        "validation_history": [{"step": 32, "case_count": 4, "mean_reward": 2.0,
+                                "critical_miss_rate": 0.25, "mean_agent_calls": 2.0}],
+        "selected_step": 32, "total_timesteps": 32,
+        "test": {"case_count": 4, "mean_reward": 2.25, "critical_miss_rate": 0.25,
+                 "mean_agent_calls": 2.0},
+    }
+    (tmp_path / "dqn_metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+    available = client.get(path)
+    assert available.status_code == 200
+    assert available.json()["metadata"]["algorithm"] == "DQN"
+    assert available.json()["metadata"]["test"]["case_count"] == 4
+    assert client.get(f"/users/{user['id']}/advisory-sessions").json()["items"] == []
+    assert client.get("/users/999/research/training-evidence").status_code == 404
+
+
 def test_manual_research_action_uses_saved_profile_without_writing_history(client):
     user, profile = create_profile(client)
     root = f"/users/{user['id']}/research"

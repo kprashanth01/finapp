@@ -13,6 +13,7 @@ from app.database import get_session
 from app.goal_api import load_active_goals
 from app.models import FinancialProfile, User
 from app.rl.baselines import RandomBaseline, RuleBaseline
+from app.rl.dqn_artifact import DEFAULT_ARTIFACT_DIR, read_training_evidence
 from app.rl.environment import AgentSelectionEnv
 from app.rl.observation import FEATURE_NAMES, OBSERVATION_VERSION
 from app.rl.policy import FittedQPolicy, POLICY_VERSION
@@ -22,6 +23,7 @@ from app.rl.selection import ACTION_VERSION, DEFAULT_CATALOG
 
 router = APIRouter()
 MODEL_PATH = Path(__file__).with_name("model.json")
+DQN_ARTIFACT_DIR = DEFAULT_ARTIFACT_DIR
 
 
 class ComparisonRequest(BaseModel):
@@ -73,6 +75,13 @@ def list_research_actions(user_id: int, session: Session = Depends(get_session))
         "action_count": DEFAULT_CATALOG.action_count,
         "agents": list(DEFAULT_CATALOG.agent_ids),
     }
+
+
+@router.get("/users/{user_id}/research/training-evidence", dependencies=[Depends(require_owner)])
+def get_training_evidence(user_id: int, session: Session = Depends(get_session)):
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return read_training_evidence(DQN_ARTIFACT_DIR)
 
 
 @router.post("/users/{user_id}/research/manual-action", dependencies=[Depends(require_owner)])

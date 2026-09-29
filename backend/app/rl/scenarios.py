@@ -1,6 +1,7 @@
 """Small, ephemeral coverage scenarios for method validation, not customer data."""
 
 from datetime import date, timedelta
+from dataclasses import dataclass
 from decimal import Decimal
 from types import SimpleNamespace
 
@@ -12,6 +13,31 @@ from app.services.financial_analysis import FinancialAnalysisService
 SCENARIO_VERSION = "coverage-scenarios-v1"
 AS_OF_DATE = date(2026, 9, 29)
 CENT = Decimal("0.01")
+
+
+@dataclass(frozen=True)
+class ScenarioSplits:
+    training: tuple[PlanningState, ...]
+    validation: tuple[PlanningState, ...]
+    test: tuple[PlanningState, ...]
+    seeds: dict[str, int]
+
+
+def build_splits(*, training_count: int = 1536, validation_count: int = 384,
+                 test_count: int = 384, training_seed: int = 20260929,
+                 validation_seed: int = 20260930, test_seed: int = 20261001) -> ScenarioSplits:
+    """Create separate generated cases; no saved user data enters these splits."""
+    counts = (training_count, validation_count, test_count)
+    seeds = (training_seed, validation_seed, test_seed)
+    if any(count < 1 for count in counts) or len(set(seeds)) != 3:
+        raise ValueError("Splits need positive counts and distinct seeds.")
+    groups = tuple(tuple(generate_scenarios(count, seed=seed))
+                   for count, seed in zip(counts, seeds))
+    fingerprints = [set(state.fingerprint() for state in group) for group in groups]
+    if any(a.intersection(b) for index, a in enumerate(fingerprints)
+           for b in fingerprints[index + 1:]):
+        raise ValueError("Scenario splits overlap.")
+    return ScenarioSplits(*groups, seeds=dict(zip(("training", "validation", "test"), seeds)))
 
 
 def _money(value: float) -> Decimal:

@@ -1,6 +1,6 @@
 # FinApp
 
-An educational research prototype for an RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. The Research view compares a trained experimental agent selector with rule-based and random baselines on your saved profile. Its findings are illustrative project outputs, not professional financial advice.
+An educational research prototype for an RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. The Research view shows an offline DQN training run and compares the earlier fitted proxy selector with rule-based and random baselines on your saved profile. Its findings are illustrative project outputs, not professional financial advice.
 
 ## How the current flow works
 
@@ -31,7 +31,7 @@ The app creates no demo users or financial data. The browser keeps a host-only, 
 - Node.js 20.19+ or 22.12+ and npm
 - PostgreSQL with a database and login for this project
 
-The backend requirements include NumPy and Gymnasium for the research environment. Installing `backend/requirements.txt` installs both. Docker, API keys, LLM providers, PyTorch, and model downloads are not needed for this issue. No new environment variable or database migration is needed.
+The backend requirements include NumPy and Gymnasium for the research environment. Installing `backend/requirements.txt` installs both. The normal web app reads DQN metadata without PyTorch. Rebuilding the DQN requires the separate `backend/requirements-rl.txt` dependency set and Python 3.12 on Windows. No API key, external dataset, new environment variable, or database migration is needed.
 
 ## One-time setup
 
@@ -187,11 +187,11 @@ Every run stores immutable inputs, goal snapshots, one UTC planning date, agent 
 
 Earlier v1 sessions retain their original three-agent payload and six captured financial amounts. They are labeled as an earlier format, with no newly reconstructed historical goals or risk fields. History loads newest first in pages of ten. Expand **Why this plan** for the allocation policy and **Research details** for agents, evidence, and version information.
 
-The Advisor uses the replaceable rule-based orchestrator and structured agent facts. Research has an experimental trained selector; neither the trained selector nor an LLM generates the saved Advisor plan.
+The Advisor uses the replaceable rule-based orchestrator and structured agent facts. Research has an earlier fitted proxy selector and an offline DQN training record; neither model generates the saved Advisor plan.
 
 ### Research comparison and RL foundation
 
-**Research → Compare methods** evaluates a trained selector, the current rule-based selection, and a seeded random selection on exactly the same saved planning state. Enter a random seed to repeat or vary that baseline; the same seed and saved profile reproduce the same choice. Expand a result to see the score components and the saved values behind them. The page also shows a separate held-out benchmark. None of these comparisons changes balances, creates goals, or saves an advisory session. The Advisor still uses its complete rule-based plan.
+**Research → Compare methods** evaluates the earlier fitted proxy selector, the current rule-based selection, and a seeded random selection on exactly the same saved planning state. Enter a random seed to repeat or vary that baseline; the same seed and saved profile reproduce the same choice. Expand a result to see the score components and the saved values behind them. The page also shows a separate held-out benchmark for that fitted model. **How the RL selector was trained** displays the DQN's separate offline evidence; the DQN does not yet select agents for the signed-in user. None of these views changes balances, creates goals, or saves an advisory session. The Advisor still uses its complete rule-based plan.
 
 `backend/app/rl/` contains the versioned numerical observation, a stable nonempty subset action mapping for the six agents (`0` through `62`), a one-step Gymnasium environment, and an explicit proxy reward. The observation uses bounded ratios for income, expenses, savings contribution, debt, reserve coverage, goals, and horizon; it also includes risk preference and missing-input flags. Agent selection is the action. One step executes the selected agents and ends the episode. It returns the same financial observation because receiving advice cannot itself change someone's finances.
 
@@ -205,7 +205,26 @@ The reward audit returned with each Research result lists the relevant and criti
 
 `python -m app.rl.train` from `backend/` rebuilds `backend/app/rl/model.json` using only NumPy. It generates 1,536 in-memory training scenarios and 384 separate test scenarios with fixed seeds. Scenarios vary income, expenses, debt, emergency reserve, contribution, risk, horizon, and goal timing. They are **generated coverage cases**, not household survey records, saved user profiles, or observed financial outcomes. The trainer calculates all 63 proxy rewards for each training case and fits a small neural network to predict them. The one-step environment makes this a **contextual bandit / one-step RL selection task**, not a long-term financial planning policy. The model artifact includes schema versions, a checksum, seeds, and aggregate benchmark metrics; a missing or incompatible artifact leaves the rule and random comparison available.
 
-The current held-out proxy benchmark (384 generated cases) gives the trained selector **7.79**, the rule-based selector **7.88**, and seeded random selection **1.33** mean points. Critical checks were missed in **0%**, **0%**, and **61.2%** of cases respectively. The rule-based selector matches the proxy oracle here because its selection logic and the reward definition overlap. The learned model is slightly worse under that proxy and **has not demonstrated better financial advice**. A defensible next research step is independent household-data stress testing and an outcome or expert-labelled evaluation target; a survey of financial inputs alone does not provide an advice-quality reward or observed sequential effects.
+The earlier fitted model's held-out proxy benchmark (384 generated cases) gives the fitted selector **7.79**, the rule-based selector **7.88**, and seeded random selection **1.33** mean points. Critical checks were missed in **0%**, **0%**, and **61.2%** of cases respectively. The rule-based selector matches the proxy oracle here because its selection logic and the reward definition overlap. The fitted model is slightly worse under that proxy and **has not demonstrated better financial advice**.
+
+### Offline DQN training (Milestone 4)
+
+`backend/app/rl/dqn_training.py` trains a separate Stable-Baselines3 DQN on one sampled action and observed proxy reward per Gymnasium episode. It does **not** train on the full 63-action reward table used by the earlier fitted model. An episode ends after that action, so this is a contextual bandit experiment: there are no simulated future balances or measured household outcomes. The 63-action catalogue, 16-value observation, six agents, and `selection-proxy-v1` reward stay unchanged.
+
+On Windows, use the installed Python 3.12 interpreter to make an isolated training environment; the normal app environment can remain on Python 3.13. From the repository root:
+
+```powershell
+py -3.12 -m venv .venv-rl
+& '.\.venv-rl\Scripts\python.exe' -m pip install -r backend/requirements-rl.txt
+Set-Location backend
+& '..\.venv-rl\Scripts\python.exe' -m app.rl.dqn_training
+```
+
+The default run uses 1,536 generated training cases, 384 validation cases, and 384 held-out test cases with distinct fixed seeds. It trains for 12,000 environment steps, checks validation at 3,000-step intervals, saves the checkpoint with the highest validation mean proxy score, then evaluates that saved checkpoint once on the test split. For a quick isolated smoke run from `backend/`, use `& '..\.venv-rl\Scripts\python.exe' -m app.rl.dqn_training --output-dir "$env:TEMP\finapp-dqn-smoke" --steps 64 --validation-every 32 --training-cases 24 --validation-cases 8 --test-cases 8`. Step counts must be multiples of four. The output is `dqn_policy.zip` and `dqn_metadata.json` in the chosen directory. The metadata records versions, split seeds and sizes, training settings, dependency versions, checkpoint measurements, the final test result, and the ZIP checksum. `load_dqn_artifact()` rejects incompatible or changed files. Training is CPU-only and does not read the application database. Exact neural weights may differ across library versions or platforms even with the same seeds.
+
+The committed run selected the 12,000-step checkpoint. Its validation mean proxy scores at 3,000, 6,000, 9,000, and 12,000 steps were **7.635**, **7.447**, **7.706**, and **7.827**. On the untouched 384-case test split, the selected DQN scored **7.823** mean proxy points, missed critical checks in **0%** of cases, and selected **5.435** agents on average. These are measured against the project's rule-defined reward; they do not demonstrate better financial advice. A defensible later research step is independent household-data stress testing and an outcome or expert-labelled evaluation target. A survey of financial inputs alone does not provide an advice-quality reward or observed sequential effects.
+
+From `backend/`, inspect the metadata without loading PyTorch using `python -c "from app.rl.dqn_artifact import read_training_evidence; import json; print(json.dumps(read_training_evidence(), indent=2))"`. To verify a saved policy can predict an action, use the research environment: `& '..\.venv-rl\Scripts\python.exe' -c "from app.rl.dqn_artifact import load_dqn_artifact; from app.rl.observation import encode_observation; from app.rl.scenarios import generate_scenarios; model=load_dqn_artifact(); print(model.predict(encode_observation(generate_scenarios(1, seed=91)[0]), deterministic=True)[0])"`.
 
 ## API available now
 
@@ -227,7 +246,8 @@ The current held-out proxy benchmark (384 generated cases) gives the trained sel
 | PUT | `/users/{id}/goals/{goal_id}` | Update a goal, preserving archive state |
 | PATCH | `/users/{id}/goals/{goal_id}` | Archive/restore with `{ "archived": true/false }` |
 | POST | `/users/{id}/advisory-sessions` | Run and save a rule-based advisory session |
-| POST | `/users/{id}/research/comparison` | Compare trained, rule, and seeded random selection on the owner's saved profile without saving data; optional JSON `{ "seed": 42 }` |
+| POST | `/users/{id}/research/comparison` | Compare the earlier fitted proxy, rule, and seeded random selection on the owner's saved profile without saving data; optional JSON `{ "seed": 42 }` |
+| GET | `/users/{id}/research/training-evidence` | Read verified offline DQN run metadata for the signed-in owner; never loads PyTorch or saved profile data |
 | GET | `/users/{id}/research/actions` | List the owner's available agent IDs and the stable action-catalogue version |
 | POST | `/users/{id}/research/manual-action` | Run selected agents on the owner's saved profile without persistence; JSON `{ "selected_agents": ["budget", "emergency"] }` |
 | GET | `/users/{id}/advisory-sessions/latest` | Load the latest run and its stale status |

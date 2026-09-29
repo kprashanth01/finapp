@@ -98,6 +98,10 @@ export async function getResearchActions(userId) {
   return (await api.get(`/users/${userId}/research/actions`)).data
 }
 
+export async function getResearchTrainingEvidence(userId) {
+  return (await api.get(`/users/${userId}/research/training-evidence`)).data
+}
+
 export async function runManualResearchAction(userId, selectedAgents) {
   return (await api.post(`/users/${userId}/research/manual-action`, {
     selected_agents: selectedAgents,

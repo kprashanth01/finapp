@@ -7,7 +7,7 @@ import pytest
 
 from app.rl.observation import FEATURE_NAMES, encode_observation
 from app.rl.policy import FittedQPolicy, evaluate_policy, reward_matrix, train_policy
-from app.rl.scenarios import SCENARIO_VERSION, generate_scenarios
+from app.rl.scenarios import SCENARIO_VERSION, build_splits, generate_scenarios
 from app.rl.selection import ACTION_COUNT, agents_for
 
 
@@ -26,6 +26,23 @@ def test_scenarios_cover_distinct_inputs_without_persisting_profiles():
     assert any(state.existing_debt > 0 for state in first)
     assert any(state.existing_debt == 0 for state in first)
     assert any(state.monthly_savings_contribution is None for state in first)
+
+
+def test_three_scenario_splits_are_reproducible_and_disjoint():
+    splits = build_splits(training_count=32, validation_count=12, test_count=12,
+                          training_seed=101, validation_seed=102, test_seed=103)
+    repeated = build_splits(training_count=32, validation_count=12, test_count=12,
+                            training_seed=101, validation_seed=102, test_seed=103)
+    assert [len(splits.training), len(splits.validation), len(splits.test)] == [32, 12, 12]
+    fingerprints = [set(state.fingerprint() for state in group)
+                    for group in (splits.training, splits.validation, splits.test)]
+    assert all(a.isdisjoint(b) for i, a in enumerate(fingerprints)
+               for b in fingerprints[i + 1:])
+    assert [state.fingerprint() for state in splits.test] == [
+        state.fingerprint() for state in repeated.test
+    ]
+    with pytest.raises(ValueError):
+        build_splits(training_count=0, validation_count=12, test_count=12)
 
 
 def test_fitted_q_policy_reproduces_training_and_uses_valid_actions(tmp_path):
