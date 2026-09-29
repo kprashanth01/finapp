@@ -16,6 +16,7 @@ from app.models import FinancialProfile, User
 from app.rl.baselines import RandomBaseline, RuleBaseline
 from app.rl.dqn_artifact import DEFAULT_ARTIFACT_DIR, read_training_evidence
 from app.rl.environment import AgentSelectionEnv
+from app.rl.evaluation import read_evaluation_report
 from app.rl.observation import FEATURE_NAMES, OBSERVATION_VERSION
 from app.rl.orchestration import ModelUnavailableError, run_orchestration
 from app.rl.policy import FittedQPolicy, POLICY_VERSION
@@ -26,6 +27,7 @@ from app.rl.selection import ACTION_VERSION, DEFAULT_CATALOG
 router = APIRouter()
 MODEL_PATH = Path(__file__).with_name("model.json")
 DQN_ARTIFACT_DIR = DEFAULT_ARTIFACT_DIR
+EVALUATION_REPORT_PATH = DEFAULT_ARTIFACT_DIR / "evaluation_report.json"
 
 
 class ComparisonRequest(BaseModel):
@@ -89,6 +91,13 @@ def get_training_evidence(user_id: int, session: Session = Depends(get_session))
     if session.get(User, user_id) is None:
         raise HTTPException(status_code=404, detail="User not found.")
     return read_training_evidence(DQN_ARTIFACT_DIR)
+
+
+@router.get("/users/{user_id}/research/evaluation", dependencies=[Depends(require_owner)])
+def get_research_evaluation(user_id: int, session: Session = Depends(get_session)):
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return read_evaluation_report(EVALUATION_REPORT_PATH)
 
 
 @router.post("/users/{user_id}/research/orchestration-run", dependencies=[Depends(require_owner)])

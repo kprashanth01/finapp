@@ -120,6 +120,20 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .research-training-details table { width: 100%; border-collapse: collapse; min-width: 420px; margin-top: 10px; font-size: .75rem; }
 .research-training-details th, .research-training-details td { padding: 9px 11px; text-align: left; border-bottom: 1px solid #deebe8; }
 .research-training .research-training-limit { margin-bottom: 0; color: #697e84; font-size: .73rem; }
+.research-evaluation { margin-top: 22px; padding: 23px; border: 1px solid #b9ddd5; border-radius: 16px; background: linear-gradient(150deg, #f2faf7 0%, #fff 72%); box-shadow: 0 10px 28px #153b3510; }
+.research-evaluation h3 { margin: 5px 0 8px; color: #153c42; font-size: 1.12rem; }
+.research-evaluation h4 { margin: 20px 0 6px; color: #153c42; font-size: .9rem; }
+.research-evaluation p { color: #526f78; font-size: .79rem; line-height: 1.55; }
+.research-evaluation table { width: 100%; border-collapse: collapse; min-width: 700px; margin: 14px 0; font-size: .76rem; }
+.research-evaluation th, .research-evaluation td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #dbe9e7; white-space: nowrap; }
+.research-evaluation thead th { background: #e9f4f1; color: #325d61; font-weight: 700; }
+.research-evaluation tbody th { color: #17444a; font-weight: 700; }
+.research-evaluation tbody td:nth-child(2) { font-weight: 700; color: #006f61; }
+.research-evaluation .research-paired-note { padding: 12px 15px; border-left: 3px solid #0a8b7b; border-radius: 0 8px 8px 0; background: #eaf7f2; color: #214e53; }
+.research-evaluation-details { margin-top: 16px; }
+.research-evaluation-details summary { cursor: pointer; color: #08756b; font-size: .81rem; font-weight: 700; }
+.research-evaluation code { overflow-wrap: anywhere; font-size: .76rem; }
+.research-personal-heading { margin: 28px 0 5px; color: #173c45; }
 .research-manual { margin-top: 22px; padding: 18px 21px; border: 1px solid #dce8e9; border-radius: 14px; background: #fff; }
 .research-manual > summary { cursor: pointer; color: #195850; font-weight: 730; }
 .research-manual > p, .research-manual form small, .research-manual-result p { color: #607587; font-size: .8rem; line-height: 1.5; }

@@ -198,6 +198,25 @@ def test_training_evidence_is_read_only_and_owner_scoped(client, monkeypatch, tm
     assert client.get("/users/999/research/training-evidence").status_code == 404
 
 
+def test_fixed_evaluation_is_read_only_and_owner_scoped(client, monkeypatch, tmp_path):
+    from app.rl import api as research_api
+
+    user = client.post("/users", json={"name": "Evaluation User",
+                                        "email": "evaluation@sample-finapp.org",
+                                        "monthly_income": "5000"}).json()
+    path = f"/users/{user['id']}/research/evaluation"
+    response = client.get(path)
+    assert response.status_code == 200
+    report = response.json()
+    assert report["status"] == "available"
+    assert report["report"]["cohort"]["case_count"] == 256
+    assert set(report["report"]["methods"]) == {"random", "rule_based", "rl"}
+    assert client.get(f"/users/{user['id']}/advisory-sessions").json()["items"] == []
+    monkeypatch.setattr(research_api, "EVALUATION_REPORT_PATH", tmp_path / "missing.json")
+    assert client.get(path).json()["status"] == "unavailable"
+    assert client.get("/users/999/research/evaluation").status_code == 404
+
+
 def test_manual_research_action_uses_saved_profile_without_writing_history(client):
     user, profile = create_profile(client)
     root = f"/users/{user['id']}/research"
