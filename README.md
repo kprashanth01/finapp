@@ -1,6 +1,6 @@
 # FinApp
 
-An educational research prototype for an RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. The Research view shows an offline DQN training run and compares the earlier fitted proxy selector with rule-based and random baselines on your saved profile. Its findings are illustrative project outputs, not professional financial advice.
+An educational research prototype for an RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. Advisor can now run rule-based, seeded random, or trained DQN agent selection on your saved profile. Research shows how the DQN was trained and retains the earlier fitted proxy comparison. Its findings are illustrative project outputs, not professional financial advice.
 
 ## How the current flow works
 
@@ -31,7 +31,7 @@ The app creates no demo users or financial data. The browser keeps a host-only, 
 - Node.js 20.19+ or 22.12+ and npm
 - PostgreSQL with a database and login for this project
 
-The backend requirements include NumPy and Gymnasium for the research environment. Installing `backend/requirements.txt` installs both. The normal web app reads DQN metadata without PyTorch. Rebuilding the DQN requires the separate `backend/requirements-rl.txt` dependency set and Python 3.12 on Windows. No API key, external dataset, new environment variable, or database migration is needed.
+The backend requirements include NumPy and Gymnasium for the research environment. Installing `backend/requirements.txt` installs both. Rule-based and random modes work with this base install; **running the trained RL mode requires `backend/requirements-rl.txt` in the Python environment used to start FastAPI**. This also supports rebuilding the DQN and requires Python 3.12 on Windows. The API reads training metadata without importing PyTorch on startup. No API key, external dataset, new environment variable, or database migration is needed.
 
 ## One-time setup
 
@@ -132,7 +132,7 @@ Set-Location frontend
 npm run dev
 ```
 
-Open the URL printed by Vite, normally <http://localhost:5173>. Sign in, create an account, or claim an earlier local profile. New accounts first enter gross monthly income in **Profile → User details**, then save their financial profile. **Dashboard** shows current saved amounts, calculated metrics, and the latest advisory summary. **Goals** stores measurable targets. **Advisor** runs an analysis and lists saved sessions. **Research** compares agent-selection methods on the signed-in user's saved profile without saving an advisory session. The desktop sidebar becomes bottom navigation on narrow screens. Refreshing the page reloads the signed-in account. **Sign out** revokes its session. The API health endpoint remains at <http://localhost:8000/health>.
+Open the URL printed by Vite, normally <http://localhost:5173>. Sign in, create an account, or claim an earlier local profile. New accounts first enter gross monthly income in **Profile → User details**, then save their financial profile. **Dashboard** shows current saved amounts, calculated metrics, and the latest advisory summary. **Goals** stores measurable targets. **Advisor** saves a rule-based monthly plan, lists saved sessions, and offers experimental agent-selection runs. **Research** explains training and compares earlier methods on the signed-in user's profile. The desktop sidebar becomes bottom navigation on narrow screens. Refreshing the page reloads the signed-in account. **Sign out** revokes its session. The API health endpoint remains at <http://localhost:8000/health>.
 
 The income field means **gross monthly income before tax** for the ratios below. Monthly expenses should include monthly debt payments; the separate debt-payment input identifies the portion used for DTI and cannot exceed total expenses. Savings and outstanding debt are balances, while monthly savings contributions and debt payments are flows. Existing profiles keep working because the two new flow inputs are optional.
 
@@ -187,11 +187,13 @@ Every run stores immutable inputs, goal snapshots, one UTC planning date, agent 
 
 Earlier v1 sessions retain their original three-agent payload and six captured financial amounts. They are labeled as an earlier format, with no newly reconstructed historical goals or risk fields. History loads newest first in pages of ten. Expand **Why this plan** for the allocation policy and **Research details** for agents, evidence, and version information.
 
-The Advisor uses the replaceable rule-based orchestrator and structured agent facts. Research has an earlier fitted proxy selector and an offline DQN training record; neither model generates the saved Advisor plan.
+The saved Advisor plan uses the rule-based orchestrator and structured agent facts. The separate experimental selector in Advisor can run the committed DQN or seeded random policy on your current profile; these runs do not enter saved history.
 
 ### Research comparison and RL foundation
 
-**Research → Compare methods** evaluates the earlier fitted proxy selector, the current rule-based selection, and a seeded random selection on exactly the same saved planning state. Enter a random seed to repeat or vary that baseline; the same seed and saved profile reproduce the same choice. Expand a result to see the score components and the saved values behind them. The page also shows a separate held-out benchmark for that fitted model. **How the RL selector was trained** displays the DQN's separate offline evidence; the DQN does not yet select agents for the signed-in user. None of these views changes balances, creates goals, or saves an advisory session. The Advisor still uses its complete rule-based plan.
+**Advisor → Choose how agents are selected** runs the current rule-based policy, a seeded random policy, or the committed trained DQN on the same saved profile. Pick a method and click **Run selected method**. The result shows its action ID, agents that actually ran, their findings, the proxy score, and the score audit. If required agents were omitted, the page names them and withholds the complete monthly plan. If all required agents ran, expand **See coordinated plan from these agents**. These experimental runs are not saved; the usual **Run analysis** button above still creates the saved rule-based plan and history. If the trained model or its Python runtime is unavailable, the RL request reports an error and does not silently switch modes.
+
+**Research → Compare methods** continues to evaluate the earlier fitted proxy selector, the rule-based selection, and a seeded random selection on the saved planning state. Its older benchmark is separate from the trained DQN. **How the RL selector was trained** displays the DQN's offline evidence. None of these views changes balances or creates goals.
 
 `backend/app/rl/` contains the versioned numerical observation, a stable nonempty subset action mapping for the six agents (`0` through `62`), a one-step Gymnasium environment, and an explicit proxy reward. The observation uses bounded ratios for income, expenses, savings contribution, debt, reserve coverage, goals, and horizon; it also includes risk preference and missing-input flags. Agent selection is the action. One step executes the selected agents and ends the episode. It returns the same financial observation because receiving advice cannot itself change someone's finances.
 
@@ -226,6 +228,8 @@ The committed run selected the 12,000-step checkpoint. Its validation mean proxy
 
 From `backend/`, inspect the metadata without loading PyTorch using `python -c "from app.rl.dqn_artifact import read_training_evidence; import json; print(json.dumps(read_training_evidence(), indent=2))"`. To verify a saved policy can predict an action, use the research environment: `& '..\.venv-rl\Scripts\python.exe' -c "from app.rl.dqn_artifact import load_dqn_artifact; from app.rl.observation import encode_observation; from app.rl.scenarios import generate_scenarios; model=load_dqn_artifact(); print(model.predict(encode_observation(generate_scenarios(1, seed=91)[0]), deterministic=True)[0])"`.
 
+To enable **Trained RL** on a fresh Windows setup, install `backend/requirements-rl.txt` into the same Python 3.12 environment that starts FastAPI, then restart the API. The committed ZIP and metadata are already included; you do not need to retrain. The selector loads and verifies that ZIP once per API process and predicts an action from the owner's current financial state. A training score is a rule-defined proxy, not an observed change in a person's finances.
+
 ## API available now
 
 | Method | Path | Purpose |
@@ -246,6 +250,7 @@ From `backend/`, inspect the metadata without loading PyTorch using `python -c "
 | PUT | `/users/{id}/goals/{goal_id}` | Update a goal, preserving archive state |
 | PATCH | `/users/{id}/goals/{goal_id}` | Archive/restore with `{ "archived": true/false }` |
 | POST | `/users/{id}/advisory-sessions` | Run and save a rule-based advisory session |
+| POST | `/users/{id}/research/orchestration-run` | Run `rule_based`, seeded `random`, or trained `rl` selection on the owner's saved profile without persistence; JSON `{ "mode": "rl", "seed": 42 }` |
 | POST | `/users/{id}/research/comparison` | Compare the earlier fitted proxy, rule, and seeded random selection on the owner's saved profile without saving data; optional JSON `{ "seed": 42 }` |
 | GET | `/users/{id}/research/training-evidence` | Read verified offline DQN run metadata for the signed-in owner; never loads PyTorch or saved profile data |
 | GET | `/users/{id}/research/actions` | List the owner's available agent IDs and the stable action-catalogue version |

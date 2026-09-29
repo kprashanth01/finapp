@@ -1,0 +1,76 @@
+"""Live policy modes must execute their actual selections without inventing a plan."""
+
+import pytest
+
+from app.rl.scenarios import generate_scenarios
+from app.rl.selection import action_for
+
+
+def state():
+    return generate_scenarios(1, seed=91)[0]
+
+
+def test_rule_and_seeded_random_use_the_same_selection_flow():
+    from app.rl.orchestration import run_orchestration
+
+    current = state()
+    rule = run_orchestration(current, mode="rule_based", seed=42)
+    random_one = run_orchestration(current, mode="random", seed=42)
+    random_two = run_orchestration(current, mode="random", seed=42)
+    assert rule["mode"] == "rule_based"
+    assert rule["action"] == action_for(rule["selected_agents"])
+    assert [item["agent_id"] for item in rule["agent_results"]] == rule["selected_agents"]
+    assert rule["plan_readiness"]["can_build_full_plan"] is True
+    assert rule["advice"] is not None
+    assert random_one["action"] == random_two["action"]
+    assert random_one["total_reward"] == random_two["total_reward"]
+    assert random_one["seed"] == 42
+
+
+def test_partial_selection_never_builds_a_complete_monthly_plan(monkeypatch):
+    from app.rl import orchestration
+
+    class PartialPolicy:
+        def choose_action(self, state, catalog):
+            return catalog.action_for(("budget",))
+
+    monkeypatch.setattr(orchestration, "get_policy", lambda mode, seed: PartialPolicy())
+    result = orchestration.run_orchestration(state(), mode="rl", seed=42)
+    assert result["selected_agents"] == ["budget"]
+    assert result["advice"] is None
+    assert result["plan_readiness"]["can_build_full_plan"] is False
+    assert "emergency" in result["plan_readiness"]["missing_agents"]
+    assert result["summary"]["title"] == "Partial analysis"
+
+
+def test_dqn_prediction_uses_verified_model_cached_once(monkeypatch):
+    from app.rl import orchestration
+
+    class FakeModel:
+        def predict(self, observation, deterministic):
+            assert deterministic is True
+            assert observation.shape == (16,)
+            return 0, None
+
+    calls = []
+    monkeypatch.setattr(orchestration, "load_dqn_artifact", lambda: calls.append(1) or FakeModel())
+    orchestration.cached_dqn_model.cache_clear()
+    try:
+        one = orchestration.run_orchestration(state(), mode="rl", seed=1)
+        two = orchestration.run_orchestration(state(), mode="rl", seed=2)
+        assert one["action"] == two["action"] == 0
+        assert len(calls) == 1
+    finally:
+        orchestration.cached_dqn_model.cache_clear()
+
+
+def test_unavailable_dqn_is_reported_without_fallback(monkeypatch):
+    from app.rl import orchestration
+
+    def missing():
+        raise FileNotFoundError("missing model")
+
+    monkeypatch.setattr(orchestration, "load_dqn_artifact", missing)
+    orchestration.cached_dqn_model.cache_clear()
+    with pytest.raises(orchestration.ModelUnavailableError):
+        orchestration.run_orchestration(state(), mode="rl", seed=42)

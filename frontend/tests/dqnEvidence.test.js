@@ -41,7 +41,7 @@ test('Research shows measured DQN training evidence and one-step limits', () => 
   assert.match(text, /7\.82/)
   assert.match(text, /0\.0%/)
   assert.match(text, /one-step/)
-  assert.match(text, /not yet used by Advisor/)
+  assert.match(text, /run the trained DQN in Advisor/)
 })
 
 test('Research distinguishes a missing DQN artifact from the existing fitted comparison', () => {
