@@ -69,6 +69,19 @@ class ActionCatalog:
         except ValueError as error:
             raise ValueError("This agent combination is not an allowed action.") from error
 
+    def describe(self) -> dict:
+        """Expose the exact mapping used by this catalogue, including custom ones."""
+        return {
+            "action_version": self.version,
+            "action_count": self.action_count,
+            "selection_semantics": "one_step_subset",
+            "agents": list(self.agent_ids),
+            "actions": [
+                {"id": action, "agents": list(names)}
+                for action, names in enumerate(self.actions)
+            ],
+        }
+
 
 DEFAULT_CATALOG = ActionCatalog.from_agents(AGENT_IDS)
 ACTION_COUNT = DEFAULT_CATALOG.action_count
@@ -102,3 +115,7 @@ def assess_plan_readiness(state: PlanningState, selected_agents: Iterable[str]) 
         "required_agents": list(required),
         "missing_agents": missing,
     }
+
+
+if __name__ == "__main__":
+    print(json.dumps(DEFAULT_CATALOG.describe(), indent=2))

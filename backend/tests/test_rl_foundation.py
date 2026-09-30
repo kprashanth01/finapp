@@ -3,6 +3,9 @@
 from datetime import date
 from decimal import Decimal as D
 import importlib.util
+import json
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import numpy as np
@@ -109,6 +112,31 @@ def test_configured_action_catalog_has_stable_ids_and_version():
         limited.action_for(("debt",))
     with pytest.raises(ValueError):
         ActionCatalog.from_agents(("budget", "budget"))
+
+
+def test_action_manifest_explains_subset_semantics_and_custom_mapping():
+    default = ActionCatalog.from_agents(AGENT_IDS).describe()
+    assert default["selection_semantics"] == "one_step_subset"
+    assert default["action_version"] == ACTION_VERSION
+    assert default["action_count"] == 63
+    assert default["actions"][0] == {"id": 0, "agents": ["budget"]}
+    assert default["actions"][2] == {"id": 2, "agents": ["budget", "debt"]}
+    assert default["actions"][-1] == {"id": 62, "agents": list(AGENT_IDS)}
+    assert all(default["actions"][i]["id"] == i for i in range(63))
+    limited = ActionCatalog.from_agents(("budget", "debt"),
+                                        allowed_selections=(("debt",), ("budget", "debt")))
+    assert limited.describe()["actions"] == [
+        {"id": 0, "agents": ["debt"]},
+        {"id": 1, "agents": ["budget", "debt"]},
+    ]
+
+
+def test_action_manifest_can_be_reviewed_without_account():
+    run = subprocess.run([sys.executable, "-m", "app.rl.selection"],
+                         capture_output=True, text=True, check=True)
+    manifest = json.loads(run.stdout)
+    assert manifest["action_count"] == 63
+    assert manifest["actions"][2]["agents"] == ["budget", "debt"]
 
 
 def test_environment_can_sample_supplied_states_and_report_plan_coverage():
