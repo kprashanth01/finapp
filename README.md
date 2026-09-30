@@ -285,6 +285,26 @@ The generator now exports `synthetic-population-v2`. It keeps the Issue 2 identi
 
 This schema is research-only: synthetic IDs do not refer to the private SQL `users.id`, and there is no new table or migration. The existing `User` and `FinancialProfile` tables already hold the live single-month account values. The research path is `SyntheticProfile → SyntheticDebt(s) → future monthly financial states → future orchestrator decisions → future agent results`. The existing six agents, orchestrators, DQN artifact, and saved user data are unchanged. No new installation, PostgreSQL setup, API key, service, or environment variable is required to generate or inspect the dataset.
 
+### Volatile monthly trajectories (Issue 4)
+
+`backend/app/rl/trajectories.py` generates 12 monthly states per synthetic user by default: **144,000 rows for 12,000 users**. Every row carries the synthetic ID, persona, month, seeds, income, fixed and variable expenses, scheduled and paid EMI, cash flow, liquid savings, emergency reserve, investment value, debt balance, missed-payment flag, and ratios. Each user's random stream is derived from their identity and the trajectory seed, so exporting one user produces the same months as exporting the full population. The current `synthetic-trajectories-v1` data is separate from the app's `FinancialState`/DQN observation and does not change the committed DQN evaluation.
+
+Income is independently sampled each month around base income using the profile's assumed relative monthly volatility and is floored at zero. Variable expenses receive an independent 8% relative standard deviation by default; fixed expenses stay fixed. These are illustrative simulation assumptions, not calibrated forecasts. The generator pays fixed expenses, then scheduled debt obligations, then variable expenses from income plus liquid savings. Other savings are used before the earmarked emergency reserve. If available money is insufficient, it records unfunded non-debt expenses and/or a missed EMI; unpaid loan interest remains in outstanding debt. Positive cash remaining after expenses is held as liquid savings. Advisory agent selection does not change any balance, and the investment value stays zero because no portfolio or return process exists. There are no configurable discrete income/expense shock events yet; those belong to Issue 5. The month ratios are descriptive values, not the versioned RL observation that Issue 7 will define.
+
+From the repository root, preview all 12 months for one user without writing the full cohort:
+
+```powershell
+Set-Location backend
+..\.venv\Scripts\python -m app.rl.trajectories --synthetic-id 1
+Set-Location ..
+Get-Content data\synthetic\trajectories-v1.summary.json
+Get-Content data\synthetic\trajectories-v1.jsonl -TotalCount 12
+```
+
+Omit `--synthetic-id 1` to export the full 12,000-user cohort; use `--population-seed`, `--trajectory-seed`, `--months`, `--expense-volatility`, and `--output` to configure a run. The summary records row counts, per-persona within-user income variation, shortfall counts, and the JSONL SHA-256. Use `--output` to keep a one-user preview separate from a full export. Generated files are ignored by Git. No new package, migration, PostgreSQL connection, API key, or external service is needed for this command.
+
+**Website check:** Start the API and frontend using the instructions above and open [FinApp](http://127.0.0.1:5173/). Sign-in and the existing Research view should still work, but this offline dataset has no website visualization yet. Research continues to show the earlier fixed-cohort DQN experiment; it must not be read as a result on these monthly trajectories. A trajectory viewer is a later milestone.
+
 ## API available now
 
 | Method | Path | Purpose |
