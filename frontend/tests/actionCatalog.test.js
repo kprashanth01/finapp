@@ -42,3 +42,13 @@ test('Research prompts for a selection before showing an action ID', () => {
   assert.match(markup, /Choose at least one agent/)
   assert.doesNotMatch(markup, /Action ID [0-9]/)
 })
+
+test('an older API catalog cannot blank the Research page', () => {
+  const markup = renderToStaticMarkup(createElement(ActionCatalogDetails, {
+    catalog: { action_version: 'agent-subset-v1', action_count: 63,
+      agents: ['budget', 'debt'] },
+    selected: [],
+  }))
+  assert.match(markup, /Action mapping unavailable/)
+  assert.match(markup, /Restart the backend/)
+})

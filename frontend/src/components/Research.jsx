@@ -169,6 +169,9 @@ export function TrainingEvidenceCard({ evidence }) {
 }
 
 export function ActionCatalogDetails({ catalog, selected }) {
+  if (!Array.isArray(catalog.actions)) return <section className="research-action-map" aria-label="Action space">
+    <p role="status">Action mapping unavailable from the current API. Restart the backend to load the latest action catalogue.</p>
+  </section>
   const action = selected.length
     ? catalog.actions.find((entry) => entry.agents.length === selected.length
       && entry.agents.every((id) => selected.includes(id)))
