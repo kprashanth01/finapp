@@ -8,3 +8,5 @@ dist/
 .env
 .env.local
 *.log
+data/synthetic/*.jsonl
+data/synthetic/*.summary.json

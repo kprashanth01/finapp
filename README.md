@@ -248,6 +248,35 @@ The response must cite evidence IDs belonging to that exact run. The server vali
 
 To try it: sign in, open **Advisor**, run an analysis, then press **Generate explanation** under the plan. Expand each section's linked evidence to see its source facts. For an RL example, choose **Trained RL**, press **Run selected method**, then use the same explanation button under that result. With no API key, expect **Deterministic explanation** and a configuration note; with a working key, expect **AI-written synthesis**. The exact educational guidance disclaimer appears below both.
 
+## Synthetic financial population (Issue 2)
+
+The research population generator creates **exactly 12,000 anonymous synthetic profiles** from one seed. It does not use the account database, create app users, change the existing `coverage-scenarios-v1` DQN cases, or retrain a model. Each row has a synthetic ID, persona, generation seed, age, base monthly income, aggregate monthly expenses, debt balance and payment, savings contribution, emergency fund, savings balance, risk preference, and investment horizon. Money is written as two-decimal strings in INR. There are no names or email addresses.
+
+The persona mix is an experiment design assumption, not a demographic estimate:
+
+| Persona | Profiles | Share | Assumed base monthly income range | Assumed debt prevalence |
+| --- | ---: | ---: | ---: | ---: |
+| Gig worker | 3,600 | 30% | ₹12,000–₹80,000 | 30% chance |
+| Salaried with loan | 4,200 | 35% | ₹25,000–₹130,000 | 100% by definition |
+| Student / fresh graduate | 2,400 | 20% | ₹5,000–₹40,000 | 20% chance |
+| Near-retiree | 1,800 | 15% | ₹18,000–₹100,000 | 20% chance |
+
+The code in `backend/app/rl/population.py` also records age ranges, expense fractions, and horizon ranges. These are configurable research assumptions in source, not estimates from household data. All amounts are baseline profile values. The summary's income standard deviation is **across different synthetic users**, not month-to-month income volatility.
+
+From the repository root, using the existing backend environment:
+
+```powershell
+Set-Location backend
+..\.venv\Scripts\python -m app.rl.population --seed 20260930
+Set-Location ..
+Get-Content data\synthetic\population-v1.summary.json
+Get-Content data\synthetic\population-v1.jsonl -TotalCount 2
+```
+
+The command prints and writes a validation summary with exact persona counts, average income and expenses, cross-user income variation, debt prevalence, average debt payment, and a SHA-256 digest of the JSONL file. Repeat it with the same seed for identical bytes; change `--seed` for a different population. Use `--output <path>` to write elsewhere. Generated JSONL and summary files under `data/synthetic/` are Git-ignored because they can be reproduced from the source and seed.
+
+No PostgreSQL setup, API key, OpenAI call, new package, or migration is needed for this generator. Monthly trajectories, shocks, and user-level train/test splits are later issues. The current DQN metrics still refer to the earlier single-state coverage cases, not these 12,000 profiles.
+
 ## API available now
 
 | Method | Path | Purpose |
