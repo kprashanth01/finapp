@@ -269,13 +269,21 @@ From the repository root, using the existing backend environment:
 Set-Location backend
 ..\.venv\Scripts\python -m app.rl.population --seed 20260930
 Set-Location ..
-Get-Content data\synthetic\population-v1.summary.json
-Get-Content data\synthetic\population-v1.jsonl -TotalCount 2
+Get-Content data\synthetic\population-v2.summary.json
+Get-Content data\synthetic\population-v2.jsonl -TotalCount 2
 ```
 
 The command prints and writes a validation summary with exact persona counts, average income and expenses, cross-user income variation, debt prevalence, average debt payment, and a SHA-256 digest of the JSONL file. Repeat it with the same seed for identical bytes; change `--seed` for a different population. Use `--output <path>` to write elsewhere. Generated JSONL and summary files under `data/synthetic/` are Git-ignored because they can be reproduced from the source and seed.
 
 No PostgreSQL setup, API key, OpenAI call, new package, or migration is needed for this generator. Monthly trajectories, shocks, and user-level train/test splits are later issues. The current DQN metrics still refer to the earlier single-state coverage cases, not these 12,000 profiles.
+
+### Offline research schema (Issue 3)
+
+The generator now exports `synthetic-population-v2`. It keeps the Issue 2 identity and aggregate fields, then adds `dependents`, `income_volatility`, `fixed_monthly_expenses`, `variable_monthly_expenses`, `debts`, and nullable `dataset_split`. Every debt has a type, outstanding principal, annual interest rate (a fraction, so `0.12` means 12%), monthly EMI, and remaining months. One profile can hold zero, one, or two debts. The assumed volatility is a *relative monthly standard deviation* for a later trajectory generator; it is not the cross-user income spread in the summary and does not generate monthly states yet. The illustrative ranges are 25–55% for gig workers, 2–10% for salaried users, 10–30% for students/graduates, and 3–12% for near-retirees. These ranges are experimental assumptions, not calibrated survey estimates.
+
+`monthly_expenses = fixed_monthly_expenses + variable_monthly_expenses + monthly_debt_payments`; fixed expenses exclude EMI. `existing_debt` and `monthly_debt_payments` equal the sums of debt principal and EMI respectively. The generator validates these equalities, nonnegative balances, debt terms, and feasible savings contributions before export. All `dataset_split` values are `null` in this issue; Issue 6 will assign whole users to train or test. Generated amounts use decimal strings and the same seed produces byte-identical JSONL and a SHA-256 summary. This v2 dataset is a new version; previously generated v1 files are not silently reinterpreted.
+
+This schema is research-only: synthetic IDs do not refer to the private SQL `users.id`, and there is no new table or migration. The existing `User` and `FinancialProfile` tables already hold the live single-month account values. The research path is `SyntheticProfile → SyntheticDebt(s) → future monthly financial states → future orchestrator decisions → future agent results`. The existing six agents, orchestrators, DQN artifact, and saved user data are unchanged. No new installation, PostgreSQL setup, API key, service, or environment variable is required to generate or inspect the dataset.
 
 ## API available now
 
