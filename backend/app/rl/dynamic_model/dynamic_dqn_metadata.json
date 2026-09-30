@@ -1,0 +1,137 @@
+{
+  "model_version": "dynamic-dqn-monthly-v1",
+  "algorithm": "DQN",
+  "environment_version": "dynamic-agent-selection-v1",
+  "observation_version": "dynamic-observation-v1",
+  "action_version": "agent-subset-v1",
+  "reward_version": "dynamic-selection-proxy-v1",
+  "scenario_version": "dynamic-user-episodes-v1",
+  "feature_names": [
+    "income_log_scaled",
+    "expense_income_scaled",
+    "fixed_expense_income_scaled",
+    "scheduled_emi_income_scaled",
+    "liquid_savings_months_scaled",
+    "emergency_months_scaled",
+    "debt_yearly_income_scaled",
+    "income_volatility_scaled",
+    "recent_income_change_clipped",
+    "cash_flow_income_clipped",
+    "unfunded_expense_fraction",
+    "missed_payment",
+    "observed_low_income",
+    "horizon_scaled",
+    "risk_conservative",
+    "risk_moderate",
+    "risk_aggressive",
+    "income_zero",
+    "recent_change_missing"
+  ],
+  "action_count": 63,
+  "split_counts": {
+    "training": 256,
+    "validation": 64,
+    "test": 64
+  },
+  "dataset": {
+    "scenario_version": "dynamic-user-episodes-v1",
+    "population_version": "synthetic-population-v2",
+    "split_version": "synthetic-user-split-v1",
+    "trajectory_version": "synthetic-trajectories-v4",
+    "seeds": {
+      "population": 20260930,
+      "split": 20261002,
+      "selection": 20261003,
+      "trajectory": 20261001
+    },
+    "months_per_user": 12,
+    "shock_probability": 0.1,
+    "user_counts": {
+      "training": 256,
+      "validation": 64,
+      "test": 64
+    },
+    "persona_counts": {
+      "training": {
+        "gig_worker": 77,
+        "salaried_with_loan": 90,
+        "student_fresh_graduate": 51,
+        "near_retiree": 38
+      },
+      "validation": {
+        "gig_worker": 19,
+        "salaried_with_loan": 22,
+        "student_fresh_graduate": 13,
+        "near_retiree": 10
+      },
+      "test": {
+        "gig_worker": 19,
+        "salaried_with_loan": 22,
+        "student_fresh_graduate": 13,
+        "near_retiree": 10
+      }
+    },
+    "user_id_sha256": {
+      "training": "3df3b9a30e31b9f3600dc4d6ae153aa02c1f0c33b467d84246c3d80239405a1a",
+      "validation": "bc6acf3334b72956eb542875ed54316928edfae8a1ce3ebacf72969b29080201",
+      "test": "5ffd83f2ccf47d39441960306987ee8b8e8c46d903bcbc9831cf053486884d20"
+    },
+    "split_unit": "synthetic user; validation is held out from the training cohort"
+  },
+  "training_seed": 313,
+  "total_timesteps": 12000,
+  "validation_interval": 3000,
+  "selected_step": 12000,
+  "gradient_updates": 2936,
+  "validation_history": [
+    {
+      "step": 3000,
+      "episode_count": 64,
+      "decision_count": 768,
+      "mean_reward": 5.068,
+      "critical_miss_rate": 0.0026,
+      "mean_agent_calls": 3.938
+    },
+    {
+      "step": 6000,
+      "episode_count": 64,
+      "decision_count": 768,
+      "mean_reward": 5.14,
+      "critical_miss_rate": 0.0013,
+      "mean_agent_calls": 4.047
+    },
+    {
+      "step": 9000,
+      "episode_count": 64,
+      "decision_count": 768,
+      "mean_reward": 5.262,
+      "critical_miss_rate": 0.0,
+      "mean_agent_calls": 4.005
+    },
+    {
+      "step": 12000,
+      "episode_count": 64,
+      "decision_count": 768,
+      "mean_reward": 5.493,
+      "critical_miss_rate": 0.0,
+      "mean_agent_calls": 3.867
+    }
+  ],
+  "test": {
+    "episode_count": 64,
+    "decision_count": 768,
+    "mean_reward": 5.572,
+    "critical_miss_rate": 0.0,
+    "mean_agent_calls": 3.836
+  },
+  "gamma": 0.0,
+  "transition_note": "Precomputed exogenous months; action cannot change future balances or rewards.",
+  "reward_note": "Selection proxy only; not a measured financial outcome.",
+  "dependencies": {
+    "python": "3.13.1",
+    "gymnasium": "1.3.0",
+    "stable_baselines3": "2.9.0",
+    "torch": "2.14.0+cpu"
+  },
+  "artifact_sha256": "18bfae1b8d8e27e70cc50dea9de0c80cb7b7d0ee02d31cfb042a873158cece30"
+}
