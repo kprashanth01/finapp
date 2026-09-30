@@ -348,6 +348,34 @@ All generated JSONL and summaries remain Git-ignored and can be reproduced from 
 
 **Website check:** Open the running [FinApp](http://127.0.0.1:5173/) to confirm sign-in and existing Research still load. This issue changes offline dataset assignment and adds no visible page; the existing Research scores do not use these split trajectories. Inspect the three summaries above to see the new result now.
 
+### Dynamic financial state and normalized observation (Issue 7)
+
+`backend/app/rl/dynamic_state.py` joins one synthetic profile with one of its monthly records into `dynamic-financial-state-v1`. It records current income and obligations, savings and emergency reserve, outstanding debt, the currently zero modeled investment value, expense/debt/reserve ratios, risk preference, investment horizon, effective income volatility, recent income change, missed payment, observed low income, and liquidity pressure. Identity, persona, train/test assignment, month, and the simulator's event label remain available as inspection metadata. The builder rejects a mismatched user/split or inconsistent monthly totals. When a trajectory uses `--income-volatility`, pass that override to the builder; the preview command below does this automatically.
+
+The separate `dynamic-observation-v1` encoder produces **19 finite features in [−1, 1]**. Each feature name and its reason are listed by the preview command and in `DYNAMIC_FEATURE_RATIONALE` beside the encoder. The groups are:
+
+| Features | Scale | Why included |
+| --- | --- | --- |
+| Current income | `log1p(income) / log1p(₹200,000)`, capped at 1 | Retains absolute earning capacity without letting large amounts dominate. |
+| Total expenses, fixed expenses, scheduled EMI | Ratios to income, capped at 2/2/1 and mapped to 0–1 | Separates overall cost, essential cost, and debt-service pressure. |
+| Total savings, emergency fund | Months of scheduled expenses, capped at 12 and mapped to 0–1 | Separates total liquidity from earmarked reserves. |
+| Outstanding debt | Debt / annualized current income, capped at 5 and mapped to 0–1 | Represents balance burden beyond one month's EMI. |
+| Income volatility, recent change | Volatility capped at 1; recent change clipped to −1…1 | Exposes uncertainty and the direction of the latest income movement. |
+| Scheduled cash flow, unfunded expenses, missed EMI, observed low income | Cash flow / income clipped to −1…1; unfunded share 0–1; binary flags | Shows immediate liquidity pressure and unmet obligations. The low-income flag is derived from observed income ≤60% of base, never from the simulator's event label. |
+| Horizon and risk preference | Horizon / 40 years capped at 1; three one-hot flags | Preserves the user's stated long-term context. |
+| Zero-income and missing-recent-change flags | Binary | Disambiguates a zero ratio from an undefined denominator. |
+
+The encoder deliberately excludes synthetic ID, persona, train/test assignment, and the simulator's event name to avoid giving a future policy privileged experiment labels. Its fixed scaling limits are set from documented synthetic ranges, not fitted on held-out test users. Month 1's recent income change compares with base income; later months compare with the preceding generated month. The encoder also omits goal gap/priority, health score, and a claimed realized savings rate: the current synthetic trajectory has no goals, validated outcome score, or tracked savings-contribution decision. Volatility is an experiment setting here; a live system would need to estimate it from observed history. The existing `FinancialState`, `PlanningState`, `planning-observation-v1`, and committed 16-feature DQN remain unchanged. No dynamic DQN has been trained or evaluated yet.
+
+Preview a split-assigned user's monthly state and feature vector from the repository root:
+
+```powershell
+Set-Location backend
+..\.venv\Scripts\python -m app.rl.dynamic_state --synthetic-id 1 --split-seed 20261002 --shocks --months 3
+```
+
+Expect the state and observation version strings, feature names and rationales, and three month rows. Compare income, cash flow, reserves, and observation values across rows. The dataset remains offline; no new package, migration, PostgreSQL connection, API key, or external service is needed. **Website check:** The running [FinApp](http://127.0.0.1:5173/) should still load, but Issue 7 adds no visible page. Research still shows the earlier 16-feature DQN evidence, not a result from this dynamic encoder.
+
 ## API available now
 
 | Method | Path | Purpose |
