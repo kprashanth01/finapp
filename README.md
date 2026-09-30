@@ -376,6 +376,21 @@ Set-Location backend
 
 Expect the state and observation version strings, feature names and rationales, and three month rows. Compare income, cash flow, reserves, and observation values across rows. The dataset remains offline; no new package, migration, PostgreSQL connection, API key, or external service is needed. **Website check:** The running [FinApp](http://127.0.0.1:5173/) should still load, but Issue 7 adds no visible page. Research still shows the earlier 16-feature DQN evidence, not a result from this dynamic encoder.
 
+### Existing agents on changing monthly finances (Issue 8)
+
+`backend/app/advisory/dynamic.py` adapts each `dynamic-financial-state-v1` synthetic month to the six existing agents' `analyze(state)` interface. The adapter carries current income, fixed and variable costs, scheduled EMI, liquid balances, recent income change, expected volatility, current surplus, missed payments, and the highest contractual debt APR. **Current surplus is income minus scheduled expenses, not an observed savings contribution.** Synthetic profiles have no financial goals; the preview can add a clearly labeled example goal supplied by the caller. Saved-profile advice keeps its existing contract and behavior. The rule-based and trained DQN selectors are not yet using these monthly agent results.
+
+The Budget Agent now checks current cash pressure and recent income decline. Debt checks scheduled EMI, missed payments, liquidity, and a contractual rate of at least 12%. Emergency uses an illustrative three-month target for stable conditions and six months when volatility is at least 25% or current income is at most 60% of base income. Investment checks current surplus, that month's reserve target, debt pressure, income stability, risk preference, and horizon; it never names a security. Goal Planning compares each supplied goal's monthly need with current surplus and competing reserve/debt needs without pretending money was actually allocated. Risk Assessment caps its illustrative category when a month has severe income or liquidity stress. These thresholds are experimental assumptions for comparing orchestration, not calibrated household advice. Every agent returns its existing structured result with evidence and limitations.
+
+From the repository root, preview three seeded months and all six results:
+
+```powershell
+Set-Location backend
+..\.venv\Scripts\python -m app.advisory.dynamic --synthetic-id 1 --months 3 --shocks --shock-probability 0.5 --goal-target 12000 --goal-months 6
+```
+
+The JSON contains each month's income and cash flow, plus `budget`, `debt`, `emergency`, `goal`, `risk`, and `investment` findings. Compare `priority`, reserve `gap`, investment `status`, and risk `category` as the income changes. Omit both `--goal-target` and `--goal-months` to see the real no-goal synthetic case. There is no new package, migration, PostgreSQL connection, API key, external service, or environment variable. **Website check:** The existing [FinApp](http://127.0.0.1:5173/) should load, but Issue 8 adds no visible website change. The Research page still reports the earlier 16-feature DQN experiment; it does not show these new monthly agent findings yet.
+
 ## API available now
 
 | Method | Path | Purpose |
