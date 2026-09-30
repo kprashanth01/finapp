@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import AdvisoryPlan from './AdvisoryPlan.jsx'
 import ExplanationTrail from './ExplanationTrail.jsx'
+import ReasoningPanel from './ReasoningPanel.jsx'
 import { RewardAuditDetails } from './Research.jsx'
 import { explainApiError, runOrchestration } from '../services/api.js'
 
@@ -20,7 +21,7 @@ function evidenceText(item) {
   return `${item.label}: ${item.value}${item.unit ? ` ${item.unit}` : ''}`
 }
 
-export function OrchestrationResult({ result, onOpenProfile = () => {}, onOpenGoal = () => {} }) {
+export function OrchestrationResult({ result, userId, onOpenProfile = () => {}, onOpenGoal = () => {} }) {
   const complete = result.plan_readiness.can_build_full_plan
   return <div className="orchestration-result" aria-live="polite">
     <div className="orchestration-result-head">
@@ -30,6 +31,7 @@ export function OrchestrationResult({ result, onOpenProfile = () => {}, onOpenGo
     </div>
     <p className="orchestration-meta">Saved profile as of {result.as_of_date} · {result.policy_version} · Action catalogue {result.action_version}</p>
     <ExplanationTrail trace={result.explanation} />
+    {result.explanation && userId != null && <ReasoningPanel key={`${result.state_fingerprint}:${result.mode}:${result.action}:${result.seed}`} userId={userId} liveResult={result} />}
     {!result.explanation && <div className="orchestration-selected"><h4>Agents that ran</h4>
       <ul>{result.selected_agents.map((id) => <li key={id}>{agentNames[id] ?? id}</li>)}</ul></div>
     }
@@ -79,6 +81,6 @@ export default function OrchestrationLab({ userId, onOpenProfile, onOpenGoal }) 
     </form>
     {mode === 'rl' && <p className="orchestration-mode-note">Trained RL uses the committed DQN model. It may choose fewer agents, so a complete monthly plan is shown only when all required checks ran.</p>}
     {error && <p role="alert" className="research-error">{error}</p>}
-    {result && <OrchestrationResult result={result} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} />}
+    {result && <OrchestrationResult result={result} userId={userId} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} />}
   </section>
 }

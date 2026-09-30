@@ -9,6 +9,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.advisory.service import financial_state, planning_date
+from app.advisory.planning_types import ExplanationTrace
+from app.advisory.reasoning import ReasoningResponse, explain_run
 from app.auth_dependencies import require_owner
 from app.database import get_session
 from app.goal_api import load_active_goals
@@ -41,6 +43,11 @@ class ManualActionRequest(BaseModel):
 class OrchestrationRunRequest(BaseModel):
     mode: Literal["rule_based", "random", "rl"]
     seed: int = Field(default=42, ge=0, le=1_000_000_000)
+
+
+class OrchestrationReasoningRequest(OrchestrationRunRequest):
+    state_fingerprint: str = Field(min_length=64, max_length=64)
+    action: int = Field(ge=0)
 
 
 def _saved_state(user_id: int, session: Session):
@@ -108,6 +115,23 @@ def run_policy_on_saved_profile(user_id: int, payload: OrchestrationRunRequest,
         return run_orchestration(state, mode=payload.mode, seed=payload.seed)
     except ModelUnavailableError as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
+
+
+@router.post('/users/{user_id}/research/orchestration-reasoning',
+             response_model=ReasoningResponse, dependencies=[Depends(require_owner)])
+def explain_live_orchestration(user_id: int, payload: OrchestrationReasoningRequest,
+                               session: Session = Depends(get_session)) -> ReasoningResponse:
+    state = _saved_state(user_id, session)
+    if state.fingerprint() != payload.state_fingerprint:
+        raise HTTPException(status_code=409, detail='The saved profile changed. Run the selection again.')
+    try:
+        result = run_orchestration(state, mode=payload.mode, seed=payload.seed)
+    except ModelUnavailableError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    if result['action'] != payload.action:
+        raise HTTPException(status_code=409, detail='The selected action changed. Run the selection again.')
+    return explain_run(ExplanationTrace.model_validate(result['explanation']),
+                       result['summary'], result['agent_results'])
 
 
 @router.post("/users/{user_id}/research/manual-action", dependencies=[Depends(require_owner)])

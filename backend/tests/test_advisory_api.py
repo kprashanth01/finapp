@@ -45,6 +45,61 @@ def create_profile(client, email="example@sample-finapp.org"):
     return user, profile
 
 
+def test_saved_reasoning_uses_captured_run_and_owner_scope(client, monkeypatch):
+    from app.advisory import reasoning
+
+    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    user, profile = create_profile(client)
+    created = client.post(f"/users/{user['id']}/advisory-sessions", json={})
+    assert created.status_code == 201, created.text
+    saved_id = created.json()['id']
+    path = f"/users/{user['id']}/advisory-sessions/{saved_id}/reasoning"
+    response = client.post(path, json={})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body['source'] == 'deterministic'
+    assert body['fallback_reason'] == 'not_configured'
+    assert body['state_fingerprint'] == created.json()['result']['explanation']['state_fingerprint']
+    assert body['sections']['final_recommendation']['text'] == created.json()['result']['advice']['summary']['text']
+    assert 'professional financial advice' in body['disclaimer']
+    assert 'example@sample-finapp.org' not in response.text
+    profile['monthly_expenses'] = '2400.00'
+    assert client.put(f"/users/{user['id']}/financial-profile", json=profile).status_code == 200
+    assert client.post(path, json={}).json()['state_fingerprint'] == body['state_fingerprint']
+    other, _ = create_profile(client, email='another@sample-finapp.org')
+    assert client.post(path, json={}).status_code == 404
+    assert client.post(f"/users/{other['id']}/advisory-sessions/{saved_id}/reasoning", json={}).status_code == 404
+    assert client.sign_in(user['email']).status_code == 200
+    monkeypatch.setenv('OPENAI_API_KEY', 'unit-test-key')
+    def invalid_output(*_args):
+        return {name: {'text': 'Buy stock now for 25% guaranteed returns.', 'evidence_ids': ['decision']}
+                for name in reasoning.SECTION_NAMES}
+    monkeypatch.setattr(reasoning, '_provider_request', invalid_output)
+    invalid = client.post(path, json={}).json()
+    assert invalid['source'] == 'deterministic'
+    assert invalid['fallback_reason'] == 'invalid_output'
+    assert 'Buy stock' not in str(invalid)
+
+
+def test_live_reasoning_rejects_changed_state_and_action(client, monkeypatch):
+    monkeypatch.delenv('OPENAI_API_KEY', raising=False)
+    user, profile = create_profile(client)
+    base = f"/users/{user['id']}/research"
+    run = client.post(f'{base}/orchestration-run', json={'mode': 'random', 'seed': 17}).json()
+    payload = {'mode': 'random', 'seed': 17, 'state_fingerprint': run['state_fingerprint'], 'action': run['action']}
+    answer = client.post(f'{base}/orchestration-reasoning', json=payload)
+    assert answer.status_code == 200, answer.text
+    assert answer.json()['action'] == run['action']
+    assert answer.json()['source'] == 'deterministic'
+    assert client.get(f"/users/{user['id']}/advisory-sessions").json()['items'] == []
+    assert client.post(f'{base}/orchestration-reasoning', json={**payload, 'action': run['action'] + 1}).status_code == 409
+    profile['emergency_fund'] = '7000.00'
+    assert client.put(f"/users/{user['id']}/financial-profile", json=profile).status_code == 200
+    changed = client.post(f'{base}/orchestration-reasoning', json=payload)
+    assert changed.status_code == 409
+    assert 'profile changed' in changed.json()['detail']
+
+
 def test_orchestration_run_is_owned_read_only_and_reports_actual_agents(client):
     user, profile = create_profile(client)
     path = f"/users/{user['id']}/research/orchestration-run"

@@ -1,6 +1,6 @@
 # FinApp
 
-An educational research prototype for an RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. Advisor can run rule-based, seeded random, or trained DQN agent selection on your saved profile and trace each new result from agent choice to supporting findings. Research shows a paired evaluation of those three methods on a fixed generated cohort, DQN training evidence, and the earlier fitted proxy comparison. Its findings are illustrative project outputs, not professional financial advice.
+An educational research prototype for an RL-orchestrated, multi-agent financial advisory system. Create an account to save a private financial profile, goals, and rule-based advisory history in PostgreSQL. Advisor can run rule-based, seeded random, or trained DQN agent selection on your saved profile and trace each new result from agent choice to supporting findings. An optional LLM synthesizes the trace when you request it; the agents and calculations remain deterministic. Research shows a paired evaluation of those three methods on a fixed generated cohort, DQN training evidence, and the earlier fitted proxy comparison. Its findings are illustrative project outputs, not professional financial advice.
 
 ## How the current flow works
 
@@ -19,7 +19,7 @@ React form → Axios request → FastAPI validation → SQLAlchemy → PostgreSQ
                                       ↓
                  evidence-backed findings → saved session
                                       ↓
-                                  React view
+                  React view → optional evidence-bound LLM wording
 ```
 
 The app creates no demo users or financial data. The browser keeps a host-only, HttpOnly session cookie; it no longer uses a local-storage user ID as identity. An expired or revoked session requires sign-in again.
@@ -31,7 +31,7 @@ The app creates no demo users or financial data. The browser keeps a host-only, 
 - Node.js 20.19+ or 22.12+ and npm
 - PostgreSQL with a database and login for this project
 
-The backend requirements include NumPy and Gymnasium for the research environment. Installing `backend/requirements.txt` installs both. Rule-based and random modes work with this base install; **running the trained RL mode requires `backend/requirements-rl.txt` in the Python environment used to start FastAPI**. This also supports rebuilding the DQN and requires Python 3.12 on Windows. The API reads training metadata without importing PyTorch on startup. No API key, external dataset, new environment variable, or database migration is needed.
+The backend requirements include NumPy and Gymnasium for the research environment. Installing `backend/requirements.txt` installs both. Rule-based and random modes work with this base install; **running the trained RL mode requires `backend/requirements-rl.txt` in the Python environment used to start FastAPI**. This also supports rebuilding the DQN and requires Python 3.12 on Windows. The API reads training metadata without importing PyTorch on startup. No API key is needed for the deterministic app; an OpenAI API key is optional for generated explanations. No new database migration is needed.
 
 ## One-time setup
 
@@ -238,6 +238,16 @@ From `backend/`, inspect the metadata without loading PyTorch using `python -c "
 
 To enable **Trained RL** on a fresh Windows setup, install `backend/requirements-rl.txt` into the same Python 3.12 environment that starts FastAPI, then restart the API. The committed ZIP and metadata are already included; you do not need to retrain. The selector loads and verifies that ZIP once per API process and predicts an action from the owner's current financial state. A training score is a rule-defined proxy, not an observed change in a person's finances.
 
+## Optional explanation model
+
+The Advisor's **Explain this run** panel appears below a saved plan and below a live selection result. The button sends a small evidence catalogue to the configured OpenAI model: saved financial values, selected agent findings, the selection action, recommendation summary, and recorded limitations. It excludes the account name, email, account ID, cookies, and password fields; user-entered goal names may still appear in recommendation evidence. This transmission occurs only after pressing **Generate explanation**. An older saved session without an explanation trace needs a new analysis run. The generated wording is temporary; it is not written into advisory history.
+
+Set `OPENAI_API_KEY` in the root `.env` file and restart FastAPI to enable the provider. `FINAPP_LLM_MODEL` optionally changes the model; the default is `gpt-4o-mini`. The server calls OpenAI's Responses API with strict structured JSON and `store: false`. OpenAI may still retain abuse monitoring logs under its API data policy, so use practice financial values if you do not want to transmit real amounts. The browser never receives the key.
+
+The response must cite evidence IDs belonging to that exact run. The server validates its structure and screens for unsupported numerical claims, product instructions, and return promises. These checks reduce errors but cannot verify every qualitative sentence or establish financial correctness. If the key is missing, the request fails, or validation fails, the panel labels and shows a deterministic explanation instead. The original calculations and decisions do not change in either path. For a live policy result, the API recomputes the saved state and selection and rejects a changed profile or action before generating text.
+
+To try it: sign in, open **Advisor**, run an analysis, then press **Generate explanation** under the plan. Expand each section's linked evidence to see its source facts. For an RL example, choose **Trained RL**, press **Run selected method**, then use the same explanation button under that result. With no API key, expect **Deterministic explanation** and a configuration note; with a working key, expect **AI-written synthesis**. The exact educational guidance disclaimer appears below both.
+
 ## API available now
 
 | Method | Path | Purpose |
@@ -258,7 +268,9 @@ To enable **Trained RL** on a fresh Windows setup, install `backend/requirements
 | PUT | `/users/{id}/goals/{goal_id}` | Update a goal, preserving archive state |
 | PATCH | `/users/{id}/goals/{goal_id}` | Archive/restore with `{ "archived": true/false }` |
 | POST | `/users/{id}/advisory-sessions` | Run and save a rule-based advisory session |
+| POST | `/users/{id}/advisory-sessions/{session_id}/reasoning` | Explain an owned captured run; provider is called only on this request |
 | POST | `/users/{id}/research/orchestration-run` | Run `rule_based`, seeded `random`, or trained `rl` selection on the owner's saved profile without persistence; JSON `{ "mode": "rl", "seed": 42 }` |
+| POST | `/users/{id}/research/orchestration-reasoning` | Explain a live run after verifying `{ "mode", "seed", "state_fingerprint", "action" }` against current state |
 | POST | `/users/{id}/research/comparison` | Compare the earlier fitted proxy, rule, and seeded random selection on the owner's saved profile without saving data; optional JSON `{ "seed": 42 }` |
 | GET | `/users/{id}/research/training-evidence` | Read verified offline DQN run metadata for the signed-in owner; never loads PyTorch or saved profile data |
 | GET | `/users/{id}/research/evaluation` | Read the verified fixed-cohort evaluation report for the signed-in owner; no saved profile data or PyTorch load |
@@ -300,4 +312,4 @@ Each meaningful feature is tracked in a GitHub issue and built on a feature bran
 
 This remains a research prototype, not a financial advisory product. Passwords use Argon2id hashes, sessions are revocable and expire after seven days, and each user-scoped API route checks the signed-in owner. Mutating browser calls carry a custom request header; credentialed CORS is limited to explicit frontend origins. Local loopback HTTP uses a development cookie; non-loopback deployments require HTTPS and a Secure cookie. Set `FINAPP_ALLOWED_ORIGINS` to an explicit comma-separated list of your frontend origins when deploying. Serve only the authenticated API build; an older API process pointed at the same database would still expose its older routes.
 
-Email verification, password recovery, MFA, and deployment-level rate limiting are not in this issue. Use practice values until those controls and a reviewed HTTPS deployment are in place. The fixed synthetic evaluation does not establish real-world advice quality; independently labelled outcomes, explainability, LLM reasoning, and broader experiments remain future work.
+Email verification, password recovery, MFA, and deployment-level rate limiting are not in this issue. Use practice values until those controls and a reviewed HTTPS deployment are in place. The fixed synthetic evaluation and optional LLM wording do not establish real-world advice quality; independently labelled outcomes and broader experiments remain future work.
