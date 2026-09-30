@@ -287,6 +287,10 @@ def test_manual_research_action_uses_saved_profile_without_writing_history(clien
     assert catalog.status_code == 200
     assert catalog.json()["action_count"] == 63
     assert catalog.json()["agents"] == ["budget", "debt", "emergency", "goal", "risk", "investment"]
+    assert catalog.json()["selection_semantics"] == "one_step_subset"
+    assert catalog.json()["actions"][0] == {"id": 0, "agents": ["budget"]}
+    assert catalog.json()["actions"][2] == {"id": 2, "agents": ["budget", "debt"]}
+    assert catalog.json()["actions"][-1]["id"] == 62
 
     incomplete = client.post(f"{root}/manual-action", json={
         "selected_agents": ["emergency", "budget"]

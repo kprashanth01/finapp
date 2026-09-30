@@ -391,6 +391,19 @@ Set-Location backend
 
 The JSON contains each month's income and cash flow, plus `budget`, `debt`, `emergency`, `goal`, `risk`, and `investment` findings. Compare `priority`, reserve `gap`, investment `status`, and risk `category` as the income changes. Omit both `--goal-target` and `--goal-months` to see the real no-goal synthetic case. There is no new package, migration, PostgreSQL connection, API key, external service, or environment variable. **Website check:** The existing [FinApp](http://127.0.0.1:5173/) should load, but Issue 8 adds no visible website change. The Research page still reports the earlier 16-feature DQN experiment; it does not show these new monthly agent findings yet.
 
+### Agent action space review (Issue 9)
+
+The current `agent-subset-v1` action catalogue has **63 IDs**: all nonempty subsets of the six registered agents. This is one agent-selection decision on one financial state. Every selected agent reads that same state; the action does not encode an ordered advisory sequence, simulate a later financial state, or execute a transaction. For example, action `0` is Budget, `1` is Debt, `2` is Budget + Debt, and `62` selects all six. The default mapping and version stay fixed because the committed DQN expects them. The existing `ActionCatalog.from_agents(...)` supports a restricted set or different registered agents in research code, assigning a separate content-derived version. A model trained on `agent-subset-v1` cannot be assumed compatible with such a custom catalogue.
+
+Inspect the full mapping without signing in:
+
+```powershell
+Set-Location backend
+..\.venv\Scripts\python -m app.rl.selection
+```
+
+The JSON lists `selection_semantics`, action version/count, registered agents, and every `id` → `agents` mapping. For the visible website change, sign in, open **Research → Explore your saved profile → Try your own agent selection**, and choose one or more agents. The page previews the exact action ID and has an expandable **All 63 action mappings** table. Running a choice still executes only those agents and reports the project's experimental score; the review did not retrain the DQN or change any reward, agent, or saved profile. No new package, migration, PostgreSQL connection, API key, external service, or environment variable is required.
+
 ## API available now
 
 | Method | Path | Purpose |

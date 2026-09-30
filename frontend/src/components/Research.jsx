@@ -8,6 +8,7 @@ const agentNames = {
   budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', goal: 'Goal planning',
   risk: 'Risk', investment: 'Investment readiness',
 }
+const legacyAgentIds = ['budget', 'debt', 'emergency', 'goal', 'risk', 'investment']
 
 const scoreNames = {
   relevant_coverage: 'Relevant checks covered',
@@ -168,6 +169,43 @@ export function TrainingEvidenceCard({ evidence }) {
   </section>
 }
 
+export function ActionCatalogDetails({ catalog, selected }) {
+  // The original v1 API exposes the ordered agents and count, but omits actions.
+  // Its documented bitmask order is sufficient to recover that exact mapping.
+  const isLegacyV1 = catalog.action_version === 'agent-subset-v1'
+    && catalog.action_count === 63
+    && Array.isArray(catalog.agents)
+    && catalog.agents.length === legacyAgentIds.length
+    && catalog.agents.every((id, index) => id === legacyAgentIds[index])
+  const actions = Array.isArray(catalog.actions) ? catalog.actions : isLegacyV1
+    ? Array.from({ length: 63 }, (_, id) => ({
+      id, agents: legacyAgentIds.filter((_, index) => ((id + 1) & (1 << index)) !== 0),
+    })) : null
+  if (!actions) return <section className="research-action-map" aria-label="Action space">
+    <p role="status">Action mapping unavailable from the current API.</p>
+  </section>
+  const action = selected.length
+    ? actions.find((entry) => entry.agents.length === selected.length
+      && entry.agents.every((id) => selected.includes(id)))
+    : null
+  return <section className="research-action-map" aria-label="Action space">
+    <p>{action
+      ? <>Action ID {action.id}: {action.agents.map((id) => agentNames[id] ?? id).join(' and ')}.</>
+      : 'Choose at least one agent to preview its action ID.'}</p>
+    <p>One action selects a group of agents for one decision on the same financial state. There is no sequence of financial state changes between agents, and no financial transaction.</p>
+    <details><summary>All {catalog.action_count} action mappings</summary>
+      <p>Version <code>{catalog.action_version}</code>. IDs are fixed for the current trained model; a custom catalogue has its own version and action IDs.</p>
+      <div className="research-table-scroll"><table>
+        <thead><tr><th scope="col">Action ID</th><th scope="col">Agents selected</th></tr></thead>
+        <tbody>{actions.map((entry) => <tr key={entry.id}>
+          <th scope="row">{entry.id}</th>
+          <td>{entry.agents.map((id) => agentNames[id] ?? id).join(', ')}</td>
+        </tr>)}</tbody>
+      </table></div>
+    </details>
+  </section>
+}
+
 function ManualExperiment({ userId }) {
   const [catalog, setCatalog] = useState(null)
   const [selected, setSelected] = useState([])
@@ -214,7 +252,7 @@ function ManualExperiment({ userId }) {
       <button type="submit" className="primary-action" disabled={running || selected.length === 0}>
         {running ? 'Running…' : 'Run selected agents'}
       </button>
-      <small>{catalog.action_count} available combinations · Action version {catalog.action_version}</small>
+      <ActionCatalogDetails catalog={catalog} selected={selected} />
     </form>}
     {result && <div className="research-manual-result" aria-live="polite">
       <h3>Action ID {result.action}: {result.selected_agents.map((id) => agentNames[id] ?? id).join(', ')}</h3>

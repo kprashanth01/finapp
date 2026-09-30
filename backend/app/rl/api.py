@@ -86,11 +86,7 @@ def _outcome(state, action, *, include_agent_results=False):
 def list_research_actions(user_id: int, session: Session = Depends(get_session)):
     if session.get(User, user_id) is None:
         raise HTTPException(status_code=404, detail="User not found.")
-    return {
-        "action_version": DEFAULT_CATALOG.version,
-        "action_count": DEFAULT_CATALOG.action_count,
-        "agents": list(DEFAULT_CATALOG.agent_ids),
-    }
+    return DEFAULT_CATALOG.describe()
 
 
 @router.get("/users/{user_id}/research/training-evidence", dependencies=[Depends(require_owner)])
