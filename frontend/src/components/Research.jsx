@@ -8,6 +8,7 @@ const agentNames = {
   budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', goal: 'Goal planning',
   risk: 'Risk', investment: 'Investment readiness',
 }
+const legacyAgentIds = ['budget', 'debt', 'emergency', 'goal', 'risk', 'investment']
 
 const scoreNames = {
   relevant_coverage: 'Relevant checks covered',
@@ -169,11 +170,22 @@ export function TrainingEvidenceCard({ evidence }) {
 }
 
 export function ActionCatalogDetails({ catalog, selected }) {
-  if (!Array.isArray(catalog.actions)) return <section className="research-action-map" aria-label="Action space">
-    <p role="status">Action mapping unavailable from the current API. Restart the backend to load the latest action catalogue.</p>
+  // The original v1 API exposes the ordered agents and count, but omits actions.
+  // Its documented bitmask order is sufficient to recover that exact mapping.
+  const isLegacyV1 = catalog.action_version === 'agent-subset-v1'
+    && catalog.action_count === 63
+    && Array.isArray(catalog.agents)
+    && catalog.agents.length === legacyAgentIds.length
+    && catalog.agents.every((id, index) => id === legacyAgentIds[index])
+  const actions = Array.isArray(catalog.actions) ? catalog.actions : isLegacyV1
+    ? Array.from({ length: 63 }, (_, id) => ({
+      id, agents: legacyAgentIds.filter((_, index) => ((id + 1) & (1 << index)) !== 0),
+    })) : null
+  if (!actions) return <section className="research-action-map" aria-label="Action space">
+    <p role="status">Action mapping unavailable from the current API.</p>
   </section>
   const action = selected.length
-    ? catalog.actions.find((entry) => entry.agents.length === selected.length
+    ? actions.find((entry) => entry.agents.length === selected.length
       && entry.agents.every((id) => selected.includes(id)))
     : null
   return <section className="research-action-map" aria-label="Action space">
@@ -185,7 +197,7 @@ export function ActionCatalogDetails({ catalog, selected }) {
       <p>Version <code>{catalog.action_version}</code>. IDs are fixed for the current trained model; a custom catalogue has its own version and action IDs.</p>
       <div className="research-table-scroll"><table>
         <thead><tr><th scope="col">Action ID</th><th scope="col">Agents selected</th></tr></thead>
-        <tbody>{catalog.actions.map((entry) => <tr key={entry.id}>
+        <tbody>{actions.map((entry) => <tr key={entry.id}>
           <th scope="row">{entry.id}</th>
           <td>{entry.agents.map((id) => agentNames[id] ?? id).join(', ')}</td>
         </tr>)}</tbody>

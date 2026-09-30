@@ -43,12 +43,21 @@ test('Research prompts for a selection before showing an action ID', () => {
   assert.doesNotMatch(markup, /Action ID [0-9]/)
 })
 
-test('an older API catalog cannot blank the Research page', () => {
+test('the v1 API catalog still shows the exact action mapping', () => {
   const markup = renderToStaticMarkup(createElement(ActionCatalogDetails, {
     catalog: { action_version: 'agent-subset-v1', action_count: 63,
-      agents: ['budget', 'debt'] },
+      agents: ['budget', 'debt', 'emergency', 'goal', 'risk', 'investment'] },
+    selected: ['budget', 'goal'],
+  }))
+  assert.match(markup, /Action ID 8: Budget and Goal planning/)
+  assert.match(markup, /All 63 action mappings/)
+  assert.doesNotMatch(markup, /Action mapping unavailable/)
+})
+
+test('an unknown catalog without actions cannot claim an action mapping', () => {
+  const markup = renderToStaticMarkup(createElement(ActionCatalogDetails, {
+    catalog: { action_version: 'custom', action_count: 3, agents: ['budget', 'debt'] },
     selected: [],
   }))
   assert.match(markup, /Action mapping unavailable/)
-  assert.match(markup, /Restart the backend/)
 })
