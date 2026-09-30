@@ -404,6 +404,18 @@ Set-Location backend
 
 The JSON lists `selection_semantics`, action version/count, registered agents, and every `id` → `agents` mapping. For the visible website change, sign in, open **Research → Explore your saved profile → Try your own agent selection**, and choose one or more agents. The page previews the exact action ID and has an expandable **All 63 action mappings** table. Running a choice still executes only those agents and reports the project's experimental score; the review did not retrain the DQN or change any reward, agent, or saved profile. No new package, migration, PostgreSQL connection, API key, external service, or environment variable is required.
 
+### Dynamic monthly reward (Issue 10)
+
+The separately versioned `dynamic-selection-proxy-v1` scores agent selection against one observed synthetic month. Its five reported components cover relevant and critical checks, missed checks, unnecessary agents, and call cost. Current cash flow, reserve coverage, volatility, missed payments, debt burden, and unfinished goals can change those checks from month to month. The exact rules, weights, assumptions, and limitations are in [docs/dynamic-reward.md](docs/dynamic-reward.md).
+
+Run the read-only example from `backend/`:
+
+```powershell
+..\.venv\Scripts\python -m app.rl.dynamic_reward --synthetic-id 1 --months 3 --seed 4 --shocks --shock-probability 0.5 --selected budget investment
+```
+
+Inspect each month's `components`, `critical_agents`, and `checks`; `total_reward` is their component sum in project points. No PostgreSQL connection, API key, external model, migration, new package, or environment variable is needed. The existing website and trained DQN still use the earlier `selection-proxy-v1`; **this issue adds no new website screen** or measured financial-outcome score.
+
 ## API available now
 
 | Method | Path | Purpose |
