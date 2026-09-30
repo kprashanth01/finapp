@@ -416,6 +416,18 @@ Run the read-only example from `backend/`:
 
 Inspect each month's `components`, `critical_agents`, and `checks`; `total_reward` is their component sum in project points. No PostgreSQL connection, API key, external model, migration, new package, or environment variable is needed. The existing website and trained DQN still use the earlier `selection-proxy-v1`; **this issue adds no new website screen** or measured financial-outcome score.
 
+### Multi-month Gymnasium environment (Issue 11)
+
+`DynamicAgentSelectionEnv` runs one selection per generated month. Gymnasium `reset()` returns the first 19-feature monthly observation; `step(action)` runs the selected agents, reports their actual priority findings and dynamic reward audit, then returns the next precomputed month. The final month terminates the episode. The next financial state is independent of the action, so this is a temporal **selection** experiment, not a simulation of financial improvement from advice. The old one-step environment and committed DQN are unchanged. See [docs/dynamic-environment.md](docs/dynamic-environment.md) for the full contract and a three-month trace.
+
+Run the read-only example from `backend/`:
+
+```powershell
+..\.venv\Scripts\python -m app.rl.dynamic_environment --synthetic-id 1 --months 3 --seed 4 --shocks --shock-probability 0.5 --selected budget investment
+```
+
+The JSON shows one action, its agent findings and priority actions, reward components, and next-month index at each step. The existing website has no new screen for this backend milestone. No new package, PostgreSQL connection, migration, API key, external model, or environment variable is required.
+
 ## API available now
 
 | Method | Path | Purpose |
