@@ -275,13 +275,13 @@ Get-Content data\synthetic\population-v2.jsonl -TotalCount 2
 
 The command prints and writes a validation summary with exact persona counts, average income and expenses, cross-user income variation, debt prevalence, average debt payment, and a SHA-256 digest of the JSONL file. Repeat it with the same seed for identical bytes; change `--seed` for a different population. Use `--output <path>` to write elsewhere. Generated JSONL and summary files under `data/synthetic/` are Git-ignored because they can be reproduced from the source and seed.
 
-No PostgreSQL setup, API key, OpenAI call, new package, or migration is needed for this generator. Monthly trajectories, shocks, and user-level train/test splits are later issues. The current DQN metrics still refer to the earlier single-state coverage cases, not these 12,000 profiles.
+No PostgreSQL setup, API key, OpenAI call, new package, or migration is needed for this generator. Monthly trajectories, shocks, and user-level train/test splits are described below. The current DQN metrics still refer to the earlier single-state coverage cases, not these 12,000 profiles.
 
 ### Offline research schema (Issue 3)
 
 The generator now exports `synthetic-population-v2`. It keeps the Issue 2 identity and aggregate fields, then adds `dependents`, `income_volatility`, `fixed_monthly_expenses`, `variable_monthly_expenses`, `debts`, and nullable `dataset_split`. Every debt has a type, outstanding principal, annual interest rate (a fraction, so `0.12` means 12%), monthly EMI, and remaining months. One profile can hold zero, one, or two debts. The assumed volatility is a *relative monthly standard deviation* for a later trajectory generator; it is not the cross-user income spread in the summary and does not generate monthly states yet. The illustrative ranges are 25–55% for gig workers, 2–10% for salaried users, 10–30% for students/graduates, and 3–12% for near-retirees. These ranges are experimental assumptions, not calibrated survey estimates.
 
-`monthly_expenses = fixed_monthly_expenses + variable_monthly_expenses + monthly_debt_payments`; fixed expenses exclude EMI. `existing_debt` and `monthly_debt_payments` equal the sums of debt principal and EMI respectively. The generator validates these equalities, nonnegative balances, debt terms, and feasible savings contributions before export. All `dataset_split` values are `null` in this issue; Issue 6 will assign whole users to train or test. Generated amounts use decimal strings and the same seed produces byte-identical JSONL and a SHA-256 summary. This v2 dataset is a new version; previously generated v1 files are not silently reinterpreted.
+`monthly_expenses = fixed_monthly_expenses + variable_monthly_expenses + monthly_debt_payments`; fixed expenses exclude EMI. `existing_debt` and `monthly_debt_payments` equal the sums of debt principal and EMI respectively. The generator validates these equalities, nonnegative balances, debt terms, and feasible savings contributions before export. All `dataset_split` values remain `null` in this population export; the Issue 6 workflow below assigns whole users to train or test. Generated amounts use decimal strings and the same seed produces byte-identical JSONL and a SHA-256 summary. This v2 dataset is a new version; previously generated v1 files are not silently reinterpreted.
 
 This schema is research-only: synthetic IDs do not refer to the private SQL `users.id`, and there is no new table or migration. The existing `User` and `FinancialProfile` tables already hold the live single-month account values. The research path is `SyntheticProfile → SyntheticDebt(s) → future monthly financial states → future orchestrator decisions → future agent results`. The existing six agents, orchestrators, DQN artifact, and saved user data are unchanged. No new installation, PostgreSQL setup, API key, service, or environment variable is required to generate or inspect the dataset.
 
@@ -321,9 +321,32 @@ Get-Content data\synthetic\user-1-shocks.summary.json
 Get-Content data\synthetic\user-1-shocks.jsonl | ConvertFrom-Json | Select-Object month_index,event_type,income,scheduled_expenses,paid_emi,savings,emergency_fund,missed_payment | Format-Table
 ```
 
-Omit `--synthetic-id 1` and use `--shocks` for the full v2 cohort. Use `--event-types low_income emergency_expense` to restrict the event catalogue, `--emergency-expense` to change that amount, or `--income-loss-months` to change the duration. Changing the seed or settings changes the generated trajectory; the same inputs reproduce it. No package, migration, PostgreSQL connection, API key, or external service is needed for the offline export. User-level train/test assignment and dynamic RL evaluation remain later milestones.
+Omit `--synthetic-id 1` and use `--shocks` for the full v2 cohort. Use `--event-types low_income emergency_expense` to restrict the event catalogue, `--emergency-expense` to change that amount, or `--income-loss-months` to change the duration. Changing the seed or settings changes the generated trajectory; the same inputs reproduce it. No package, migration, PostgreSQL connection, API key, or external service is needed for the offline export. User-level train/test assignment is described below; dynamic RL evaluation remains a later milestone.
 
 **Website check:** The locally running app at [FinApp](http://127.0.0.1:5173/) still shows its existing pages. This research-only v2 dataset is not yet displayed by the website, and the Research page's existing DQN numbers are not measured on shocked trajectories. Inspect the JSONL preview above to see this issue's changed states; the later trajectory viewer will provide a browser view.
+
+### User-level train/test split (Issue 6)
+
+`backend/app/rl/splits.py` assigns each synthetic user once, using a separate seed and an **80% train / 20% test split inside each persona**. It sorts user IDs before seeded shuffling, so input row order does not change membership. The default 12,000-user population produces **9,600 train and 2,400 test users**: gig 2,880/720, salaried 3,360/840, student/fresh graduate 1,920/480, and near-retiree 1,440/360. These are experimental partitions, not demographic estimates. The original population and v1/v2 trajectory exports remain unassigned and byte-compatible; the new `synthetic-user-split-v1` manifest records one assignment per user.
+
+Pass `--split-seed` to the trajectory exporter to assign the complete population **before** applying any user or train/test filter. Every month inherits its user's assignment. Unshocked split exports use `synthetic-trajectories-v3`; shock-enabled split exports use v4. `--selected-split train` and `--selected-split test` create separate files without overlapping synthetic IDs. For 12 months, they contain 115,200 train rows and 28,800 test rows. A one-user preview gets the same assignment as the full export with the same population and split seeds. No monthly row is independently randomized.
+
+From the repository root, generate and inspect the manifest and both shock-enabled datasets:
+
+```powershell
+Set-Location backend
+..\.venv\Scripts\python -m app.rl.splits --split-seed 20261002
+..\.venv\Scripts\python -m app.rl.trajectories --shocks --split-seed 20261002 --selected-split train
+..\.venv\Scripts\python -m app.rl.trajectories --shocks --split-seed 20261002 --selected-split test
+Set-Location ..
+Get-Content data\synthetic\user-splits-v1.summary.json
+Get-Content data\synthetic\trajectories-v4-train.summary.json
+Get-Content data\synthetic\trajectories-v4-test.summary.json
+```
+
+All generated JSONL and summaries remain Git-ignored and can be reproduced from their seeds. The summaries carry user and row counts, versions, filters, and SHA-256 digests. No new package, migration, PostgreSQL connection, API key, or external service is needed. These split datasets have **not** trained or evaluated the committed DQN; later issues will define the dynamic observation and run controlled experiments.
+
+**Website check:** Open the running [FinApp](http://127.0.0.1:5173/) to confirm sign-in and existing Research still load. This issue changes offline dataset assignment and adds no visible page; the existing Research scores do not use these split trajectories. Inspect the three summaries above to see the new result now.
 
 ## API available now
 

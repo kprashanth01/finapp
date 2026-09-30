@@ -15,10 +15,13 @@ from app.rl.population import (
     CENT, DEFAULT_SEED as DEFAULT_POPULATION_SEED, POPULATION_VERSION,
     DatasetSplit, Persona, SyntheticProfile, generate_population, validate_profile,
 )
+from app.rl.splits import SPLIT_VERSION, assign_user_splits
 
 
 TRAJECTORY_VERSION = "synthetic-trajectories-v1"
 SHOCK_TRAJECTORY_VERSION = "synthetic-trajectories-v2"
+SPLIT_TRAJECTORY_VERSION = "synthetic-trajectories-v3"
+SHOCK_SPLIT_TRAJECTORY_VERSION = "synthetic-trajectories-v4"
 DEFAULT_TRAJECTORY_SEED = 20261001
 DEFAULT_MONTHS = 12
 DEFAULT_OUTPUT = Path(__file__).resolve().parents[3] / "data" / "synthetic" / "trajectories-v1.jsonl"
@@ -248,13 +251,23 @@ def export_trajectories(path: Path, *, population_seed: int = DEFAULT_POPULATION
                         trajectory_seed: int = DEFAULT_TRAJECTORY_SEED,
                         months: int = DEFAULT_MONTHS, synthetic_id: int | None = None,
                         expense_volatility: float = 0.08,
-                        shock_config: ShockConfig | None = None) -> dict:
+                        shock_config: ShockConfig | None = None,
+                        split_seed: int | None = None,
+                        selected_split: DatasetSplit | None = None) -> dict:
     """Stream monthly JSONL and a reproducibility/variation summary to disk."""
+    if selected_split is not None and split_seed is None:
+        raise ValueError("selected_split requires split_seed")
+    if selected_split not in (None, "train", "test"):
+        raise ValueError("selected_split must be train or test")
     profiles = generate_population(seed=population_seed)
+    if split_seed is not None:
+        profiles = assign_user_splits(profiles, seed=split_seed)
+    if selected_split is not None:
+        profiles = [profile for profile in profiles if profile.dataset_split == selected_split]
     if synthetic_id is not None:
         profiles = [profile for profile in profiles if profile.synthetic_id == synthetic_id]
         if not profiles:
-            raise ValueError("synthetic_id must identify a generated profile")
+            raise ValueError("synthetic_id must identify a profile in the selected split")
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     digest = sha256()
@@ -284,7 +297,11 @@ def export_trajectories(path: Path, *, population_seed: int = DEFAULT_POPULATION
                 digest.update(line)
                 count += 1
     report = {
-        "dataset_version": SHOCK_TRAJECTORY_VERSION if shock_config is not None else TRAJECTORY_VERSION,
+        "dataset_version": (
+            SHOCK_SPLIT_TRAJECTORY_VERSION if shock_config is not None else SPLIT_TRAJECTORY_VERSION
+        ) if split_seed is not None else (
+            SHOCK_TRAJECTORY_VERSION if shock_config is not None else TRAJECTORY_VERSION
+        ),
         "population_version": POPULATION_VERSION,
         "population_seed": population_seed,
         "trajectory_seed": trajectory_seed,
@@ -317,6 +334,10 @@ def export_trajectories(path: Path, *, population_seed: int = DEFAULT_POPULATION
         }
         report["event_months"] = event_months
         report["event_starts"] = event_starts
+    if split_seed is not None:
+        report["split_version"] = SPLIT_VERSION
+        report["split_seed"] = split_seed
+        report["selected_split"] = selected_split
     path.with_suffix(".summary.json").write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
     return report
 
@@ -336,6 +357,9 @@ def main() -> None:
     parser.add_argument("--income-loss-months", type=int)
     parser.add_argument("--income-volatility", type=float, help="Override every profile's relative monthly volatility")
     parser.add_argument("--event-types", nargs="+", choices=EVENT_TYPES)
+    parser.add_argument("--split-seed", type=int, help="Assign whole users 80/20 within each persona")
+    parser.add_argument("--selected-split", choices=("train", "test"),
+                        help="Export only one assigned split; requires --split-seed")
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     shock_options = {
@@ -350,11 +374,19 @@ def main() -> None:
     enable_shocks = args.shocks or any(value is not None for value in shock_options.values())
     shock_config = ShockConfig(**{key: value for key, value in shock_options.items() if value is not None}) \
         if enable_shocks else None
-    output = args.output or (DEFAULT_SHOCK_OUTPUT if enable_shocks else DEFAULT_OUTPUT)
+    if args.output is not None:
+        output = args.output
+    elif args.split_seed is not None:
+        version = 4 if enable_shocks else 3
+        suffix = f"-{args.selected_split}" if args.selected_split else ""
+        output = DEFAULT_OUTPUT.with_name(f"trajectories-v{version}{suffix}.jsonl")
+    else:
+        output = DEFAULT_SHOCK_OUTPUT if enable_shocks else DEFAULT_OUTPUT
     print(json.dumps(export_trajectories(
         output, population_seed=args.population_seed, trajectory_seed=args.trajectory_seed,
         months=args.months, synthetic_id=args.synthetic_id,
         expense_volatility=args.expense_volatility, shock_config=shock_config,
+        split_seed=args.split_seed, selected_split=args.selected_split,
     ), indent=2))
 
 
