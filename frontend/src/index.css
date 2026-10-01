@@ -412,6 +412,12 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .account-month-fields label, .account-month-run label { display: grid; gap: 6px; color: #244b52; font-size: .8rem; font-weight: 690; }
 .account-month-fields input, .account-month-fields select, .account-month-run select { width: 100%; min-height: 42px; padding: 8px 10px; border: 1px solid #bfd6d3; border-radius: 8px; background: white; color: #123541; font: inherit; font-weight: 500; }
 .account-month-fields small { color: #6a8185; font-size: .72rem; font-weight: 400; }
+.account-field-help { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-left: 6px; border: 1px solid #94bdb5; border-radius: 50%; color: #08756b; background: #edf7f4; font-size: .7rem; cursor: help; }
+.account-field-help:focus-visible { outline: 2px solid #08756b; outline-offset: 2px; }
+.account-month-calculated { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+.account-month-calculated > span { flex: 1 1 220px; display: grid; gap: 3px; padding: 12px 14px; border: 1px solid #c9e2dc; border-radius: 9px; background: #eaf6f2; color: #244b52; font-size: .8rem; font-weight: 680; }
+.account-month-calculated small { color: #6a8185; font-weight: 400; }
+.account-month-calculated strong { color: #0b695f; font-size: 1.1rem; }
 .account-month-buttons, .account-month-run { display: flex; flex-wrap: wrap; align-items: end; gap: 11px; margin-top: 18px; }
 .account-month-buttons > button:not(.primary-action), .account-month-list button { padding: 9px 13px; border: 1px solid #a9cfca; border-radius: 8px; color: #0b766d; background: white; font-size: .8rem; font-weight: 680; }
 .account-month-list { display: grid; gap: 7px; padding: 0; list-style: none; }
@@ -421,6 +427,10 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .account-month-run label { flex: 1 1 190px; }
 .account-month-result { margin-top: 22px; }
 .account-month-result h4 { margin-top: 0; font-size: 1.08rem; }
+.account-month-summary { padding: 16px 18px; border: 1px solid #b9d9d2; border-radius: 12px; background: white; }
+.account-month-summary h5 { margin: 0 0 8px; color: #17454a; }
+.account-month-summary p { margin: 5px 0; color: #315963; line-height: 1.5; font-size: .85rem; }
+.account-month-summary small { color: #6b8082; }
 .account-month-caveat { padding: 11px 13px; border-radius: 9px; background: #fff5de; color: #725015 !important; }
 .account-month-focus { margin-top: 18px; padding: 18px; border: 1px solid #c8e1dc; border-radius: 12px; background: white; }
 .account-month-focus h5 { font-size: .95rem; font-weight: 730; }

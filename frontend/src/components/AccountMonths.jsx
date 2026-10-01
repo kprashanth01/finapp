@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { MethodCard } from './MonthlyDemo.jsx'
+import { MethodCard, evidenceValue } from './MonthlyDemo.jsx'
 import { askFinancialMonth, deleteFinancialMonth, explainApiError, getFinancialMonthAdvice, getFinancialMonths, saveFinancialMonth } from '../services/api.js'
 
 const names = { budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', risk: 'Risk', investment: 'Investment readiness' }
@@ -20,8 +20,8 @@ function startingMonth(user, profile, period = todayMonth()) {
   const emi = profile?.monthly_debt_payments ?? '0'
   return {
     period, monthly_income: user?.monthly_income ?? '',
-    monthly_expenses: profile?.monthly_expenses ?? '', fixed_expenses: '0',
-    scheduled_emi: emi, paid_emi: emi,
+    fixed_expenses: '0', other_expenses: String(Math.max(0, Number(profile?.monthly_expenses ?? 0) - Number(emi))),
+    scheduled_emi: emi, paid_emi: emi, paid_emi_edited: false,
     savings: profile?.savings ?? '', emergency_fund: profile?.emergency_fund ?? '',
     outstanding_debt: profile?.existing_debt ?? '', unfunded_expenses: '0',
     risk_tolerance: profile?.risk_tolerance ?? 'moderate',
@@ -29,32 +29,71 @@ function startingMonth(user, profile, period = todayMonth()) {
   }
 }
 
+export function monthTotals(draft) {
+  const cents = (value) => Math.round(Number(value || 0) * 100)
+  const expenses = cents(draft.fixed_expenses) + cents(draft.other_expenses) + cents(draft.scheduled_emi)
+  return { monthly_expenses: (expenses / 100).toFixed(2),
+    net_cash_flow: ((cents(draft.monthly_income) - expenses) / 100).toFixed(2) }
+}
+
+export function updateMonthDraft(draft, name, value) {
+  const next = { ...draft, [name]: value }
+  if (name === 'paid_emi') next.paid_emi_edited = true
+  if (name === 'scheduled_emi' && !draft.paid_emi_edited) next.paid_emi = value
+  return next
+}
+
+const fieldHelp = {
+  fixed_expenses: 'Bills you need to pay even if you spend less elsewhere, such as rent and utilities. Do not include the loan payment.',
+  other_expenses: 'All other spending you expect this month. This and essential bills and the loan payment add up to total planned spending.',
+  scheduled_emi: 'The loan payment due this month. It is included in total planned spending.',
+  paid_emi: 'What you actually paid toward that scheduled loan payment. Change the copied amount if you paid less.',
+  outstanding_debt: 'The remaining balance of all loans you still owe at the end of this month. This is not the monthly payment.',
+  savings: 'Cash you can access, including the emergency reserve entered below.',
+  emergency_fund: 'The part of your accessible savings you have set aside for surprises.',
+  unfunded_expenses: 'Bills you actually could not pay this month. A planned shortfall does not automatically mean a bill went unpaid.',
+}
+
 function MoneyInput({ label, name, value, onChange, hint }) {
-  return <label>{label}<input name={name} type="number" inputMode="decimal" min="0" step="0.01" required
+  return <label><span>{label}{fieldHelp[name] && <span className="account-field-help" title={fieldHelp[name]} aria-label={`What does ${label} mean? ${fieldHelp[name]}`} tabIndex={0}>?</span>}</span><input name={name} type="number" inputMode="decimal" min="0" step="0.01" required
     value={value} onChange={onChange} />{hint && <small>{hint}</small>}</label>
 }
 
+export function formMonth(row) {
+  const other = Math.max(0, Number(row.monthly_expenses) - Number(row.fixed_expenses) - Number(row.scheduled_emi))
+  const { monthly_income, fixed_expenses, scheduled_emi, paid_emi, savings, emergency_fund,
+    outstanding_debt, unfunded_expenses, risk_tolerance, investment_horizon_years } = row
+  return { period: row.period.slice(0, 7), monthly_income, fixed_expenses,
+    other_expenses: other.toFixed(2), scheduled_emi, paid_emi, savings, emergency_fund,
+    outstanding_debt, unfunded_expenses, risk_tolerance, investment_horizon_years,
+    paid_emi_edited: Number(paid_emi) !== Number(scheduled_emi) }
+}
+
 export function AccountAdvice({ advice }) {
-  const { context, methods, focused_review: focused } = advice
+  const { context, methods, focused_review: focused, month } = advice
   const missed = methods.trained_rl.reward_audit.missed_critical_agents
   const change = context.recent_income_change_ratio == null ? null : Number(context.recent_income_change_ratio) * 100
+  const cashFlow = Number(context.net_cash_flow)
   return <section className="account-month-result" aria-labelledby="account-month-result-heading">
     <h4 id="account-month-result-heading">Advice for {monthLabel(advice.month.period)}</h4>
-    <p>Based on the amounts you entered for this month and {context.history_months_used - 1} earlier recorded {context.history_months_used === 2 ? 'month' : 'months'}.
-      {change == null ? ' No adjacent prior month was available for an income-change calculation.' : ` Income changed ${change.toFixed(1)}% from the prior month.`}
-      {' '}Scheduled cash flow: {amount(context.net_cash_flow)} profile currency.</p>
-    <p className="account-month-caveat">The trained DQN chooses specialists. Their findings use the recorded figures and project rules. A partial selection is not a complete coordinated plan.</p>
-    {missed.length > 0 && <p role="status" className="account-month-caveat">The DQN missed a critical {missed.map((id) => names[id] ?? id).join(', ')} check under this project's proxy. Review the rule baseline and request that specialist above before acting on the partial DQN findings.</p>}
+    <div className="account-month-summary"><h5>What your figures show</h5>
+      <p>Income: {amount(month.monthly_income)} · Planned spending: {amount(month.monthly_expenses)} (including {amount(month.scheduled_emi)} due on debt).</p>
+      <p>{cashFlow < 0 ? `Planned spending is ${amount(-cashFlow)} above income. There is no monthly surplus for extra debt payments or new investments.` : `After planned spending, ${amount(cashFlow)} remains from this month's income.`}</p>
+      {change != null && <p>Income changed {change.toFixed(1)}% from the previous recorded month.</p>}
+      <small>These are planned amounts. They do not show that a bill went unpaid unless you entered one as unfunded.</small>
+    </div>
+    <p className="account-month-caveat">The trained DQN chooses which checks to run. The financial findings in both columns come from the same project rules. A missing check means the DQN result is incomplete, even if its selection score was higher.</p>
+    {missed.length > 0 && <p role="status" className="account-month-caveat">The DQN did not run the important {missed.map((id) => names[id] ?? id).join(', ')} check. Look at the rule-based column or request that check above.</p>}
     <div className="monthly-demo-methods">
-      <MethodCard title="Trained monthly DQN" result={methods.trained_rl} />
-      <MethodCard title="Rule-based baseline" result={methods.rule_based} />
+      <MethodCard title="Trained monthly DQN" result={methods.trained_rl} month={month} context={context} />
+      <MethodCard title="Rule-based baseline" result={methods.rule_based} month={month} context={context} />
     </div>
     {focused && <section className="account-month-focus"><h5>Your requested review: {names[focused.agent_id]}</h5>
-      <p>{focused.selected_by_dqn ? 'The DQN also selected this specialist.' : 'This specialist ran on your request; the DQN did not select it. Its findings do not change the DQN selection or score.'}</p>
+      <p>{focused.selected_by_dqn ? 'The DQN also selected this check.' : 'This check ran because you requested it; the DQN did not select it.'}</p>
       {focused.result.findings.map((finding) => <article key={finding.code}>
         <strong>{finding.title}</strong><p>{finding.reason}</p>
-        {finding.evidence?.length > 0 && <details><summary>See the figures used</summary><ul>{finding.evidence.map((item, index) =>
-          <li key={`${item.label}-${index}`}>{item.label}: {item.value ?? 'Unavailable'} {item.unit}</li>)}</ul></details>}
+        {finding.evidence?.length > 0 && <details><summary>See the figures used</summary><ul>{finding.evidence.filter((item) => evidenceValue(item) !== null).map((item, index) =>
+          <li key={`${item.label}-${index}`}>{item.label}: {evidenceValue(item)}</li>)}</ul></details>}
       </article>)}
     </section>}
     <details className="monthly-demo-limits"><summary>How this was calculated and its limits</summary>
@@ -87,15 +126,16 @@ export default function AccountMonths({ userId, user, profile }) {
     return () => { active = false }
   }, [userId])
 
-  const edit = (event) => setDraft((current) => ({ ...current, [event.target.name]: event.target.value }))
-  const formMonth = (row) => ({ ...row, period: row.period.slice(0, 7) })
+  const edit = (event) => setDraft((current) => updateMonthDraft(current, event.target.name, event.target.value))
+  const totals = monthTotals(draft)
 
   async function save(event) {
     event.preventDefault()
     if (busy) return
     setBusy(true); setError(''); setMessage('')
     try {
-      const saved = await saveFinancialMonth(userId, { ...draft, period: `${draft.period}-01` })
+      const { other_expenses, paid_emi_edited, ...values } = draft
+      const saved = await saveFinancialMonth(userId, { ...values, monthly_expenses: totals.monthly_expenses, period: `${draft.period}-01` })
       const rows = await getFinancialMonths(userId)
       setMonths(rows); setSelected(saved.period); setAdvice(null); setAnswer(null)
       setMessage(`${monthLabel(saved.period)} saved. Select this month and press Get advice when ready.`)
@@ -140,21 +180,27 @@ export default function AccountMonths({ userId, user, profile }) {
       <div className="account-month-fields">
         <label>Month<input name="period" type="month" max={todayMonth()} required value={draft.period} onChange={edit} /></label>
         <MoneyInput label="Income received" name="monthly_income" value={draft.monthly_income} onChange={edit} />
-        <MoneyInput label="Total scheduled expenses" name="monthly_expenses" value={draft.monthly_expenses} onChange={edit} hint="Include the debt payment." />
-        <MoneyInput label="Fixed expenses" name="fixed_expenses" value={draft.fixed_expenses} onChange={edit} hint="Excluding the debt payment." />
-        <MoneyInput label="Scheduled debt payment" name="scheduled_emi" value={draft.scheduled_emi} onChange={edit} />
-        <MoneyInput label="Debt payment actually made" name="paid_emi" value={draft.paid_emi} onChange={edit} />
-        <MoneyInput label="Total liquid savings" name="savings" value={draft.savings} onChange={edit} hint="Include the emergency reserve." />
+        <MoneyInput label="Essential bills (excluding loan)" name="fixed_expenses" value={draft.fixed_expenses} onChange={edit} />
+        <MoneyInput label="Other planned spending" name="other_expenses" value={draft.other_expenses} onChange={edit} />
+        <MoneyInput label="Loan payment due this month" name="scheduled_emi" value={draft.scheduled_emi} onChange={edit} />
+        <MoneyInput label="Loan payment actually made" name="paid_emi" value={draft.paid_emi} onChange={edit} />
+        <MoneyInput label="Total accessible savings" name="savings" value={draft.savings} onChange={edit} hint="Include the emergency reserve." />
         <MoneyInput label="Emergency reserve" name="emergency_fund" value={draft.emergency_fund} onChange={edit} />
-        <MoneyInput label="Outstanding debt" name="outstanding_debt" value={draft.outstanding_debt} onChange={edit} />
+        <MoneyInput label="Loan balance still owed" name="outstanding_debt" value={draft.outstanding_debt} onChange={edit} />
         <MoneyInput label="Expenses you could not fund" name="unfunded_expenses" value={draft.unfunded_expenses} onChange={edit} hint="Enter 0 if none." />
         <label>Risk preference<select name="risk_tolerance" value={draft.risk_tolerance} onChange={edit}>
           <option value="conservative">Conservative</option><option value="moderate">Moderate</option><option value="aggressive">Aggressive</option>
         </select></label>
         <label>Investment horizon, years<input name="investment_horizon_years" type="number" min="0" max="80" required value={draft.investment_horizon_years} onChange={edit} /></label>
       </div>
+      <div className="account-month-calculated"><span>Total planned spending <small>(calculated from the three spending fields)</small><strong>{amount(totals.monthly_expenses)}</strong></span>
+        <span>{Number(totals.net_cash_flow) < 0 ? 'Planned shortfall' : 'Money left after planned spending'} <small>(calculated)</small><strong>{amount(Math.abs(Number(totals.net_cash_flow)))}</strong></span></div>
       <div className="account-month-buttons"><button type="submit" className="primary-action" disabled={busy}>Save this month</button>
-        <button type="button" disabled={busy} onClick={() => setDraft(startingMonth(user, profile, nextMonth(months.at(-1)?.period)))}>Start next month</button></div>
+        <button type="button" disabled={busy || !months.length || months.at(-1).period.slice(0, 7) >= todayMonth()} onClick={() => {
+          setDraft({ ...formMonth(months.at(-1)), period: nextMonth(months.at(-1).period), paid_emi: months.at(-1).scheduled_emi,
+            paid_emi_edited: false, unfunded_expenses: '0' })
+          setMessage('Copied the previous month. Update income, spending and balances before saving this new month.')
+        }}>Start next month</button></div>
     </form>
     {loading ? <p role="status">Loading your recorded months…</p> : months.length ? <>
       <h4>Months you entered</h4>
@@ -175,11 +221,11 @@ export default function AccountMonths({ userId, user, profile }) {
     {error && <p role="alert" className="research-error">{error}</p>}
     {advice && <><AccountAdvice advice={advice} />
       <form className="account-month-question" onSubmit={ask}><h4>Ask about this month</h4>
-        <p>Ask in your own words. The local language model uses this month's entered amounts and recorded specialist findings. Your question and answer are not saved.</p>
+        <p>Ask in your own words. Answers use this month's entered amounts and recorded checks; the local language model helps word questions it can verify. Your question and answer are not saved.</p>
         <div><input aria-label="Your question about this month" value={question} maxLength={500} required minLength={3}
           onChange={(event) => setQuestion(event.target.value)} placeholder="For example, what should I review after my income dropped?" />
           <button type="submit" className="primary-action" disabled={busy || !question.trim()}>{busy ? 'Answering…' : 'Ask'}</button></div>
-        {answer?.answer && <section aria-label="Answer about this month"><strong>Answer from local model</strong><p>{answer.answer}</p>
+        {answer?.answer && <section aria-label="Answer about this month"><strong>{answer.source === 'recorded_evidence' ? 'Answer from your recorded figures' : 'Answer from local model'}</strong><p>{answer.answer}</p>
           <details><summary>Evidence used</summary><ul>{answer.evidence.map((item) => <li key={item.id}><strong>{item.label}:</strong> {item.detail}</li>)}</ul></details></section>}
         {answer?.source === 'unavailable' && <p role="status">{answer.reason} The recorded specialist findings above are still available.</p>}
       </form></>}

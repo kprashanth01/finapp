@@ -64,16 +64,88 @@ def _evidence(report: dict) -> list[ChatEvidence]:
     return items
 
 
+def _allocation_answer(report: dict, question: str) -> dict | None:
+    """Give a bounded answer to a debt-versus-investing question from entered cash flow."""
+    if not (re.search(r"\binvest(?:ing|ment|ments)?\b", question, re.I)
+            and re.search(r"\b(?:debt|loan|repay|payment|pay)\b", question, re.I)):
+        return None
+    month = report["month"]
+    cash_flow = Decimal(report["context"]["net_cash_flow"])
+    due = Decimal(month["scheduled_emi"])
+    def money(value: Decimal) -> str:
+        return f"{value:,.2f} profile currency"
+
+    if cash_flow <= 0:
+        opening = (f"Your planned spending is {money(-cash_flow)} above the income you entered"
+                   if cash_flow < 0 else "Your planned spending uses all the income you entered")
+        answer = (
+            f"{opening}, including the {money(due)} debt payment due. "
+            "There is no money left from this month's income for new investments or extra debt payments. "
+            "Review essential and other spending; if the next payment may be unaffordable, contact the lender before it is due."
+        )
+    else:
+        answer = (
+            f"After planned spending, including the {money(due)} debt payment due, "
+            f"{money(cash_flow)} remains from this month's income. "
+            "The debt interest rate and your target emergency reserve are not recorded here, "
+            "so I cannot justify an exact split between extra debt payments and investing."
+        )
+    ids = {"month:monthly_income", "month:monthly_expenses", "month:scheduled_emi",
+           "context:net_cash_flow"}
+    evidence = [item.model_dump() for item in _evidence(report) if item.id in ids]
+    return {"source": "recorded_evidence", "answer": answer, "evidence": evidence,
+            "state_fingerprint": report["state_fingerprint"]}
+
+
+def _recorded_answer(report: dict, question: str) -> dict:
+    """Use entered facts when the local model is absent or fails verification."""
+    month = report["month"]
+    flow = Decimal(report["context"]["net_cash_flow"])
+    def money(value) -> str:
+        return f"{Decimal(value):,.2f} profile currency"
+
+    if flow < 0:
+        cash = f"Planned spending is {money(-flow)} above this month's income."
+    else:
+        cash = f"After planned spending, {money(flow)} remains from this month's income."
+    debt = re.search(r"\b(?:debt|loan|repay|payment)\b", question, re.I)
+    reserve = re.search(r"\b(?:emergency|reserve|savings?)\b", question, re.I)
+    invest = re.search(r"\b(?:invest|investment|investing)\b", question, re.I)
+    ids = {"month:monthly_income", "month:monthly_expenses", "context:net_cash_flow"}
+    if debt:
+        answer = (f"You recorded {money(month['outstanding_debt'])} still owed and "
+                  f"{money(month['scheduled_emi'])} due this month. {cash} "
+                  + ("Review whether the planned payment and other costs fit before adding an extra payment."
+                     if flow < 0 else "An extra payment amount depends on the debt interest rate and your other needs."))
+        ids.update(("month:outstanding_debt", "month:scheduled_emi"))
+    elif reserve:
+        answer = (f"You recorded {money(month['emergency_fund'])} set aside for emergencies. "
+                  f"{cash} Review what you need for bills before deciding how much to set aside.")
+        ids.add("month:emergency_fund")
+    elif invest:
+        answer = (f"{cash} " + ("There is no surplus from this month's income for a new investment. "
+                                 if flow <= 0 else "That is the maximum unallocated amount from this month's income, not an investment recommendation. ")
+                  + "A specific amount also depends on your debt interest rate and emergency needs.")
+    else:
+        answer = (f"You entered {money(month['monthly_income'])} of income and "
+                  f"{money(month['monthly_expenses'])} of planned spending. {cash} "
+                  "Review which costs can change and which payments are due; these figures do not prove a bill was missed.")
+    evidence = [item.model_dump() for item in _evidence(report) if item.id in ids]
+    return {"source": "recorded_evidence", "answer": answer, "evidence": evidence,
+            "state_fingerprint": report["state_fingerprint"]}
+
+
 def answer_month_question(report: dict, question: str) -> dict:
     """The question and account evidence stay on local Ollama; reject unsupported drafts."""
+    allocation = _allocation_answer(report, question)
+    if allocation:
+        return allocation
     model = os.getenv("FINAPP_CHAT_MODEL", DEFAULT_MODEL).strip() or DEFAULT_MODEL
     try:
         if not _model_available(model):
-            return {"source": "unavailable", "reason": f"Local model {model} is not installed.",
-                    "answer": None, "evidence": []}
+            return _recorded_answer(report, question)
     except (HTTPError, URLError, TimeoutError, OSError, ValueError, json.JSONDecodeError):
-        return {"source": "unavailable", "reason": "The local language model is not running.",
-                "answer": None, "evidence": []}
+        return _recorded_answer(report, question)
     catalog = _evidence(report)
     system = (
         "You explain a user's entered financial month and specialist findings in an educational prototype. "
@@ -110,7 +182,6 @@ def answer_month_question(report: dict, question: str) -> dict:
             raise ValueError("The answer invented a missed payment.")
     except (HTTPError, URLError, TimeoutError, OSError, ValueError, KeyError, TypeError,
             json.JSONDecodeError, ValidationError):
-        return {"source": "unavailable", "reason": "The local answer could not be verified against this month's evidence.",
-                "answer": None, "evidence": []}
+        return _recorded_answer(report, question)
     return {"source": "local_model", "model": model, "answer": draft.answer,
             "evidence": [item.model_dump() for item in cited], "state_fingerprint": report["state_fingerprint"]}
