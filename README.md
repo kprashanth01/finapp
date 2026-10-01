@@ -31,7 +31,7 @@ The app creates no demo users or financial data. The browser keeps a host-only, 
 - Node.js 20.19+ or 22.12+ and npm
 - PostgreSQL with a database and login for this project
 
-The backend requirements include NumPy and Gymnasium for the research environment. Installing `backend/requirements.txt` installs both. Rule-based and random modes work with this base install; **running the trained RL mode requires `backend/requirements-rl.txt` in the Python environment used to start FastAPI**. This also supports rebuilding the DQN and requires Python 3.12 on Windows. The API reads training metadata without importing PyTorch on startup. No API key is needed for the deterministic app; an OpenAI API key is optional for generated explanations. No new database migration is needed.
+The backend requirements include NumPy and Gymnasium for the research environment. Installing `backend/requirements.txt` installs both. Rule-based and random modes work with this base install; **running the trained RL mode requires `backend/requirements-rl.txt` in the Python environment used to start FastAPI**. This also supports rebuilding the DQN and requires Python 3.12 on Windows. The API reads training metadata without importing PyTorch on startup. No API key is needed for the deterministic app; an OpenAI API key is optional for generated explanations. Apply migration `0007_research_evaluation` before importing research results.
 
 ## One-time setup
 
@@ -100,7 +100,7 @@ Set-Location backend
 Set-Location ..
 ```
 
-Run migrations when a new database or a new migration is added, not for every app start. Alembic records applied migrations in the database. Revision `0006_private_accounts` adds nullable credential fields and session tables without changing existing financial rows.
+Run migrations when a new database or a new migration is added, not for every app start. Alembic records applied migrations in the database. Revision `0007_research_evaluation` adds three research-only tables without changing account or financial rows.
 
 ### 5. Claim an earlier local profile once (existing installs only)
 
@@ -202,6 +202,14 @@ New saved rule-based analyses show the same evidence trail beneath **Your next s
 **Research → How the three selectors performed** is the Milestone 6 paired evaluation. It uses 256 generated cases from seed `20261002`, distinct from the DQN's training, validation, and initial test seeds. Rule based and the committed DQN each run once per case; random runs five seeded selections per case. Every selection executes the chosen agents through the same environment. The committed report records a cohort fingerprint, model checksum, schema versions, random seeds, metric definitions, scenario groups, and machine-specific execution timing. It does not read or write saved user profiles. The page shows averages and the paired DQN-versus-rule counts; expand **Coverage, scenario groups, and method** for risk and goal checks, four overlapping scenario groups, and reproduction details.
 
 From `backend/`, run `python -m app.rl.evaluation` with the RL requirements installed to regenerate `backend/app/rl/evaluation_report.json`. The default fixed case count and seeds reproduce all selection and score metrics. Wall-clock execution times can vary by machine and load. The API rejects a report whose model checksum, versions, generated cohort, or basic metric structure no longer match; regenerate after changing the model or evaluation definitions. For custom runs, see `python -m app.rl.evaluation --help`. The report is a versioned experiment artifact, not a live score calculated from an account.
+
+**Research evaluation database (Issue 23):** After applying migration `0007_research_evaluation`, import the verified committed report from `backend/`:
+
+```powershell
+..\.venv\Scripts\python -m app.rl.evaluation_store
+```
+
+The importer rejects a report that no longer matches the installed model/cohort and is safe to rerun: the report digest identifies one experiment. `experiments` records the report, scenario and model versions, synthetic cohort checksum, definitions, and limitations. `experiment_runs` keeps the method, scenario, scope (`aggregate` or individual random `seed`), unique case count, selection sample count, and import timestamp. `experiment_metrics` stores each measured numeric value by name. Missing measurements are absent, never represented as zero. Segment totals pool all seeds for random; they are not individual seeded runs. The timestamp means **when the report was imported**, since the source report does not record measurement time. This data is separate from private `analysis_sessions` and does not copy saved user profiles. No extra package, API key, or model service is needed; an existing PostgreSQL connection is required. The current Research screen still reads the verified report file; the database-backed filterable dashboard is Issue 24.
 
 In this committed run, mean proxy scores were **1.3348** for random, **7.8781** for rule based, and **7.8250** for DQN. Critical-check miss rates were **60.47%**, **0%**, and **0%**. DQN chose the same agent set as the rule method in **240 of 256** paired cases and omitted agents needed for a full plan in **16**. These are measured selection results under the project's own reward. The reward shares criteria with the rule method, and the cases are generated rather than sampled from households. No observed financial outcomes, validated recommendation consistency, or recommendation-conflict labels are available, so these results cannot establish advice quality or a superior method.
 
