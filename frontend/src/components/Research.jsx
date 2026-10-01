@@ -3,6 +3,7 @@ import {
   compareResearchPolicies, explainApiError, getResearchActions, getResearchEvaluation, getResearchTrainingEvidence,
   runManualResearchAction,
 } from '../services/api.js'
+import EvaluationDashboard from './EvaluationDashboard.jsx'
 
 const agentNames = {
   budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', goal: 'Goal planning',
@@ -318,6 +319,7 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
     </div>
     <div className="research-explainer"><strong>What this score means</strong><p>The score rewards relevant and critical checks, then subtracts points for missed needs and extra agent calls. It does not measure a change in your finances or prove that one method gives better advice.</p></div>
     <EvaluationReportCard evidence={evaluation} />
+    <EvaluationDashboard userId={userId} />
     <TrainingEvidenceCard evidence={trainingEvidence} />
     <h3 className="research-personal-heading">Explore your saved profile</h3>
     <p className="research-meta">The comparison below uses the earlier fitted proxy selector; the fixed cohort above evaluates the trained DQN. Advisor can run the trained DQN on your profile.</p>
