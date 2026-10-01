@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { MethodCard, evidenceValue } from './MonthlyDemo.jsx'
 import { askFinancialMonth, deleteFinancialMonth, explainApiError, getFinancialMonthAdvice, getFinancialMonths, saveFinancialMonth } from '../services/api.js'
+import MonthlyPlanningSummary from './MonthlyPlanningSummary.jsx'
 
 const names = { budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', risk: 'Risk', investment: 'Investment readiness' }
 const todayMonth = () => {
@@ -109,7 +110,8 @@ export function AccountAdvice({ advice }) {
   </section>
 }
 
-export default function AccountMonths({ userId, user, profile }) {
+export default function AccountMonths({ userId, user, profile, mode = 'research', onOpenProfile }) {
+  const planning = mode === 'planning'
   const [months, setMonths] = useState([])
   const [draft, setDraft] = useState(() => startingMonth(user, profile))
   const [selected, setSelected] = useState('')
@@ -143,7 +145,8 @@ export default function AccountMonths({ userId, user, profile }) {
       const saved = await saveFinancialMonth(userId, { ...values, monthly_expenses: totals.monthly_expenses, period: `${draft.period}-01` })
       const rows = await getFinancialMonths(userId)
       setMonths(rows); setSelected(saved.period); setAdvice(null); setAnswer(null)
-      setMessage(`${monthLabel(saved.period)} saved. Select this month and press Get advice when ready.`)
+      setMessage(planning ? `${monthLabel(saved.period)} saved. The planning check above now uses this month.`
+        : `${monthLabel(saved.period)} saved. Select this month and press Get advice when ready.`)
     } catch (requestError) { setError(explainApiError(requestError)) }
     finally { setBusy(false) }
   }
@@ -177,10 +180,24 @@ export default function AccountMonths({ userId, user, profile }) {
     finally { setBusy(false) }
   }
 
+  const additionalFields = <>
+    <MoneyInput label="Loan payment actually made" name="paid_emi" value={draft.paid_emi} onChange={edit} />
+    <MoneyInput label="Total accessible savings" name="savings" value={draft.savings} onChange={edit} hint="Include the emergency reserve." />
+    <MoneyInput label="Emergency reserve" name="emergency_fund" value={draft.emergency_fund} onChange={edit} />
+    <MoneyInput label="Loan balance still owed" name="outstanding_debt" value={draft.outstanding_debt} onChange={edit} />
+    <MoneyInput label="Expenses you could not fund" name="unfunded_expenses" value={draft.unfunded_expenses} onChange={edit} hint="Enter 0 if none." />
+    <label>Risk preference<select name="risk_tolerance" value={draft.risk_tolerance} onChange={edit}>
+      <option value="conservative">Conservative</option><option value="moderate">Moderate</option><option value="aggressive">Aggressive</option>
+    </select></label>
+    <label>Investment horizon, years<input name="investment_horizon_years" type="number" min="0" max="80" required value={draft.investment_horizon_years} onChange={edit} /></label>
+  </>
+
   return <section className="account-months" aria-labelledby="account-months-heading">
     <p className="research-small-label">YOUR ENTERED FINANCIAL HISTORY</p>
-    <h3 id="account-months-heading">Build your own month-by-month situation</h3>
+    <h3 id="account-months-heading">{planning ? 'Plan for changing income' : 'Build your own month-by-month situation'}</h3>
     <p>Enter an ordinary month first, then enter a later month with changed income or expenses. These are your account's records, separate from the current Profile snapshot. You can correct a month at any time.</p>
+    {planning && <p>The first form starts with amounts from your current Profile. Check them for the month you chose. Other planned spending starts with all non-debt expenses; move any essential bills you enter out of that amount so they are counted once. Review the copied balances under Additional month details before saving.</p>}
+    {planning && !loading && months.length > 0 && <MonthlyPlanningSummary months={months} profile={profile} onOpenProfile={onOpenProfile} />}
     <form onSubmit={save} className="account-month-form">
       <div className="account-month-fields">
         <label>Month<input name="period" type="month" max={todayMonth()} required value={draft.period} onChange={edit} /></label>
@@ -188,16 +205,12 @@ export default function AccountMonths({ userId, user, profile }) {
         <MoneyInput label="Essential bills (excluding loan)" name="fixed_expenses" value={draft.fixed_expenses} onChange={edit} />
         <MoneyInput label="Other planned spending" name="other_expenses" value={draft.other_expenses} onChange={edit} />
         <MoneyInput label="Loan payment due this month" name="scheduled_emi" value={draft.scheduled_emi} onChange={edit} />
-        <MoneyInput label="Loan payment actually made" name="paid_emi" value={draft.paid_emi} onChange={edit} />
-        <MoneyInput label="Total accessible savings" name="savings" value={draft.savings} onChange={edit} hint="Include the emergency reserve." />
-        <MoneyInput label="Emergency reserve" name="emergency_fund" value={draft.emergency_fund} onChange={edit} />
-        <MoneyInput label="Loan balance still owed" name="outstanding_debt" value={draft.outstanding_debt} onChange={edit} />
-        <MoneyInput label="Expenses you could not fund" name="unfunded_expenses" value={draft.unfunded_expenses} onChange={edit} hint="Enter 0 if none." />
-        <label>Risk preference<select name="risk_tolerance" value={draft.risk_tolerance} onChange={edit}>
-          <option value="conservative">Conservative</option><option value="moderate">Moderate</option><option value="aggressive">Aggressive</option>
-        </select></label>
-        <label>Investment horizon, years<input name="investment_horizon_years" type="number" min="0" max="80" required value={draft.investment_horizon_years} onChange={edit} /></label>
+        {!planning && additionalFields}
       </div>
+      {planning && <details className="account-month-extra"><summary>Additional month details</summary>
+        <p>Confirm balances and the payment actually made if they differ from the values copied from your current Profile.</p>
+        <div className="account-month-fields">{additionalFields}</div>
+      </details>}
       <div className="account-month-calculated"><span>Total planned spending <small>(calculated from the three spending fields)</small><strong>{amount(totals.monthly_expenses)}</strong></span>
         <span>{Number(totals.net_cash_flow) < 0 ? 'Planned shortfall' : 'Money left after planned spending'} <small>(calculated)</small><strong>{amount(Math.abs(Number(totals.net_cash_flow)))}</strong></span></div>
       <div className="account-month-buttons"><button type="submit" className="primary-action" disabled={busy}>Save this month</button>
@@ -214,17 +227,17 @@ export default function AccountMonths({ userId, user, profile }) {
         <span><button type="button" disabled={busy} onClick={() => { setDraft(formMonth(row)); setSelected(row.period); setAdvice(null); setAnswer(null) }}>Edit</button>
           <button type="button" disabled={busy} onClick={() => remove(row.period)}>Delete</button></span>
       </li>)}</ul>
-      <div className="account-month-run"><label>Month to review<select value={selected} onChange={(event) => { setSelected(event.target.value); setAdvice(null); setAnswer(null) }}>
+      {!planning && <div className="account-month-run"><label>Month to review<select value={selected} onChange={(event) => { setSelected(event.target.value); setAdvice(null); setAnswer(null) }}>
         {months.map((row) => <option key={row.period} value={row.period}>{monthLabel(row.period)}</option>)}
       </select></label>
       <label>What do you want advice on?<select value={focus} onChange={(event) => { setFocus(event.target.value); setAdvice(null); setAnswer(null) }}>
         <option value="all">Overall priorities</option>{Object.entries(names).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
       </select></label>
-      <button type="button" className="primary-action" disabled={busy} onClick={run}>{busy ? 'Working…' : 'Get advice for this month'}</button></div>
+      <button type="button" className="primary-action" disabled={busy} onClick={run}>{busy ? 'Working…' : 'Get advice for this month'}</button></div>}
     </> : <p>No months saved yet. Start with a normal month so a later income change can be measured.</p>}
     {message && <p role="status">{message}</p>}
     {error && <p role="alert" className="research-error">{error}</p>}
-    {advice && <><AccountAdvice advice={advice} />
+    {!planning && advice && <><AccountAdvice advice={advice} />
       <form className="account-month-question" onSubmit={ask}><h4>Ask about this month</h4>
         <p>Ask in your own words. Answers use this month's entered amounts and recorded checks; the local language model helps word questions it can verify. Your question and answer are not saved.</p>
         <div><input aria-label="Your question about this month" value={question} maxLength={500} required minLength={3}

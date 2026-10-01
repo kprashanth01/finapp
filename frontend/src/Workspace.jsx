@@ -11,6 +11,7 @@ import AppShell from './components/AppShell.jsx'
 import Research from './components/Research.jsx'
 import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
+import AccountMonths from './components/AccountMonths.jsx'
 import UserForm from './components/UserForm.jsx'
 import { canStartRun, canStartSave, hasIncomeChanged, hasProfileFinancialChanges, markSessionStale } from './services/advisoryFreshness.js'
 import {
@@ -322,11 +323,16 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                     : <FinancialAnalysis analysis={analysis} user={user} profile={profile} />)}
                   <div className="mt-7 rounded-xl border border-teal-200 bg-teal-50 p-4">
                     <h3 className="font-semibold text-teal-950">Track changes month by month</h3>
-                    <p className="mt-1 text-sm text-slate-700">Your Profile is the current snapshot. Record past months separately to see how the trained monthly selector responds to income and expense changes.</p>
-                    <button type="button" className="mt-3 font-semibold text-teal-800 underline" onClick={() => setActiveView('research')}>Open monthly history</button>
+                    <p className="mt-1 text-sm text-slate-700">Your Profile is the current snapshot. Record each month's actual income and spending in Months to see how a lower-income month affects your savings plan.</p>
+                    <button type="button" className="mt-3 font-semibold text-teal-800 underline" onClick={() => setActiveView('months')}>Open Months</button>
                   </div>
                 </>
               )}
+              {activeView === 'months' && (profile
+                ? <AccountMonths key={user.id} mode="planning" userId={user.id} user={user} profile={profile}
+                    onOpenProfile={() => openProfile('monthly_savings_contribution')} />
+                : <div><p>Save a financial profile before recording months for your plan.</p>
+                    <button type="button" className="mt-3 font-semibold underline" onClick={() => openProfile()}>Open Profile</button></div>)}
               {activeView === 'advisor' && profile && (
                 <>
                   {selectedSessionLoading && <p className="text-sm text-slate-600">Opening saved run…</p>}

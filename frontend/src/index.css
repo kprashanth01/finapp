@@ -408,6 +408,9 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .account-months h4 { margin: 24px 0 10px; color: #173f45; font-weight: 730; }
 .account-months > p, .account-month-result > p { color: #496771; font-size: .85rem; line-height: 1.6; }
 .account-month-form { margin-top: 20px; }
+.account-month-extra { margin-top: 15px; padding: 14px; border: 1px solid #c9e2dc; border-radius: 9px; background: white; }
+.account-month-extra summary { cursor: pointer; font-weight: 680; color: #17454a; }
+.account-month-extra p { margin: 8px 0 12px; font-size: .8rem; color: #496771; }
 .account-month-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); gap: 14px; }
 .account-month-fields label, .account-month-run label { display: grid; gap: 6px; color: #244b52; font-size: .8rem; font-weight: 690; }
 .account-month-fields input, .account-month-fields select, .account-month-run select { width: 100%; min-height: 42px; padding: 8px 10px; border: 1px solid #bfd6d3; border-radius: 8px; background: white; color: #123541; font: inherit; font-weight: 500; }
