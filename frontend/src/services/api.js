@@ -132,6 +132,18 @@ export async function getResearchEvaluation(userId) {
   return (await api.get(`/users/${userId}/research/evaluation`)).data
 }
 
+export async function getResearchMeasurements(userId, filters, signal) {
+  return (await api.get(`/users/${userId}/research/experiments/latest/metrics`, {
+    params: {
+      ...(filters.method ? { method: filters.method } : {}),
+      ...(filters.scenario ? { scenario: filters.scenario } : {}),
+      ...(filters.metric ? { metric: filters.metric } : {}),
+      scope: filters.scope,
+    },
+    signal,
+  })).data
+}
+
 export async function runManualResearchAction(userId, selectedAgents) {
   return (await api.post(`/users/${userId}/research/manual-action`, {
     selected_agents: selectedAgents,

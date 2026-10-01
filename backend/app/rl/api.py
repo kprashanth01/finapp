@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,6 +19,7 @@ from app.rl.baselines import RandomBaseline, RuleBaseline
 from app.rl.dqn_artifact import DEFAULT_ARTIFACT_DIR, read_training_evidence
 from app.rl.environment import AgentSelectionEnv
 from app.rl.evaluation import read_evaluation_report
+from app.rl.evaluation_dashboard import latest_measurements
 from app.rl.observation import FEATURE_NAMES, OBSERVATION_VERSION
 from app.rl.orchestration import (InvalidOrchestratorModeError, ModelUnavailableError,
                                   run_orchestration)
@@ -103,6 +104,17 @@ def get_research_evaluation(user_id: int, session: Session = Depends(get_session
     if session.get(User, user_id) is None:
         raise HTTPException(status_code=404, detail="User not found.")
     return read_evaluation_report(EVALUATION_REPORT_PATH)
+
+
+@router.get("/users/{user_id}/research/experiments/latest/metrics", dependencies=[Depends(require_owner)])
+def get_research_measurements(user_id: int, method: str | None = Query(default=None, max_length=40),
+                              scenario: str | None = Query(default=None, max_length=80),
+                              metric: str | None = Query(default=None, max_length=80),
+                              scope: Literal["aggregate", "seed"] = "aggregate",
+                              session: Session = Depends(get_session)):
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return latest_measurements(session, method=method, scenario=scenario, metric=metric, scope=scope)
 
 
 @router.post("/users/{user_id}/research/orchestration-run", dependencies=[Depends(require_owner)])
