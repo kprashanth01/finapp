@@ -79,7 +79,7 @@ function AdvisoryHistory({ userId, refreshKey, selectedId, onSelect }) {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="font-medium">{new Date(item.created_at).toLocaleString()}</p>
-                  <p className="mt-1 text-xs text-slate-600">{item.method === 'rule_based' ? 'Rule-based' : item.method} · {item.rule_version}</p>
+                  <p className="mt-1 text-xs text-slate-600">{item.method === 'rule_based' ? 'Rule based' : item.method}</p>
                 </div>
                 <button type="button" onClick={() => onSelect(item.id)} className="text-sm font-medium text-slate-800 underline underline-offset-4">Open run</button>
               </div>

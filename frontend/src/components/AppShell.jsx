@@ -3,7 +3,7 @@ const views = [
   ['profile', 'Profile', 'Keep the amounts behind your analysis up to date.'],
   ['goals', 'Goals', 'See what you are working toward and what each target needs.'],
   ['advisor', 'Advisor', 'Review your coordinated plan and earlier runs.'],
-  ['research', 'Research', 'Inspect how agent selection is scored on your profile.'],
+  ['research', 'Research', 'Try agent selections and review the test results.'],
 ]
 
 function ViewIcon({ view }) {

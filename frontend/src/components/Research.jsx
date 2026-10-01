@@ -101,9 +101,9 @@ export function EvaluationReportCard({ evidence }) {
   const pct = (value) => value == null ? '—' : `${(value * 100).toFixed(1)}%`
   const names = ['random', 'rule_based', 'rl']
   return <section className="research-evaluation" aria-labelledby="evaluation-heading">
-    <p className="research-small-label">FIXED COHORT · MEASURED RESULTS</p>
+    <p className="research-small-label">COMPARISON ON GENERATED CASES</p>
     <h3 id="evaluation-heading">How the three selectors performed</h3>
-    <p>Each method ran on the same {report.cohort.case_count} generated financial cases. Random used {report.random_seeds.length} fixed seeds; the other selectors ran once per case. These results come from the committed trained DQN, not the earlier fitted proxy model.</p>
+    <p>Each method ran on the same {report.cohort.case_count} generated financial cases. Random used {report.random_seeds.length} repeatable seeds; the other methods ran once per case. DQN is the trained reinforcement learning selector used here.</p>
     <div className="research-table-scroll"><table>
       <thead><tr><th scope="col">Selector</th><th scope="col">Average proxy score</th><th scope="col">Score variance</th><th scope="col">Missed critical check</th><th scope="col">Relevant checks covered</th><th scope="col">Avg. agents</th><th scope="col">Full plan possible</th></tr></thead>
       <tbody>{names.map((name) => {
@@ -166,7 +166,7 @@ export function TrainingEvidenceCard({ evidence }) {
         </tr>)}</tbody>
       </table></div>
     </details>
-    <p className="research-training-limit">Each episode makes one agent-selection decision. This is a one-step experiment using a rule-defined proxy reward, not evidence of improved financial outcomes. You can now run the trained DQN in Advisor's experimental selector; the comparison below still uses the earlier fitted proxy selector.</p>
+    <p className="research-training-limit">Each episode makes one agent-selection decision. This is a one-step experiment using a rule-defined proxy reward, not evidence of improved financial outcomes. You can run the trained DQN in Advisor's experimental selector; the saved-profile comparison above uses the earlier fitted proxy selector.</p>
   </section>
 }
 
@@ -189,12 +189,13 @@ export function ActionCatalogDetails({ catalog, selected }) {
     ? actions.find((entry) => entry.agents.length === selected.length
       && entry.agents.every((id) => selected.includes(id)))
     : null
-  return <section className="research-action-map" aria-label="Action space">
+  return <details className="research-action-map">
+    <summary>Action mapping (research detail)</summary>
     <p>{action
       ? <>Action ID {action.id}: {action.agents.map((id) => agentNames[id] ?? id).join(' and ')}.</>
       : 'Choose at least one agent to preview its action ID.'}</p>
-    <p>One action selects a group of agents for one decision on the same financial state. There is no sequence of financial state changes between agents, and no financial transaction.</p>
     <details><summary>All {catalog.action_count} action mappings</summary>
+      <p>One action selects a group of agents for one decision on the same financial state. There is no sequence of financial state changes between agents, and no financial transaction.</p>
       <p>Version <code>{catalog.action_version}</code>. IDs are fixed for the current trained model; a custom catalogue has its own version and action IDs.</p>
       <div className="research-table-scroll"><table>
         <thead><tr><th scope="col">Action ID</th><th scope="col">Agents selected</th></tr></thead>
@@ -204,7 +205,7 @@ export function ActionCatalogDetails({ catalog, selected }) {
         </tr>)}</tbody>
       </table></div>
     </details>
-  </section>
+  </details>
 }
 
 function ManualExperiment({ userId }) {
@@ -238,7 +239,7 @@ function ManualExperiment({ userId }) {
     finally { setRunning(false) }
   }
 
-  return <details className="research-manual">
+  return <details className="research-manual" open>
     <summary>Try your own agent selection</summary>
     <p>Choose specialists to run on your saved profile. This shows their findings without changing your profile or saving an Advisor plan.</p>
     {loading && <p role="status">Loading available agents…</p>}
@@ -256,14 +257,16 @@ function ManualExperiment({ userId }) {
       <ActionCatalogDetails catalog={catalog} selected={selected} />
     </form>}
     {result && <div className="research-manual-result" aria-live="polite">
-      <h3>Action ID {result.action}: {result.selected_agents.map((id) => agentNames[id] ?? id).join(', ')}</h3>
+      <h3>Agents selected: {result.selected_agents.map((id) => agentNames[id] ?? id).join(', ')}</h3>
       <p className={result.plan_readiness.can_build_full_plan ? 'research-ready' : 'research-incomplete'}>
         {result.plan_readiness.can_build_full_plan
           ? 'This selection includes the agents needed for a complete Advisor plan. This experiment did not generate or save one.'
           : `A complete Advisor plan also needs: ${result.plan_readiness.missing_agents.map((id) => agentNames[id] ?? id).join(', ')}.`}
       </p>
-      <p>Selection score: <strong>{result.total_reward.toFixed(2)}</strong> project points. This score does not measure financial improvement.</p>
-      <RewardAuditDetails audit={result.reward_audit} collapsible />
+      <details className="research-score-audit"><summary>Action and score details</summary>
+        <p>Action ID {result.action}. Selection score: <strong>{result.total_reward.toFixed(2)}</strong> project points. This score does not measure financial improvement.</p>
+        <RewardAuditDetails audit={result.reward_audit} />
+      </details>
       <div className="research-manual-findings">{result.agent_results.map((agent) => <section key={agent.agent_id}>
         <h4>{agentNames[agent.agent_id] ?? agent.agent_id}</h4>
         {agent.findings.length ? agent.findings.map((finding) => <div key={finding.code}>
@@ -308,23 +311,22 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
   }
 
   return <section className="research-page" aria-labelledby="research-heading">
-    <div className="research-intro"><div><h2 id="research-heading">Agent selection, explained</h2>
-      <p>See the measured three-way evaluation, inspect DQN training, and explore agent choices for your own saved profile.</p></div>
-      {hasProfile ? <form className="research-compare-controls" onSubmit={run}>
+    <div className="research-intro"><div><h2 id="research-heading">How agents are selected</h2>
+      <p>Try an agent selection on your saved profile, then inspect results from generated test cases.</p></div>
+      {!hasProfile && <button type="button" className="primary-action" onClick={onOpenProfile}>Create a profile</button>}
+    </div>
+    <section className="research-personal" aria-labelledby="research-personal-heading">
+    <h3 id="research-personal-heading" className="research-personal-heading">Explore your saved profile</h3>
+    <p className="research-meta">Try a selection or compare methods using your saved values. Neither action changes your profile or saves an Advisor plan.</p>
+    {!hasProfile && <p className="research-empty">Add a financial profile first. This comparison uses your saved values; it does not create a demo account.</p>}
+    {hasProfile && <ManualExperiment userId={userId} />}
+    {hasProfile && <div className="research-comparison"><h4>Compare selection methods</h4>
+      <p>This comparison uses the earlier fitted proxy selector, the app's rules, and a repeatable random choice. The trained DQN is evaluated separately below.</p>
+      <form className="research-compare-controls" onSubmit={run}>
         <label>Random seed<input type="number" min="0" max="1000000000" step="1" required value={seed}
           onChange={(event) => setSeed(event.target.value)} /></label>
         <button type="submit" className="primary-action" disabled={running}>{running ? 'Comparing…' : comparison ? 'Run comparison again' : 'Compare methods'}</button>
-      </form>
-        : <button type="button" className="primary-action" onClick={onOpenProfile}>Create a profile</button>}
-    </div>
-    <div className="research-explainer"><strong>What this score means</strong><p>The score rewards relevant and critical checks, then subtracts points for missed needs and extra agent calls. It does not measure a change in your finances or prove that one method gives better advice.</p></div>
-    <EvaluationReportCard evidence={evaluation} />
-    <EvaluationDashboard userId={userId} />
-    <TrainingEvidenceCard evidence={trainingEvidence} />
-    <h3 className="research-personal-heading">Explore your saved profile</h3>
-    <p className="research-meta">The comparison below uses the earlier fitted proxy selector; the fixed cohort above evaluates the trained DQN. Advisor can run the trained DQN on your profile.</p>
-    {!hasProfile && <p className="research-empty">Add a financial profile first. This comparison uses your saved values; it does not create a demo account.</p>}
-    {hasProfile && <ManualExperiment userId={userId} />}
+      </form></div>}
     {error && <p role="alert" className="research-error">{error}</p>}
     {comparison && <><p className="research-meta">Based on your saved profile as of {comparison.as_of_date}. Seed {comparison.seed}. No advisory session was saved.</p>
       {comparison.model.status === 'available' ? <><div className="research-results">
@@ -334,6 +336,17 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
       </div><Benchmark training={comparison.model.training} /></> : <><p className="research-error" role="status">{comparison.model.reason}</p>
         <div className="research-results"><PolicyResult title="Rule-based selection" explanation="The app’s explicit selection logic; the score uses overlapping conditions." outcome={comparison.policies.rule} />
           <PolicyResult title="Random baseline" explanation={`A repeatable random choice using seed ${comparison.seed}.`} outcome={comparison.policies.random} /></div></>}
-      <p className="research-footnote">The saved Advisor plan remains rule based. Advisor also offers read-only experimental mode runs, including the trained DQN. This comparison does not save an advisory session or change your profile.</p></>}
+      <p className="research-footnote">The saved Advisor plan remains rule based. Advisor also offers experimental runs with the trained DQN. This comparison does not save an advisory session or change your profile.</p></>}
+    </section>
+    <section className="research-evidence" aria-labelledby="research-evidence-heading">
+      <h3 id="research-evidence-heading">Results from generated cases</h3>
+      <p>These experiments test how agents are selected. Their scores are based on project rules, not real financial outcomes.</p>
+      <div className="research-explainer"><strong>What the score means</strong><p>The research score rewards relevant checks and subtracts points for missed needs or extra agent calls. It does not measure financial improvement or prove which method gives better advice.</p></div>
+      <EvaluationReportCard evidence={evaluation} />
+      <details className="research-advanced"><summary>More measurements and training details</summary>
+        <EvaluationDashboard userId={userId} />
+        <TrainingEvidenceCard evidence={trainingEvidence} />
+      </details>
+    </section>
   </section>
 }

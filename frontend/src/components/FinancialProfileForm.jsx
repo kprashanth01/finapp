@@ -39,7 +39,7 @@ function FinancialProfileForm({ profile, onSave, saving, disabled }) {
     <form onSubmit={submit} className="space-y-5">
       <div>
         <h2 className="text-xl font-semibold">Financial profile</h2>
-        <p className="mt-1 text-sm text-slate-600">Use the same currency for every amount. The monthly flow fields help calculate the analysis below.</p>
+        <p className="mt-1 text-sm text-slate-600">Use the same currency for every amount. Monthly savings and debt payments help calculate your financial snapshot.</p>
       </div>
       <fieldset disabled={saving || disabled} className="grid gap-5 sm:grid-cols-2">
         <label className={labelClass}>
