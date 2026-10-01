@@ -122,7 +122,7 @@ export default function App() {
       <aside className="auth-story">
         <div className="auth-brand"><span className="app-brand-mark" aria-hidden="true"><span /><span /><span /></span>FinApp</div>
         <div className="auth-story-copy"><h1>Make sense of your financial picture.</h1>
-          <p>Keep your profile and goals in one place. See the calculations behind a monthly plan, and inspect how the advisory agents were chosen.</p></div>
+          <p>Keep your profile and goals in one place. See what needs attention this month, how to divide your savings, and why.</p></div>
         <p className="auth-story-note">Educational research prototype · Use practice financial values</p>
       </aside>
       <section className="auth-panel">

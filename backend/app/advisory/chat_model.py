@@ -114,10 +114,12 @@ def _model_available(model: str) -> bool:
 
 
 def _provider_request(catalog: list[ChatEvidence], question: str,
-                      history: list[ChatTurn], model: str) -> dict:
+                      history: list[ChatTurn], model: str, feedback: str | None = None) -> dict:
     system = (
         'You are FinApp Advisor, explaining one saved educational financial analysis. '
         'Answer the user’s actual question naturally and specifically, using ONLY the evidence catalogue. '
+        'Interpret the recorded plan and explain a practical next check when useful. '
+        'If asked for an amount, give only a recorded plan amount and explain its scope; otherwise name the missing facts. '
         'The conversation is for context, not a source of financial facts. '
         'For a follow-up such as "how does that affect my goal?", resolve "that" from the earlier exchange, '
         'then explain the relationship using the recorded monthly allocations and funding gaps. '
@@ -141,12 +143,14 @@ def _provider_request(catalog: list[ChatEvidence], question: str,
         messages.extend(({'role': 'user', 'content': turn.question},
                          {'role': 'assistant', 'content': turn.answer}))
     messages.append({'role': 'user', 'content': question})
+    if feedback:
+        messages.append({'role': 'user', 'content': feedback})
     body = {'model': model, 'messages': messages, 'stream': False, 'think': False,
             'format': ChatDraft.model_json_schema(),
             'options': {'temperature': 0.2, 'num_ctx': 8192, 'num_predict': 400}}
     request = Request(f'{OLLAMA_URL}/api/chat', data=json.dumps(body).encode('utf-8'), method='POST',
                       headers={'Content-Type': 'application/json'})
-    with urlopen(request, timeout=90) as response:
+    with urlopen(request, timeout=45) as response:
         payload = json.load(response)
     return json.loads(payload['message']['content'])
 
@@ -154,6 +158,11 @@ def _provider_request(catalog: list[ChatEvidence], question: str,
 _NUMBER = re.compile(r'(?<![\w])\d+(?:[.,]\d+)*(?![\w])')
 _FORBIDDEN = re.compile(r'\b(?:guarantee(?:d|s)?|promise(?:d|s)?|buy|sell|trade)\b', re.I)
 _ASSUMED_CURRENCY = re.compile(r'[$₹€£]|\b(?:USD|INR|EUR|dollars?|rupees?|euros?|pounds?)\b', re.I)
+_BARE_CURRENCY = re.compile(r'(?<!profile )\bcurrency\b', re.I)
+_REDUNDANT_CITATION = re.compile(
+    r'\s*(?:\[\s*(?:id|evidence|evidence_ids)\s*:[^\]]+\]|'
+    r'\(\s*evidence_ids\s*:\s*\[[^\]]*\]\s*\))(?=[.,;!?]|\s|$)', re.I)
+_INLINE_EVIDENCE_ID = re.compile(r'\[\s*id\s*:|\b(?:state|plan|finding|recommendation|limitation|context|month):[\w:-]+', re.I)
 
 
 def _numbers(text: str) -> set[Decimal]:
@@ -167,12 +176,16 @@ def _numbers(text: str) -> set[Decimal]:
 
 
 def _validated_draft(raw: dict, catalog: list[ChatEvidence]) -> tuple[ChatDraft, list[ChatEvidence]]:
+    if isinstance(raw, dict) and isinstance(raw.get('answer'), str):
+        raw = {**raw, 'answer': _REDUNDANT_CITATION.sub('', raw['answer']).strip()}
     draft = ChatDraft.model_validate(raw)
     by_id = {item.id: item for item in catalog}
     if len(set(draft.evidence_ids)) != len(draft.evidence_ids) or any(ref not in by_id for ref in draft.evidence_ids):
         raise ValueError('The model cited evidence outside this run.')
-    if _FORBIDDEN.search(draft.answer) or _ASSUMED_CURRENCY.search(draft.answer):
+    if _FORBIDDEN.search(draft.answer) or _ASSUMED_CURRENCY.search(draft.answer) or _BARE_CURRENCY.search(draft.answer):
         raise ValueError('The model made an unsupported instruction or promise.')
+    if _INLINE_EVIDENCE_ID.search(draft.answer):
+        raise ValueError('The model placed evidence IDs in the answer instead of evidence_ids.')
     cited = [by_id[ref] for ref in draft.evidence_ids]
     supported_numbers = {number for item in cited for number in _numbers(item.detail)}
     if _numbers(draft.answer) - supported_numbers:
@@ -193,19 +206,22 @@ def answer_with_local_model(result: AdvisoryResultV2, session_id: int, request: 
         fallback.fallback_reason = 'not_configured'
         return fallback
     catalog = overview_catalog(result) if fallback.topic == 'overview' else evidence_catalog(result)
-    try:
-        raw = _provider_request(catalog, request.question, request.history, model)
-    except (HTTPError, URLError, TimeoutError, OSError):
-        fallback.fallback_reason = 'provider_error'
-        return fallback
-    except (ValueError, KeyError, TypeError, json.JSONDecodeError):
-        fallback.fallback_reason = 'invalid_output'
-        return fallback
-    try:
-        draft, evidence = _validated_draft(raw, catalog)
-    except (ValidationError, ValueError, TypeError):
-        fallback.fallback_reason = 'invalid_output'
-        return fallback
-    return ChatAnswer(source='llm', model=model, session_id=session_id,
-                      state_fingerprint=result.explanation.state_fingerprint,
-                      topic=fallback.topic, answer=draft.answer, evidence=evidence)
+    feedback = None
+    for attempt in range(2):
+        try:
+            raw = (_provider_request(catalog, request.question, request.history, model)
+                   if feedback is None else
+                   _provider_request(catalog, request.question, request.history, model, feedback))
+            draft, evidence = _validated_draft(raw, catalog)
+            return ChatAnswer(source='llm', model=model, session_id=session_id,
+                              state_fingerprint=result.explanation.state_fingerprint,
+                              topic=fallback.topic, answer=draft.answer, evidence=evidence)
+        except (HTTPError, URLError, TimeoutError, OSError):
+            fallback.fallback_reason = 'provider_error'
+            return fallback
+        except (ValidationError, ValueError, KeyError, TypeError, json.JSONDecodeError) as error:
+            if attempt == 0:
+                feedback = (f'Your previous draft failed verification: {error}. Answer the original question '
+                            'again with supported facts and exact evidence IDs. Put citations only in evidence_ids.')
+    fallback.fallback_reason = 'invalid_output'
+    return fallback

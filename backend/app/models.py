@@ -33,6 +33,7 @@ class User(Base):
     )
     goals: Mapped[list["FinancialGoal"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     auth_sessions: Mapped[list["AuthSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    financial_months: Mapped[list["FinancialMonth"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 Index("uq_users_email_lower", func.lower(User.email), unique=True)
@@ -105,6 +106,40 @@ class FinancialProfile(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="profile")
+
+
+class FinancialMonth(Base):
+    """An account owner's entered month, separate from the editable current profile."""
+
+    __tablename__ = "financial_months"
+    __table_args__ = (
+        UniqueConstraint("user_id", "period", name="uq_financial_month_user_period"),
+        Index("ix_financial_month_user_period", "user_id", "period"),
+        CheckConstraint("monthly_income >= 0 AND monthly_expenses >= 0 AND fixed_expenses >= 0", name="ck_month_nonnegative_flow"),
+        CheckConstraint("scheduled_emi >= 0 AND paid_emi >= 0 AND paid_emi <= scheduled_emi", name="ck_month_emi"),
+        CheckConstraint("fixed_expenses + scheduled_emi <= monthly_expenses", name="ck_month_expense_parts"),
+        CheckConstraint("savings >= 0 AND emergency_fund >= 0 AND emergency_fund <= savings", name="ck_month_reserve"),
+        CheckConstraint("outstanding_debt >= 0 AND unfunded_expenses >= 0", name="ck_month_debt_unfunded"),
+        CheckConstraint("risk_tolerance IN ('conservative', 'moderate', 'aggressive')", name="ck_month_risk"),
+        CheckConstraint("investment_horizon_years BETWEEN 0 AND 80", name="ck_month_horizon"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    period: Mapped[date] = mapped_column(Date)
+    monthly_income: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    monthly_expenses: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    fixed_expenses: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    scheduled_emi: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    paid_emi: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    savings: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    emergency_fund: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    outstanding_debt: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    unfunded_expenses: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    risk_tolerance: Mapped[str] = mapped_column(String(20))
+    investment_horizon_years: Mapped[int]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    user: Mapped[User] = relationship(back_populates="financial_months")
 
 
 class FinancialGoal(Base):

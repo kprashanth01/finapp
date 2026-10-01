@@ -289,10 +289,14 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                   analysis={analysis}
                   advisorySession={advisorySession}
                   advisoryLoading={advisoryLoading}
+                  advisoryRunning={advisoryRunning}
                   advisoryError={advisoryError}
                   saving={saving}
+                  goalPending={goalsState.pending}
                   onRetryAdvisory={() => refreshAdvisory(user.id)}
-                  onOpenProfile={() => openProfile(null)}
+                  onRunAdvisory={handleRunAdvisory}
+                  onOpenProfile={openProfile}
+                  onOpenGoal={openGoal}
                   onOpenAdvisor={() => setActiveView('advisor')}
                 />
               )}
@@ -315,6 +319,11 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                   {profile && (saving
                     ? <p role="status" className="mt-8 text-sm text-slate-600">Updating financial snapshot…</p>
                     : <FinancialAnalysis analysis={analysis} user={user} profile={profile} />)}
+                  <div className="mt-7 rounded-xl border border-teal-200 bg-teal-50 p-4">
+                    <h3 className="font-semibold text-teal-950">Track changes month by month</h3>
+                    <p className="mt-1 text-sm text-slate-700">Your Profile is the current snapshot. Record past months separately to see how the trained monthly selector responds to income and expense changes.</p>
+                    <button type="button" className="mt-3 font-semibold text-teal-800 underline" onClick={() => setActiveView('research')}>Open monthly history</button>
+                  </div>
                 </>
               )}
               {activeView === 'advisor' && profile && (
@@ -343,7 +352,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                   />
                 </>
               )}
-              {activeView === 'research' && <Research userId={user.id} hasProfile={!!profile} onOpenProfile={() => openProfile(null)} />}
+              {activeView === 'research' && <Research userId={user.id} user={user} profile={profile} hasProfile={!!profile} onOpenProfile={() => openProfile(null)} />}
             </>
           ) : (
             <p role="alert">The account could not be loaded. Refresh to retry.</p>

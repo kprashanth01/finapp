@@ -1,0 +1,14 @@
+# Enter your own months and review advice
+
+The signed-in **Research → Build your own month-by-month situation** flow now stores financial months under your account. Apply migration `0008_financial_months` before using it. The saved months do not overwrite the current Profile snapshot or saved Advisor runs.
+
+1. Choose a completed month and enter the income actually received, total scheduled expenses, fixed expenses excluding debt, scheduled and paid debt payments, liquid savings, emergency reserve, outstanding debt, and any expenses you could not fund. Set that month's risk preference and investment horizon. Save it.
+2. Enter the next month using **Start next month**. The form starts from your current Profile values; review and change every amount to reflect what happened. For a job-loss example, income can be `0`. The app does not generate those figures for you or infer a savings withdrawal.
+3. Select the month under **Months you entered**, choose **Overall priorities** or a specific topic, and press **Get advice for this month**. Expand recorded evidence under a finding. You can edit or delete an entered month later.
+4. Once advice is visible, type a question in **Ask about this month**. The local Ollama model answers from the recorded month, prior income, agent findings, and method limits. It does not need an OpenAI key. It must cite evidence and may decline if its answer cannot be verified. Questions and answers are not stored.
+
+The committed monthly DQN consumes 19 observable financial features. The app derives recent income change from an **adjacent** entered month; it derives income variability from up to 12 entered months and compares low income to the first positive recorded month. Gaps do not create a recent-change feature. Each amount is a user-entered snapshot. No transaction or future balance is inferred.
+
+The DQN selects which specialists run. The specialists' actual findings are rule based. The rule baseline runs on the same selected month. A requested specialist runs separately even if the DQN did not select it; this does not modify the DQN's action or proxy score. If the DQN misses a critical check, the page highlights that fact and shows the rule and requested specialist results. A complete coordinated plan is only displayed when all required specialists ran.
+
+This model was trained on generated data and is not personalized through learning from this account. The project proxy scores agent selection coverage and cost, not advice quality or financial improvement. In a checked practice example with income dropping from `6000` to `1500` and a loan payment of `500`, the DQN selected Budget, Debt, Emergency, and Risk and covered the proxy's critical checks. At `0` income in that same example, it missed Debt; the rule baseline retained the Debt check. This is a documented model limitation, not evidence that RL handles every job-loss case better.
