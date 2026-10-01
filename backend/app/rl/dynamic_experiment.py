@@ -5,6 +5,7 @@ from datetime import timedelta
 from hashlib import sha256
 import json
 from pathlib import Path
+from time import perf_counter_ns
 from uuid import uuid4
 
 import numpy as np
@@ -20,10 +21,10 @@ from app.rl.dynamic_state import DYNAMIC_OBSERVATION_VERSION
 from app.rl.selection import ACTION_VERSION
 
 
-EXPERIMENT_VERSION = "paired-monthly-selection-v1"
+EXPERIMENT_VERSION = "paired-monthly-selection-v2"
 METHODS = ("random", "rule_based", "trained_rl")
 DEFAULT_OUTPUT = (Path(__file__).resolve().parents[3] / "data" / "synthetic" /
-                  "paired-monthly-selection-v1.jsonl")
+                  "paired-monthly-selection-v2.jsonl")
 
 
 def _json(value) -> str:
@@ -78,10 +79,12 @@ def run_paired_experiment(episodes: tuple[DynamicEpisode, ...], *, model,
                 trajectory.append({"synthetic_id": episode.profile.synthetic_id,
                                    "month_index": month.month_index,
                                    "financial_state": financial_state,
+                                   "goals": [goal.model_dump(mode="json") for goal in episode.goals],
                                    "state_fingerprint": state.fingerprint(),
                                    "observation": values[0]})
                 for method, env in environments.items():
                     observation = observations[method]
+                    started_ns = perf_counter_ns()
                     if method == "random":
                         proposed = random_policy.choose_action(state, env.catalog)
                     elif method == "rule_based":
@@ -90,6 +93,7 @@ def run_paired_experiment(episodes: tuple[DynamicEpisode, ...], *, model,
                         proposed, _ = model.predict(observation, deterministic=True)
                     action = _action(proposed, env.catalog.action_count)
                     next_observation, reward, terminated, truncated, info = env.step(action)
+                    elapsed_ns = perf_counter_ns() - started_ns
                     if (info["synthetic_id"] != episode.profile.synthetic_id or
                             info["month_index"] != month.month_index or
                             info["state_fingerprint"] != state.fingerprint() or
@@ -103,6 +107,7 @@ def run_paired_experiment(episodes: tuple[DynamicEpisode, ...], *, model,
                         "month_index": info["month_index"],
                         "state_fingerprint": info["state_fingerprint"],
                         "financial_state": financial_state,
+                        "goals": [goal.model_dump(mode="json") for goal in episode.goals],
                         "observation_version": info["observation_version"],
                         "observation": values[0],
                         "action_version": info["action_version"],
@@ -110,6 +115,7 @@ def run_paired_experiment(episodes: tuple[DynamicEpisode, ...], *, model,
                         "agent_results": info["agent_results"],
                         "priority_actions": info["priority_actions"],
                         "agent_call_count": len(info["selected_agents"]),
+                        "execution_time_ns": elapsed_ns,
                         "reward_version": info["reward_version"],
                         "reward": reward, "reward_components": info["reward_components"],
                         "reward_audit": info["reward_audit"],
