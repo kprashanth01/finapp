@@ -92,6 +92,19 @@ def list_research_actions(user_id: int, session: Session = Depends(get_session))
     return DEFAULT_CATALOG.describe()
 
 
+@router.get("/users/{user_id}/research/monthly-demo", dependencies=[Depends(require_owner)])
+def get_monthly_demo(user_id: int, session: Session = Depends(get_session)):
+    """Expose a reproducible synthetic monthly case, not the owner's profile."""
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    from app.rl.monthly_demo import build_monthly_demo
+
+    try:
+        return build_monthly_demo()
+    except (OSError, ValueError, ImportError) as error:
+        raise HTTPException(status_code=503, detail=f"Monthly demo unavailable: {error}") from error
+
+
 @router.get("/users/{user_id}/research/training-evidence", dependencies=[Depends(require_owner)])
 def get_training_evidence(user_id: int, session: Session = Depends(get_session)):
     if session.get(User, user_id) is None:

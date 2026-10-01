@@ -71,6 +71,8 @@ def test_every_private_path_requires_account_and_exact_owner(accounts):
     assert second.post(f"{owner_path}/research/comparison", headers=MUTATION, json={"seed": 1}).status_code == 404
     assert anonymous.get(f"{owner_path}/research/actions").status_code == 401
     assert second.get(f"{owner_path}/research/actions").status_code == 404
+    assert anonymous.get(f"{owner_path}/research/monthly-demo").status_code == 401
+    assert second.get(f"{owner_path}/research/monthly-demo").status_code == 404
     manual = f"{owner_path}/research/manual-action"
     assert anonymous.post(manual, headers=MUTATION, json={"selected_agents": ["budget"]}).status_code == 401
     assert second.post(manual, headers=MUTATION, json={"selected_agents": ["budget"]}).status_code == 404
