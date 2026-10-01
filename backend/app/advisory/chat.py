@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.advisory.planning_types import AdvisoryResultV2, ExplanationMetric, ExplanationRecommendation
 
 
-Topic = Literal['recommendation', 'emergency', 'debt', 'budget', 'goal', 'risk',
+Topic = Literal['overview', 'recommendation', 'emergency', 'debt', 'budget', 'goal', 'risk',
                 'investment', 'selection', 'limitations', 'state', 'unsupported']
 AGENT_TOPICS = {'emergency': 'emergency', 'debt': 'debt', 'budget': 'budget',
                 'goal': 'goal', 'risk': 'risk', 'investment': 'investment'}
@@ -63,6 +63,9 @@ def _topic(question: str, context: Topic | None) -> Topic:
     ):
         if re.search(pattern, text):
             return topic
+    if re.search(r'\b(run|analysis|session|report)\b', text) and re.search(
+            r'\b(contain\w*|includ\w*|show\w*|cover\w*|summari\w*|overview|inside|in|find\w*|found|record\w*)\b', text):
+        return 'overview'
     return 'unsupported'
 
 
@@ -97,7 +100,37 @@ def answer_saved_question(result: AdvisoryResultV2, session_id: int, request: Ch
         raise ValueError('This saved run has no explanation trace.')
     topic = _topic(request.question, request.context_topic)
     evidence: list[ChatEvidence] = []
-    if topic in AGENT_TOPICS or topic == 'recommendation':
+    if topic == 'overview':
+        findings = [(agent.agent_id, finding) for agent in result.agent_results for finding in agent.findings]
+        summary = result.advice.summary
+        capacity = result.advice.monthly_plan.capacity
+        answer = (f'This saved run contains your financial snapshot from {result.state.as_of_date.isoformat()}, '
+                  f'the {result.decision.method.replace("_", "-")} agent selection and findings, '
+                  f'the recommendation “{summary.title}”, a proposed monthly plan, '
+                  'and the evidence and limitations behind it.')
+        evidence = [
+            ChatEvidence(id='state:as_of_date', label='Saved financial snapshot',
+                         detail=result.state.as_of_date.isoformat()),
+            ChatEvidence(id='state:monthly_income', label='Gross monthly income',
+                         detail=f'{result.state.monthly_income} (profile currency)'),
+            ChatEvidence(id='state:monthly_expenses', label='Monthly expenses',
+                         detail=f'{result.state.monthly_expenses} (profile currency)'),
+            ChatEvidence(id='state:emergency_fund', label='Emergency fund',
+                         detail=f'{result.state.emergency_fund} (profile currency)'),
+            ChatEvidence(id='decision', label='Agent selection',
+                         detail=f'Action {trace.action}; {trace.policy_explanation}'),
+            ChatEvidence(id='recommendation:summary', label=summary.title, detail=summary.text),
+            ChatEvidence(id='plan:capacity', label='Monthly savings budget',
+                         detail='not supplied' if capacity is None else f'{capacity} (profile currency)'),
+        ]
+        if findings:
+            agent_id, finding = findings[0]
+            evidence.append(ChatEvidence(id=f'finding:{agent_id}:{finding.code}',
+                                         label=finding.title, detail=finding.reason))
+        if trace.limitations:
+            evidence.append(ChatEvidence(id='limitation:0', label='Recorded limitation',
+                                         detail=trace.limitations[0]))
+    elif topic in AGENT_TOPICS or topic == 'recommendation':
         agent = AGENT_TOPICS.get(topic)
         matches = [(index, rec) for index, rec in enumerate(trace.recommendations)
                    if agent is None or agent in (rec.explainability.agents if rec.explainability else

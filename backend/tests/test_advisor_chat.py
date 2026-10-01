@@ -76,3 +76,22 @@ def test_chat_limits_scope_and_requires_owned_explained_session(client):
     old = client.post(path, json={"question": "Why?"})
     assert old.status_code == 422
     assert 'Run a new analysis' in old.json()['detail']
+
+
+def test_chat_summarizes_what_a_saved_run_contains(client):
+    user, _ = create_profile(client)
+    saved = client.post(f"/users/{user['id']}/advisory-sessions", json={}).json()
+    path = f"/users/{user['id']}/advisory-sessions/{saved['id']}/chat"
+    for question in ('what does this saved run contain?', 'What is included in this analysis?',
+                     'What did this analysis find?'):
+        response = client.post(path, json={'question': question})
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body['topic'] == 'overview'
+        assert saved['result']['advice']['summary']['title'] in body['answer']
+        assert 'monthly plan' in body['answer'].lower()
+        assert 'agent' in body['answer'].lower()
+        assert {'state:as_of_date', 'state:monthly_income', 'state:monthly_expenses',
+                'state:emergency_fund', 'decision', 'recommendation:summary', 'plan:capacity'} <= {
+            item['id'] for item in body['evidence']}
+        assert user['email'] not in response.text
