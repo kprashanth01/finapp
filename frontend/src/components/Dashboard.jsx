@@ -1,5 +1,6 @@
 import { formatAmount, staleMessage } from '../utils/format.js'
 import { getDashboardDecision, getDashboardDisplayState } from '../services/dashboardState.js'
+import ScenarioPreview from './ScenarioPreview.jsx'
 
 const balanceItems = [
   ['Gross monthly income', 'monthly_income', 'user'],
@@ -92,6 +93,9 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
           <ol className="mt-2 list-decimal space-y-2 pl-5 text-sm text-slate-700">{decision.otherPriorities.map((action) => <li key={action.code}><span className="font-medium text-slate-900">{action.title}.</span> {action.reason}</li>)}</ol></div>}
       </div>}
     </section>
+
+    <ScenarioPreview key={JSON.stringify([user, profile, goals])} user={user} profile={profile}
+      onOpenIncome={() => onOpenProfile('monthly_income')} disabled={!canRun} />
 
     <section aria-labelledby="picture-heading" className="border-t border-slate-200 pt-7">
       <h3 id="picture-heading" className="text-xl font-semibold">Your financial picture</h3>

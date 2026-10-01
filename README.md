@@ -170,6 +170,8 @@ Click **Run analysis with saved goals** or run from **Advisor**. The result show
 
 New saved runs include each selected agent's finding, supporting figures, why it matters, and a bounded next step. **Advisor** presents these checks after the coordinated plan; **Dashboard** shows this guidance for the current first priority. The agent steps do not assign additional money: only the coordinator's monthly plan proposes allocations. Earlier saved runs without these fields remain readable. The thresholds and wording are educational project rules, not individualized advice.
 
+**Dashboard → What if my income or expenses change?** previews one hypothetical month without editing the saved profile or creating a saved advisory session. Enter gross monthly income, total monthly expenses, and the amount you plan to save in that month, or use **Try 20% less income** as a starting point. The comparison recalculates priorities, reserve coverage, goal funding, and the coordinated monthly allocation using the same rule-based planner and current saved balances, debt payments, and goals. It rejects expenses below required recorded debt payments and a planned savings contribution above gross income minus expenses. This gross remainder is only an upper bound: taxes, timing, and unrecorded costs may reduce spendable cash. A preview is not a forecast and does not move money. Save real changes in Profile and run a new plan when they occur.
+
 The coordinator allocates **only the recorded monthly savings contribution**, once:
 
 1. Cover the emergency reserve gap up to the available budget. Three months means the reserve should cover three months of expenses; it is not a deadline.
@@ -508,6 +510,7 @@ From `backend/`, run `..\.venv\Scripts\python -m app.rl.dynamic_integration --mo
 | PUT | `/users/{id}/goals/{goal_id}` | Update a goal, preserving archive state |
 | PATCH | `/users/{id}/goals/{goal_id}` | Archive/restore with `{ "archived": true/false }` |
 | POST | `/users/{id}/advisory-sessions` | Run and save a rule-based advisory session |
+| POST | `/users/{id}/advisory-scenario` | Compare current saved inputs with one read-only hypothetical month; JSON `monthly_income`, `monthly_expenses`, `monthly_savings_contribution` |
 | POST | `/users/{id}/advisory-sessions/{session_id}/reasoning` | Explain an owned captured run; provider is called only on this request |
 | POST | `/users/{id}/research/orchestration-run` | Run `rule_based`, seeded `random`, or trained `rl` selection on the owner's saved profile without persistence; JSON `{ "mode": "rl", "seed": 42 }` |
 | POST | `/users/{id}/research/orchestration-reasoning` | Explain a live run after verifying `{ "mode", "seed", "state_fingerprint", "action" }` against current state |

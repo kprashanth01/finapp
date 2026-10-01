@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_session
 from app.auth_dependencies import require_owner
 from app.advisory.service import financial_state, run_advisory, planning_date
+from app.advisory.scenario import ScenarioPreview, preview_scenario
 from app.advisory.session_types import AdvisoryHistoryPage, AdvisorySessionRead, AdvisorySessionSummary, get_priority_actions
 from app.advisory.planning_types import AdvisoryResultV2
 from app.advisory.reasoning import ReasoningResponse, explain_run
@@ -15,7 +16,7 @@ from app.advisory.state import PlanningState
 from app.advisory.rules import RULE_VERSION
 from app.goal_api import load_active_goals
 from app.models import AnalysisSession, FinancialProfile, User
-from app.schemas import AnalysisRead, ProfileRead, ProfileWrite, UserCreate, UserRead
+from app.schemas import AnalysisRead, ProfileRead, ProfileWrite, ScenarioWrite, UserCreate, UserRead
 from app.services.financial_analysis import FinancialAnalysisService
 
 
@@ -139,6 +140,21 @@ def create_advisory_session(
     session.commit()
     session.refresh(row)
     return _session_read(row, result.state)
+
+
+@router.post("/users/{user_id}/advisory-scenario", response_model=ScenarioPreview,
+             dependencies=[Depends(require_owner)])
+def preview_advisory_scenario(
+    user_id: int, payload: ScenarioWrite, session: Session = Depends(get_session)
+) -> ScenarioPreview:
+    user, profile = _saved_financial_data(user_id, session)
+    if profile.monthly_debt_payments is not None and payload.monthly_expenses < profile.monthly_debt_payments:
+        raise HTTPException(status_code=422, detail="Scenario expenses cannot be below saved monthly debt payments.")
+    gross_remainder = max(0, payload.monthly_income - payload.monthly_expenses)
+    if payload.monthly_savings_contribution is not None and payload.monthly_savings_contribution > gross_remainder:
+        raise HTTPException(status_code=422,
+                            detail="Planned monthly savings cannot exceed gross income minus expenses in this scenario. Reduce the contribution or update the other amounts.")
+    return preview_scenario(user, profile, load_active_goals(session, user_id), planning_date(), payload)
 
 
 @router.get("/users/{user_id}/advisory-sessions/latest", response_model=AdvisorySessionRead,

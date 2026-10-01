@@ -89,6 +89,10 @@ export async function runAdvisorySession(userId) {
   return response.data
 }
 
+export async function previewAdvisoryScenario(userId, values) {
+  return (await api.post(`/users/${userId}/advisory-scenario`, values)).data
+}
+
 export async function compareResearchPolicies(userId, seed = 42) {
   const response = await api.post(`/users/${userId}/research/comparison`, { seed })
   return response.data

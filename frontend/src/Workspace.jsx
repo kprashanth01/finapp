@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { formatAmount } from './utils/format.js'
 import Goals from './components/Goals.jsx'
 import useGoals from './hooks/useGoals.js'
 import { createOperationGate } from './services/operationGate.js'
@@ -312,7 +313,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                 <>
                   {!profile && <p className="mb-5 rounded-lg bg-blue-50 p-4 text-sm text-slate-800">Start by entering your gross monthly income in User details, then save your financial profile below. You can add goals afterward.</p>}
                   <details open={!profile} className="mb-8 rounded-lg border border-slate-200 p-4">
-                    <summary className="cursor-pointer text-sm font-medium">Edit user details</summary>
+                    <summary className="cursor-pointer text-sm font-medium">Gross monthly income (before tax): {formatAmount(user.monthly_income)} · Edit user details</summary>
                     <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} disabled={advisoryRunning || advisoryLoading} /></div>
                   </details>
                   <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} disabled={advisoryRunning || advisoryLoading} />

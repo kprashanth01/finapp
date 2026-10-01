@@ -1,4 +1,5 @@
 import pytest
+from datetime import date, timedelta
 from tests.support import AuthenticatedTestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -55,6 +56,64 @@ def test_saved_plan_retains_agent_guidance_for_later_visits(client):
                 for finding in agent['findings']]
     assert findings
     assert all(finding['impact'] and finding['suggested_action'] for finding in findings)
+
+
+def test_scenario_preview_compares_current_and_changed_plan_without_saving(client):
+    user, _ = create_profile(client)
+    path = f"/users/{user['id']}/advisory-scenario"
+    preview = client.post(path, json={
+        'monthly_income': '3500.00', 'monthly_expenses': '3000.00',
+        'monthly_savings_contribution': '300.00',
+    })
+    assert preview.status_code == 200, preview.text
+    body = preview.json()
+    assert body['baseline']['state']['monthly_income'] == '5000.00'
+    assert body['scenario']['state']['monthly_income'] == '3500.00'
+    assert body['baseline']['advice']['monthly_plan']['capacity'] == '500.00'
+    assert body['scenario']['advice']['monthly_plan']['capacity'] == '300.00'
+    assert body['scenario']['advice']['monthly_plan']['emergency_allocation'] == '300.00'
+    assert body['scenario']['state']['input_fingerprint'] != body['baseline']['state']['input_fingerprint']
+    assert client.get(f"/users/{user['id']}/advisory-sessions").json()['items'] == []
+    assert client.get(f"/users/{user['id']}").json()['monthly_income'] == '5000.00'
+    assert client.get(f"/users/{user['id']}/financial-profile").json()['monthly_savings_contribution'] == '500.00'
+
+
+def test_scenario_preview_checks_monthly_obligations_and_gross_upper_bound(client):
+    user, _ = create_profile(client)
+    path = f"/users/{user['id']}/advisory-scenario"
+    inputs = {'monthly_income': '3500.00', 'monthly_expenses': '3000.00',
+              'monthly_savings_contribution': '300.00'}
+    assert client.post(path, json={**inputs, 'monthly_expenses': '100.00'}).status_code == 422
+    too_much = client.post(path, json={**inputs, 'monthly_savings_contribution': '600.00'})
+    assert too_much.status_code == 422
+    assert 'gross income minus expenses' in too_much.json()['detail']
+    assert client.post(path, json={**inputs, 'monthly_income': '-1'}).status_code == 422
+    assert client.post(path, json={**inputs, 'monthly_savings_contribution': None}).status_code == 200
+    other, _ = create_profile(client, email='scenario-owner@sample-finapp.org')
+    assert client.post(path, json=inputs).status_code == 404
+    assert client.post(f"/users/{other['id']}/advisory-scenario", json=inputs).status_code == 200
+
+
+def test_scenario_preview_reuses_saved_goal_without_changing_it(client):
+    user, profile = create_profile(client)
+    profile['emergency_fund'] = '9000.00'
+    assert client.put(f"/users/{user['id']}/financial-profile", json=profile).status_code == 200
+    created = client.post(f"/users/{user['id']}/goals", json={
+        'name': 'Laptop', 'target_amount': '12000.00', 'saved_amount': '0.00',
+        'target_date': (date.today() + timedelta(days=365)).isoformat(), 'priority': 'high',
+    })
+    assert created.status_code == 201, created.text
+    preview = client.post(f"/users/{user['id']}/advisory-scenario", json={
+        'monthly_income': '4000.00', 'monthly_expenses': '3000.00',
+        'monthly_savings_contribution': '300.00',
+    })
+    assert preview.status_code == 200, preview.text
+    baseline = preview.json()['baseline']['advice']['monthly_plan']['goal_allocations'][0]
+    scenario = preview.json()['scenario']['advice']['monthly_plan']['goal_allocations'][0]
+    assert baseline['requirement']['goal']['id'] == scenario['requirement']['goal']['id'] == created.json()['id']
+    assert baseline['allocated_monthly'] == '500.00'
+    assert scenario['allocated_monthly'] == '300.00'
+    assert client.get(f"/users/{user['id']}/goals").json()[0]['saved_amount'] == '0.00'
 
 
 def test_saved_reasoning_uses_captured_run_and_owner_scope(client, monkeypatch):
