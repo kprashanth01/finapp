@@ -4,6 +4,7 @@ import {
   runManualResearchAction,
 } from '../services/api.js'
 import EvaluationDashboard from './EvaluationDashboard.jsx'
+import MonthlyDemo from './MonthlyDemo.jsx'
 
 const agentNames = {
   budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', goal: 'Goal planning',
@@ -315,6 +316,7 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
       <p>Try an agent selection on your saved profile, then inspect results from generated test cases.</p></div>
       {!hasProfile && <button type="button" className="primary-action" onClick={onOpenProfile}>Create a profile</button>}
     </div>
+    <MonthlyDemo key={userId} userId={userId} />
     <section className="research-personal" aria-labelledby="research-personal-heading">
     <h3 id="research-personal-heading" className="research-personal-heading">Explore your saved profile</h3>
     <p className="research-meta">Try a selection or compare methods using your saved values. Neither action changes your profile or saves an Advisor plan.</p>

@@ -124,6 +124,10 @@ export async function getResearchActions(userId) {
   return (await api.get(`/users/${userId}/research/actions`)).data
 }
 
+export async function getMonthlyDemo(userId) {
+  return (await api.get(`/users/${userId}/research/monthly-demo`, { timeout: 45000 })).data
+}
+
 export async function getResearchTrainingEvidence(userId) {
   return (await api.get(`/users/${userId}/research/training-evidence`)).data
 }
