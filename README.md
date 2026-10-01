@@ -500,6 +500,8 @@ For the paired cohort's measured risk coverage, agent calls, reward, timing, and
 
 To inspect one held-out user-month across Random, Rule-Based, and trained RL with recorded agent outputs, recommendations, and constraints, see [monthly case analysis](docs/monthly-case-analysis.md).
 
+For optional provider narration of one synthetic monthly case, with an explicit request and deterministic fallback, see [monthly LLM reasoning](docs/monthly-llm-reasoning.md).
+
 After installing development requirements, run the focused API checks:
 
 ```powershell
