@@ -173,7 +173,7 @@ def write_experiment(report: dict, output: Path,
     _write_atomic(manifest_path, json.dumps(report["manifest"], indent=2, allow_nan=False) + "\n")
 
 
-def run_committed_experiment(*, random_seed: int = 313) -> dict:
+def load_committed_test_episodes() -> tuple[tuple[DynamicEpisode, ...], dict]:
     """Rebuild and verify the exact test cohort recorded with the saved DQN."""
     metadata = get_model_metadata()
     dataset = metadata["dataset"]
@@ -188,10 +188,16 @@ def run_committed_experiment(*, random_seed: int = 313) -> dict:
     )
     if splits.summary != dataset:
         raise ValueError("Rebuilt test cohort or trajectory parameters differ from model metadata.")
+    return splits.test, metadata
+
+
+def run_committed_experiment(*, random_seed: int = 313) -> dict:
+    """Run every policy on the committed DQN's held-out test cohort."""
+    episodes, metadata = load_committed_test_episodes()
     model = load_model()
     if get_model_metadata()["artifact_sha256"] != metadata["artifact_sha256"]:
         raise ValueError("Monthly model changed while preparing the experiment.")
-    return run_paired_experiment(splits.test, model=model,
+    return run_paired_experiment(episodes, model=model,
                                  random_seed=random_seed, model_metadata=metadata)
 
 

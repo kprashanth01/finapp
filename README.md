@@ -498,6 +498,8 @@ For the paired synthetic monthly experiment (Random, Rule-Based, trained DQN), s
 
 For the paired cohort's measured risk coverage, agent calls, reward, timing, and explicitly unavailable goal and recommendation metrics, see [research metrics](docs/research-metrics.md).
 
+To inspect one held-out user-month across Random, Rule-Based, and trained RL with recorded agent outputs, recommendations, and constraints, see [monthly case analysis](docs/monthly-case-analysis.md).
+
 After installing development requirements, run the focused API checks:
 
 ```powershell
