@@ -295,3 +295,24 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .reasoning-evidence li { display: grid; gap: .2rem; max-width: 100%; padding: .45rem .65rem; border-radius: .4rem; background: #edf5f3; font-size: .75rem; overflow-wrap: anywhere; }
 .reasoning-evidence span { color: #46616a; }
 .reasoning-disclaimer { margin-top: 1rem; font-size: .8rem; color: #52616b; }
+.advisor-chat { padding: 1.5rem; border: 1px solid #b7d6d1; border-radius: 1rem; background: #f5fbf9; color: #12343b; }
+.advisor-chat h3 { margin: .25rem 0 .5rem; font-size: 1.2rem; font-weight: 700; }
+.advisor-chat > p:not(.research-small-label) { max-width: 72ch; font-size: .875rem; line-height: 1.5; }
+.advisor-chat-stale { margin-top: .75rem; padding: .65rem .8rem; border-radius: .5rem; background: #fff4db; color: #764b12; }
+.advisor-chat-prompts { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
+.advisor-chat-prompts button { padding: .5rem .75rem; border: 1px solid #9bcac1; border-radius: 999px; background: white; color: #086d63; font-size: .8rem; text-align: left; }
+.advisor-chat-prompts button:hover { background: #e6f5f1; }
+.advisor-chat-prompts button:disabled { opacity: .6; }
+.advisor-chat-messages { display: grid; gap: .8rem; margin: 1rem 0; padding: 0; list-style: none; }
+.advisor-chat-messages > li { padding: 1rem; border: 1px solid #d7e7e5; border-radius: .7rem; background: white; }
+.advisor-chat-question { margin-bottom: .7rem; font-weight: 650; overflow-wrap: anywhere; }
+.advisor-chat-answer p { margin-top: .4rem; font-size: .875rem; line-height: 1.5; }
+.advisor-chat-answer details { margin-top: .8rem; font-size: .8rem; }
+.advisor-chat-answer summary { cursor: pointer; color: #086d63; font-weight: 650; }
+.advisor-chat-answer ul { display: grid; gap: .4rem; margin-top: .6rem; padding: 0; list-style: none; }
+.advisor-chat-answer li { display: grid; gap: .1rem; padding: .5rem .65rem; border-radius: .4rem; background: #edf5f3; overflow-wrap: anywhere; }
+.advisor-chat-answer li span { color: #46616a; }
+.advisor-chat-form label { display: block; margin-bottom: .4rem; font-size: .85rem; font-weight: 650; }
+.advisor-chat-form > div { display: flex; gap: .5rem; }
+.advisor-chat-form input { min-width: 0; flex: 1; padding: .65rem .75rem; border: 1px solid #9bcac1; border-radius: .5rem; background: white; }
+@media (max-width: 540px) { .advisor-chat { padding: 1rem; } .advisor-chat-form > div { flex-direction: column; } }
