@@ -141,3 +141,64 @@ class AnalysisSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="analysis_sessions")
+
+
+class Experiment(Base):
+    """One immutable, synthetic research report; separate from account history."""
+
+    __tablename__ = "experiments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    report_sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    evaluation_version: Mapped[str] = mapped_column(String(80))
+    scenario_version: Mapped[str] = mapped_column(String(80))
+    model_version: Mapped[str] = mapped_column(String(80))
+    cohort_sha256: Mapped[str] = mapped_column(String(64))
+    details: Mapped[dict] = mapped_column(JSON)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    runs: Mapped[list["ExperimentRun"]] = relationship(back_populates="experiment", cascade="all, delete-orphan")
+
+
+class ExperimentRun(Base):
+    """A method on a cohort or scenario segment, pooled or at one seed."""
+
+    __tablename__ = "experiment_runs"
+    __table_args__ = (
+        UniqueConstraint("experiment_id", "run_key", name="uq_experiment_runs_key"),
+        CheckConstraint("case_count > 0", name="ck_experiment_runs_case_count"),
+        CheckConstraint("sample_count >= case_count", name="ck_experiment_runs_sample_count"),
+        CheckConstraint("scope IN ('aggregate', 'seed')", name="ck_experiment_runs_scope"),
+        Index("ix_experiment_runs_method_scenario", "method", "scenario"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    experiment_id: Mapped[int] = mapped_column(ForeignKey("experiments.id", ondelete="CASCADE"))
+    run_key: Mapped[str] = mapped_column(String(120))
+    method: Mapped[str] = mapped_column(String(40))
+    scenario: Mapped[str] = mapped_column(String(80))
+    scope: Mapped[str] = mapped_column(String(20))
+    seed: Mapped[int | None]
+    case_count: Mapped[int]
+    sample_count: Mapped[int]
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    experiment: Mapped[Experiment] = relationship(back_populates="runs")
+    metrics: Mapped[list["ExperimentMetric"]] = relationship(back_populates="run", cascade="all, delete-orphan")
+
+
+class ExperimentMetric(Base):
+    """A measured scalar, with absent measurements omitted instead of zeroed."""
+
+    __tablename__ = "experiment_metrics"
+    __table_args__ = (
+        UniqueConstraint("run_id", "name", name="uq_experiment_metrics_run_name"),
+        Index("ix_experiment_metrics_name", "name"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("experiment_runs.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(80))
+    value: Mapped[Decimal] = mapped_column(Numeric(20, 6))
+
+    run: Mapped[ExperimentRun] = relationship(back_populates="metrics")
