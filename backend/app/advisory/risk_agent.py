@@ -47,11 +47,21 @@ class RiskAssessmentAgent:
         elif state.monthly_income > 0 and (state.monthly_debt_payments or 0) * 100 / state.monthly_income >= HIGH_DTI_PERCENT:
             factors.append('high_debt')
         reason = ('Add an investment horizon to assess the stated preference.' if category is None else
-                  f'Your {state.risk_tolerance} preference is capped at {category} for the saved horizon.')
+                  f'Your {state.risk_tolerance} preference is capped at {category} for the saved horizon.'
+                  if category != state.risk_tolerance else
+                  f'Your {state.risk_tolerance} preference and saved horizon map to an illustrative {category} category.')
         return PlanningAgentResult(agent_id=self.agent_id, status='limited' if category is None else 'ok',
             facts=RiskFacts(category=category,factor_codes=factors),
             findings=[Finding(code='risk_capacity', title='Risk preference and horizon',reason=reason,priority=False,
-                              evidence=[], limitations=['Illustrative category; financial readiness is checked separately.'])],limitations=[])
+                              evidence=[Evidence(label='Investment horizon', value=(Decimal(state.investment_horizon_years)
+                                        if state.investment_horizon_years is not None else None), unit='years')],
+                              limitations=['Illustrative category; financial readiness is checked separately.'],
+                              impact=('A preference alone cannot indicate how long the money can stay invested.' if category is None else
+                                      'A shorter horizon can limit the time available to recover from investment losses.' if category != state.risk_tolerance else
+                                      'The preference and horizon align under this simple rule, but this is not a suitability assessment.'),
+                              suggested_action=('Enter the intended investment horizon before using this category.' if category is None else
+                                                'Review your time horizon and risk preference before considering an investment.' if category != state.risk_tolerance else
+                                                'Use this category only alongside the reserve, debt, goal, and investment-readiness checks.'))],limitations=[])
 
     def _analyze_dynamic(self, state: DynamicPlanningState) -> PlanningAgentResult:
         category = risk_category(state)

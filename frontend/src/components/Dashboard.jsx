@@ -66,8 +66,10 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Your first priority · Plan from {advisorySession.result.state.as_of_date}</p>
           <h4 className="mt-2 text-lg font-semibold text-slate-900">{decision.primary.title}</h4>
           {decision.evidence && <p className="mt-2 text-sm font-medium text-slate-900">{evidenceText(decision.evidence)}</p>}
-          <p className="mt-2 text-sm text-slate-700">{decision.primary.reason}</p>
-          {decision.hasPriority && <p className="mt-2 text-sm text-slate-600">{advisorySession.result.advice.summary.text}</p>}
+          <p className="mt-2 text-sm text-slate-700"><span className="font-semibold">What we found:</span> {decision.primary.reason}</p>
+          {decision.impact && <p className="mt-2 text-sm text-slate-700"><span className="font-semibold">Why it matters:</span> {decision.impact}</p>}
+          {decision.suggestedAction ? <p className="mt-2 text-sm text-slate-700"><span className="font-semibold">What to do:</span> {decision.suggestedAction}</p>
+            : decision.hasPriority && <p className="mt-2 text-sm text-slate-600">{advisorySession.result.advice.summary.text}</p>}
           <div className="mt-4 flex flex-wrap gap-4 text-sm">
             <button type="button" onClick={() => follow(decision.primary)} className="font-semibold text-slate-900 underline underline-offset-4">{decision.primary.next_action?.view === 'goals' ? 'Review this goal' : 'Review saved details'}</button>
             <button type="button" onClick={onOpenAdvisor} className="font-semibold text-slate-700 underline underline-offset-4">See the full plan and reasons</button>

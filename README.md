@@ -168,6 +168,8 @@ Click **Run analysis with saved goals** or run from **Advisor**. The result show
 | Risk assessment | Every saved profile | Stated preference capped by horizon, with explicit readiness factors |
 | Investment | Every saved profile | Prerequisites for investment consideration; coordinator also checks goal funding |
 
+New saved runs include each selected agent's finding, supporting figures, why it matters, and a bounded next step. **Advisor** presents these checks after the coordinated plan; **Dashboard** shows this guidance for the current first priority. The agent steps do not assign additional money: only the coordinator's monthly plan proposes allocations. Earlier saved runs without these fields remain readable. The thresholds and wording are educational project rules, not individualized advice.
+
 The coordinator allocates **only the recorded monthly savings contribution**, once:
 
 1. Cover the emergency reserve gap up to the available budget. Three months means the reserve should cover three months of expenses; it is not a deadline.

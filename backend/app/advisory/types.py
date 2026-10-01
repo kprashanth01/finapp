@@ -2,7 +2,7 @@ from decimal import Decimal
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_serializer
 
 from app.advisory.state import FinancialState
 
@@ -20,6 +20,16 @@ class Finding(BaseModel):
     priority: bool
     evidence: list[Evidence]
     limitations: list[str]
+    impact: str | None = None
+    suggested_action: str | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler):
+        payload = handler(self)
+        for key in ("impact", "suggested_action"):
+            if payload.get(key) is None:
+                payload.pop(key, None)
+        return payload
 
 
 class AgentResult(BaseModel):
