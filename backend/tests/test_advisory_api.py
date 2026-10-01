@@ -147,6 +147,23 @@ def test_orchestration_run_reports_missing_rl_runtime_without_fallback(client, m
         orchestration.cached_dqn_model.cache_clear()
 
 
+def test_orchestration_api_uses_server_default_when_mode_is_omitted(client, monkeypatch):
+    user, _ = create_profile(client)
+    path = f"/users/{user['id']}/research/orchestration-run"
+    monkeypatch.setenv("ORCHESTRATOR_MODE", "random")
+    configured = client.post(path, json={"seed": 17})
+    assert configured.status_code == 200, configured.text
+    assert configured.json()["mode"] == "random"
+    assert configured.json() == client.post(path, json={"mode": "random", "seed": 17}).json()
+    explicit = client.post(path, json={"mode": "rule_based"})
+    assert explicit.status_code == 200
+    assert explicit.json()["mode"] == "rule_based"
+    monkeypatch.setenv("ORCHESTRATOR_MODE", "invalid")
+    rejected = client.post(path, json={})
+    assert rejected.status_code == 503
+    assert "ORCHESTRATOR_MODE" in rejected.json()["detail"]
+
+
 def test_committed_dqn_runs_on_saved_profile_when_rl_runtime_is_installed(client):
     pytest.importorskip("stable_baselines3")
     from app.rl.dqn_artifact import MODEL_VERSION

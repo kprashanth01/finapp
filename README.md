@@ -446,6 +446,12 @@ The monthly DQN has `save_model()`, `load_model()`, `model_exists()`, and `get_m
 
 From `backend/`, run `..\.venv\Scripts\python -m app.rl.dynamic_model_management` to inspect the committed model provenance. This backend milestone adds no new website screen or account-data use.
 
+### Configured Research mode (Issue 14)
+
+Set `ORCHESTRATOR_MODE=rule_based`, `random`, or `trained_rl` in the root `.env` and restart the backend. On the signed-in **Research** page, **Choose how agents are selected → Server default** now runs that configured method. The result shows the method actually used. Explicit selections on the same page still run the chosen method, and the old `rl` API value remains an alias for trained RL. The default when unset is `rule_based`. See [docs/orchestrator-mode-switching.md](docs/orchestrator-mode-switching.md) for the API contract, website check, and scope.
+
+This switch controls read-only Research runs on saved snapshot profiles. Saved **Advisor** sessions remain complete rule-based plans; the new monthly DQN remains offline until its separate integration work.
+
 ## API available now
 
 | Method | Path | Purpose |

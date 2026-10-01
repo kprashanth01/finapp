@@ -23,6 +23,11 @@ test('trained RL request allows a cold model load without relaxing all API timeo
   try {
     await apiModule.runOrchestration(7, 'rl', 42)
     assert.equal(captured[2].timeout, 30000)
+    await apiModule.runOrchestration(7, 'trained_rl', 42)
+    assert.equal(captured[2].timeout, 30000)
+    await apiModule.runOrchestration(7, 'configured', 42)
+    assert.deepEqual(captured[1], { seed: 42 })
+    assert.equal(captured[2].timeout, 30000)
     await apiModule.runOrchestration(7, 'random', 42)
     assert.equal(captured[2].timeout, 5000)
   } finally {
@@ -42,6 +47,7 @@ function text(element) {
 test('Advisor exposes all selection modes and explains the experimental run', () => {
   const output = text(createElement(OrchestrationLab, { userId: 1 }))
   assert.match(output, /Choose how agents are selected/)
+  assert.match(output, /Server default/)
   assert.match(output, /Rule based/)
   assert.match(output, /Seeded random/)
   assert.match(output, /Trained RL/)
