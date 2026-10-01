@@ -1,11 +1,16 @@
 {
+  "model_name": "monthly-agent-selection-dqn",
   "model_version": "dynamic-dqn-monthly-v1",
   "algorithm": "DQN",
+  "training_date": "2026-09-30",
+  "training_steps": 12000,
+  "seed": 313,
   "environment_version": "dynamic-agent-selection-v1",
   "observation_version": "dynamic-observation-v1",
   "action_version": "agent-subset-v1",
   "reward_version": "dynamic-selection-proxy-v1",
   "scenario_version": "dynamic-user-episodes-v1",
+  "dataset_version": "dynamic-user-episodes-v1",
   "feature_names": [
     "income_log_scaled",
     "expense_income_scaled",
