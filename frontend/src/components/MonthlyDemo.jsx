@@ -6,42 +6,44 @@ const agentNames = {
   risk: 'Risk', investment: 'Investment readiness',
 }
 
-const scoreNames = {
-  relevant_coverage: 'Relevant checks covered', critical_coverage: 'Critical checks covered',
-  missed_critical_penalty: 'Missed critical checks', unneeded_agent_penalty: 'Unneeded specialists',
-  agent_call_penalty: 'Specialist call cost',
-}
-
 const money = (value) => value == null ? 'Unavailable' : Number(value).toLocaleString('en-US', {
   minimumFractionDigits: 2, maximumFractionDigits: 2,
 })
 
-function MethodCard({ title, result }) {
+export const evidenceValue = (item) => {
+  if (item.value == null || item.value === '') return null
+  if (!Number.isFinite(Number(item.value))) return String(item.value)
+  const formatted = money(item.value)
+  return item.unit === '%' ? `${formatted}%` : item.unit === 'currency' ? `${formatted} profile currency` : `${formatted} ${item.unit ?? ''}`.trim()
+}
+
+function plainReason(action, month, context) {
+  if (!month || !context) return action.reason
+  const gap = Number(context.net_cash_flow)
+  if (action.agent_id === 'budget' && gap < 0) return `Planned spending is ${money(-gap)} above this month's income. Review what can change.`
+  if (action.agent_id === 'debt' && gap < 0) return `You still owe ${money(month.outstanding_debt)} and a payment of ${money(month.scheduled_emi)} is due while spending is above income.`
+  if (action.agent_id === 'emergency' && Number(month.emergency_fund) === 0) return 'You recorded no savings set aside for unexpected costs.'
+  return action.reason
+}
+
+export function MethodCard({ title, result, month, context }) {
   const partial = result.recommendation.status === 'partial'
   return <article className="monthly-demo-method">
     <div className="monthly-demo-method-head"><div><h4>{title}</h4>
-      <p>{partial ? 'Partial specialist findings' : 'Complete coordinated plan available'}</p></div>
-      <strong>{Number(result.reward).toFixed(2)} <small>proxy points</small></strong></div>
-    <p className="research-small-label">SELECTED SPECIALISTS · ACTION {result.action}</p>
+      <p>{partial ? 'Partial specialist findings' : 'All checks needed for a full plan ran'}</p></div></div>
+    <p className="research-small-label">CHECKS THIS METHOD RAN</p>
     <div className="research-agent-list">{result.selected_agents.map((id) =>
       <span key={id}>{agentNames[id] ?? id}</span>)}</div>
-    {partial && <p className="monthly-demo-partial">A full coordinated plan needs {result.recommendation.plan_readiness.missing_agents.map(
-      (id) => agentNames[id] ?? id).join(', ')}. The findings below come only from specialists that ran.</p>}
-    <h5>What they advise reviewing</h5>
+    {partial && <p className="monthly-demo-partial">This result is incomplete because it did not run {result.recommendation.plan_readiness.missing_agents.map(
+      (id) => agentNames[id] ?? id).join(', ')}. The notes below cover only the checks shown above.</p>}
+    <h5>What the checks found</h5>
     {result.priority_actions.length ? <ul className="monthly-demo-actions">{result.priority_actions.map((action) =>
       <li key={`${action.agent_id}-${action.finding_code ?? action.code}`}>
-        <strong>{action.title}</strong><p>{action.reason}</p>
-        {action.evidence?.length > 0 && <details><summary>See recorded evidence</summary><ul>{action.evidence.map((item, index) =>
-          <li key={`${item.label}-${index}`}>{item.label}: {item.value} {item.unit}</li>)}</ul></details>}
+        <strong>{action.title}</strong><p>{plainReason(action, month, context)}</p>
+        {action.evidence?.length > 0 && <details><summary>Why this was flagged and figures used</summary><p>{action.reason}</p><ul>{action.evidence.filter((item) => evidenceValue(item) !== null).map((item, index) =>
+          <li key={`${item.label}-${index}`}>{item.label}: {evidenceValue(item)}</li>)}</ul></details>}
       </li>)}</ul> : <p>No priority finding was recorded by these selected specialists.</p>}
-    <p className="monthly-demo-audit">Critical checks missed: {result.reward_audit.missed_critical_agents.length
-      ? result.reward_audit.missed_critical_agents.map((id) => agentNames[id] ?? id).join(', ') : 'none under this proxy'}.</p>
-    <details className="monthly-demo-breakdown"><summary>How this proxy score adds up</summary>
-      <dl>{Object.entries(result.reward_components).map(([key, value]) => <div key={key}>
-        <dt>{scoreNames[key] ?? key}</dt><dd>{Number(value).toFixed(2)}</dd>
-      </div>)}</dl>
-      <p>This audit scores agent selection. It does not reveal the neural network's internal reasoning.</p>
-    </details>
+    {result.reward_audit.missed_critical_agents.length > 0 && <p className="monthly-demo-audit">Important check not run: {result.reward_audit.missed_critical_agents.map((id) => agentNames[id] ?? id).join(', ')}.</p>}
   </article>
 }
 
@@ -52,7 +54,6 @@ export function MonthlyDemoCase({ demo, monthIndex, onMonthChange }) {
   const rule = month.methods.rule_based
   const newAgents = monthIndex === 2 ? trained.selected_agents.filter(
     (id) => !previous.methods.trained_rl.selected_agents.includes(id)) : []
-  const difference = Number(trained.reward) - Number(rule.reward)
   const change = Number(month.monthly_state.income_change_ratio)
   return <div className="monthly-demo-case">
     <div className="monthly-demo-months" role="group" aria-label="Synthetic month">
@@ -76,7 +77,7 @@ export function MonthlyDemoCase({ demo, monthIndex, onMonthChange }) {
       <MethodCard title="Trained monthly DQN" result={trained} />
       <MethodCard title="Rule-based baseline" result={rule} />
     </div>
-    {difference > 0 && <p className="monthly-demo-interpretation">For this month, the DQN's selection proxy is {difference.toFixed(2)} points higher. It selected {trained.selected_agents.length} specialists versus {rule.selected_agents.length} for the fixed rule and missed {trained.reward_audit.missed_critical_agents.length} critical checks under this proxy. This does not establish better financial advice.</p>}
+    <p className="monthly-demo-interpretation">The DQN ran {trained.selected_agents.length} checks and the fixed rule ran {rule.selected_agents.length}. Compare which findings they cover; this demonstration does not establish that either gives better financial advice.</p>
     <details className="monthly-demo-limits"><summary>Model source and limits</summary>
       <p>Held-out synthetic user {demo.source.synthetic_id}, scenario {demo.source.scenario}. Model {demo.source.model_version}; artifact {demo.source.artifact_sha256.slice(0, 12)}…</p>
       <ul>{demo.limitations.map((limit) => <li key={limit}>{limit}</li>)}</ul>

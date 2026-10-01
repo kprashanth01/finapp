@@ -128,6 +128,28 @@ export async function getMonthlyDemo(userId) {
   return (await api.get(`/users/${userId}/research/monthly-demo`, { timeout: 45000 })).data
 }
 
+export async function getFinancialMonths(userId) {
+  return (await api.get(`/users/${userId}/financial-months`)).data
+}
+
+export async function saveFinancialMonth(userId, values) {
+  return (await api.put(`/users/${userId}/financial-months/${values.period}`, values)).data
+}
+
+export async function deleteFinancialMonth(userId, period) {
+  await api.delete(`/users/${userId}/financial-months/${period}`)
+}
+
+export async function getFinancialMonthAdvice(userId, period, focus = 'all') {
+  return (await api.get(`/users/${userId}/financial-months/${period}/advice`, {
+    params: { focus }, timeout: 45000,
+  })).data
+}
+
+export async function askFinancialMonth(userId, period, question, focus = 'all') {
+  return (await api.post(`/users/${userId}/financial-months/${period}/ask`, { question, focus }, { timeout: 100000 })).data
+}
+
 export async function getResearchTrainingEvidence(userId) {
   return (await api.get(`/users/${userId}/research/training-evidence`)).data
 }

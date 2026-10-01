@@ -49,10 +49,12 @@ class ChatAnswer(BaseModel):
 
 def _topic(question: str, context: Topic | None) -> Topic:
     text = question.lower().strip()
-    if re.search(r'\b(ignore|override|guarantee\w*|predict\w*|forecast\w*|buy|sell|trade|stock|crypto|bitcoin)\b', text) or re.search(r'\bhow much should\b', text):
+    if re.search(r'\b(ignore|override|guarantee\w*|predict\w*|forecast\w*|buy|sell|trade|stock|crypto|bitcoin)\b', text):
         return 'unsupported'
     if context and context != 'unsupported' and re.fullmatch(r'(why|how|what about that|tell me more)[?.!\s]*', text):
         return context
+    if re.search(r'\bhow much should\b', text):
+        return 'recommendation'
     if re.search(r'\b(how much|what (?:is|was|are|were) my|show (?:my|the) (?:saved )?(?:amount|number))\b', text) and re.search(
             r'\b(income|expense\w*|saving\w*|debt|emergency fund|balance|risk tolerance|investment horizon)\b', text):
         return 'state'
