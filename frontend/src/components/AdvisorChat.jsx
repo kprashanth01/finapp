@@ -22,7 +22,8 @@ export default function AdvisorChat({ userId, sessionId, stale = false }) {
     setError('')
     try {
       const contextTopic = [...messages].reverse().find((item) => item.response)?.response.topic
-      const response = await askSavedSession(userId, sessionId, trimmed, contextTopic)
+      const history = messages.slice(-6).map((item) => ({ question: item.question, answer: item.response.answer }))
+      const response = await askSavedSession(userId, sessionId, trimmed, contextTopic, history)
       setMessages((current) => [...current, { question: trimmed, response }])
       setQuestion('')
     } catch (requestError) { setError(explainApiError(requestError)) }
@@ -32,7 +33,7 @@ export default function AdvisorChat({ userId, sessionId, stale = false }) {
   return <section className="advisor-chat" aria-labelledby="advisor-chat-heading">
     <p className="research-small-label">OPTIONAL ADVISOR CHAT</p>
     <h3 id="advisor-chat-heading">Ask about this saved run</h3>
-    <p>These answers describe the saved run shown above. They use its recorded numbers, agent findings and decisions without calling an AI model. Messages are not saved to history.</p>
+    <p>These answers describe the saved run shown above. A local AI model uses its recorded numbers, findings and decisions to answer your questions in natural language. If it is unavailable, you will see a saved-run answer instead. Messages are not saved to history.</p>
     {stale && <p className="advisor-chat-stale">Your profile has changed since this run. These answers still describe its earlier snapshot.</p>}
     <div className="advisor-chat-prompts" aria-label="Suggested questions">
       {prompts.map((prompt) => <button key={prompt} type="button" disabled={asking} onClick={() => ask(prompt)}>{prompt}</button>)}
@@ -40,7 +41,11 @@ export default function AdvisorChat({ userId, sessionId, stale = false }) {
     {messages.length > 0 && <ol className="advisor-chat-messages" aria-label="Questions and answers" aria-live="polite">
       {messages.map((item, index) => <li key={index}>
         <p className="advisor-chat-question">You: {item.question}</p>
-        <div className="advisor-chat-answer"><strong>Advisor answer from saved run</strong><p>{item.response.answer}</p>
+        <div className="advisor-chat-answer"><strong>{item.response.source === 'llm' ? 'Local AI answer' : 'Saved-run answer'}</strong>
+          {item.response.fallback_reason && <p className="advisor-chat-stale">{item.response.fallback_reason === 'not_configured'
+            ? `The local chat model is unavailable. Install Ollama and run: ollama pull ${item.response.model}.`
+            : 'The local chat model could not provide a verified answer, so this uses the saved run’s recorded evidence.'}</p>}
+          <p>{item.response.answer}</p>
           {item.response.evidence.length > 0 && <details><summary>Evidence from this run</summary><ul>
             {item.response.evidence.map((fact) => <li key={fact.id}><strong>{fact.label}</strong><span>{fact.detail}</span></li>)}
           </ul></details>}

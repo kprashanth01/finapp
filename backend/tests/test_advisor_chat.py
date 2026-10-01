@@ -1,5 +1,9 @@
 """Advisor chat answers are tied to one immutable, owned saved run."""
 
+import json
+import pytest
+from urllib.error import URLError
+
 from tests.test_advisory_api import client, create_profile
 from app.database import get_session
 from app.main import app
@@ -95,3 +99,109 @@ def test_chat_summarizes_what_a_saved_run_contains(client):
                 'state:emergency_fund', 'decision', 'recommendation:summary', 'plan:capacity'} <= {
             item['id'] for item in body['evidence']}
         assert user['email'] not in response.text
+
+
+def test_model_chat_answers_open_questions_from_owned_run_evidence(client, monkeypatch):
+    from app.advisory import chat_model
+
+    user, _ = create_profile(client)
+    saved = client.post(f"/users/{user['id']}/advisory-sessions", json={}).json()
+    path = f"/users/{user['id']}/advisory-sessions/{saved['id']}/chat"
+    monkeypatch.setattr(chat_model, '_model_available', lambda _model: True)
+
+    captured = {}
+    def provider(catalog, question, history, model):
+        captured.update(catalog=catalog, question=question, history=history, model=model)
+        return {'answer': 'The saved findings place the emergency reserve ahead of the goal. The linked facts show why.',
+                'evidence_ids': ['recommendation:0', 'state:emergency_fund']}
+    monkeypatch.setattr(chat_model, '_provider_request', provider)
+    question = 'Could you walk me through how my buffer relates to my laptop goal?'
+    response = client.post(path, json={'question': question, 'use_model': True,
+                                       'history': [{'question': 'What should I focus on?',
+                                                    'answer': 'The saved plan focuses on the emergency reserve.'}]})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body['source'] == 'llm'
+    assert body['fallback_reason'] is None
+    assert body['session_id'] == saved['id']
+    assert body['state_fingerprint'] == saved['result']['explanation']['state_fingerprint']
+    assert [item['id'] for item in body['evidence']] == ['recommendation:0', 'state:emergency_fund']
+    assert captured['question'] == question
+    assert captured['history'][0].question == 'What should I focus on?'
+    assert captured['model'] == 'qwen3.5:4b'
+    assert 'state:emergency_fund' in {item.id for item in captured['catalog']}
+    assert 'recommendation:0' in {item.id for item in captured['catalog']}
+    assert user['email'] not in json.dumps([item.model_dump() for item in captured['catalog']])
+
+    monkeypatch.setattr(chat_model, '_provider_request', lambda *_args: (_ for _ in ()).throw(AssertionError('provider called')))
+    guided = client.post(path, json={'question': 'what does this saved run contain?'}).json()
+    assert guided['source'] == 'saved_run'
+
+
+def test_model_chat_missing_provider_or_untrusted_output_falls_back(client, monkeypatch):
+    from app.advisory import chat_model
+
+    user, _ = create_profile(client)
+    saved = client.post(f"/users/{user['id']}/advisory-sessions", json={}).json()
+    path = f"/users/{user['id']}/advisory-sessions/{saved['id']}/chat"
+    monkeypatch.setattr(chat_model, '_model_available', lambda _model: False)
+    monkeypatch.setattr(chat_model, '_provider_request', lambda *_args: (_ for _ in ()).throw(AssertionError('provider called')))
+    missing = client.post(path, json={'question': 'What does this saved run contain?', 'use_model': True}).json()
+    assert missing['source'] == 'saved_run'
+    assert missing['fallback_reason'] == 'not_configured'
+    assert missing['model'] == 'qwen3.5:4b'
+
+    monkeypatch.setattr(chat_model, '_model_available', lambda _model: (_ for _ in ()).throw(URLError('offline')))
+    offline = client.post(path, json={'question': 'What does this saved run contain?', 'use_model': True}).json()
+    assert offline['source'] == 'saved_run'
+    assert offline['fallback_reason'] == 'provider_error'
+
+    monkeypatch.setattr(chat_model, '_model_available', lambda _model: True)
+    for invalid in (
+        {'answer': 'Your guaranteed return is 99%.', 'evidence_ids': ['state:emergency_fund']},
+        {'answer': 'The saved findings point to the emergency reserve.', 'evidence_ids': ['unknown-fact']},
+        {'answer': 'Your emergency fund is $4000.00.', 'evidence_ids': ['state:emergency_fund']},
+    ):
+        monkeypatch.setattr(chat_model, '_provider_request', lambda *_args: invalid)
+        fallback = client.post(path, json={'question': 'Tell me about the run', 'use_model': True}).json()
+        assert fallback['source'] == 'saved_run'
+        assert fallback['fallback_reason'] == 'invalid_output'
+        assert invalid['answer'] not in fallback['answer']
+    monkeypatch.setattr(chat_model, '_provider_request', lambda *_args: (_ for _ in ()).throw(TimeoutError()))
+    failed = client.post(path, json={'question': 'Tell me about the run', 'use_model': True}).json()
+    assert failed['source'] == 'saved_run'
+    assert failed['fallback_reason'] == 'provider_error'
+
+
+def test_model_chat_accepts_a_formatted_saved_amount_but_rejects_new_amounts():
+    from app.advisory.chat import ChatEvidence
+    from app.advisory.chat_model import _validated_draft
+
+    catalog = [ChatEvidence(id='state:monthly_income', label='Gross monthly income', detail='5000.00')]
+    draft, evidence = _validated_draft({'answer': 'Your saved gross monthly income is 5,000.00 profile currency.',
+                                        'evidence_ids': ['state:monthly_income']}, catalog)
+    assert draft.answer.startswith('Your saved gross')
+    assert evidence == catalog
+    with pytest.raises(ValueError):
+        _validated_draft({'answer': 'Your saved gross monthly income is 9,000.00 profile currency.',
+                          'evidence_ids': ['state:monthly_income']}, catalog)
+    different_fact = catalog + [ChatEvidence(id='state:emergency_fund', label='Emergency fund', detail='4000.00')]
+    with pytest.raises(ValueError):
+        _validated_draft({'answer': 'Your emergency fund is 5000.00 profile currency.',
+                          'evidence_ids': ['state:emergency_fund']}, different_fact)
+
+
+def test_model_chat_can_explain_run_contents_without_dumping_financial_figures(client, monkeypatch):
+    from app.advisory import chat_model
+
+    user, _ = create_profile(client)
+    saved = client.post(f"/users/{user['id']}/advisory-sessions", json={}).json()
+    path = f"/users/{user['id']}/advisory-sessions/{saved['id']}/chat"
+    monkeypatch.setattr(chat_model, '_model_available', lambda _model: True)
+    monkeypatch.setattr(chat_model, '_provider_request',
+                        lambda *_args: {'answer': 'The saved run includes a financial snapshot, agent findings, and a proposed monthly plan.',
+                                        'evidence_ids': ['snapshot:contents', 'plan:contents']})
+    answer = client.post(path, json={'question': 'What does this run contain?', 'use_model': True}).json()
+    assert answer['source'] == 'llm'
+    assert [item['id'] for item in answer['evidence']] == ['snapshot:contents', 'plan:contents']
+    assert user['email'] not in json.dumps(answer)

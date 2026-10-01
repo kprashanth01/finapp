@@ -1,7 +1,4 @@
-"""Read-only answers assembled from one saved Advisor result.
-
-Questions select a stored topic; their text never enters an answer or a model prompt.
-"""
+"""Read-only answers assembled from one saved Advisor result."""
 
 import re
 from typing import Literal
@@ -23,6 +20,14 @@ class ChatQuestion(BaseModel):
     model_config = ConfigDict(extra='forbid')
     question: str = Field(min_length=3, max_length=500, pattern=r'\S')
     context_topic: Topic | None = None
+    use_model: bool = False
+    history: list['ChatTurn'] = Field(default_factory=list, max_length=6)
+
+
+class ChatTurn(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    question: str = Field(min_length=3, max_length=500)
+    answer: str = Field(min_length=1, max_length=1200)
 
 
 class ChatEvidence(BaseModel):
@@ -32,7 +37,9 @@ class ChatEvidence(BaseModel):
 
 
 class ChatAnswer(BaseModel):
-    source: Literal['saved_run'] = 'saved_run'
+    source: Literal['saved_run', 'llm'] = 'saved_run'
+    fallback_reason: Literal['not_configured', 'provider_error', 'invalid_output'] | None = None
+    model: str | None = None
     session_id: int
     state_fingerprint: str
     topic: Topic

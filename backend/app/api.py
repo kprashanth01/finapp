@@ -10,6 +10,7 @@ from app.advisory.session_types import AdvisoryHistoryPage, AdvisorySessionRead,
 from app.advisory.planning_types import AdvisoryResultV2
 from app.advisory.reasoning import ReasoningResponse, explain_run
 from app.advisory.chat import ChatAnswer, ChatQuestion, answer_saved_question
+from app.advisory.chat_model import answer_with_local_model
 from app.advisory.state import PlanningState
 from app.advisory.rules import RULE_VERSION
 from app.goal_api import load_active_goals
@@ -240,4 +241,5 @@ def chat_about_saved_advisory_session(user_id: int, session_id: int, payload: Ch
     if not row.result_payload.get('explanation'):
         raise HTTPException(status_code=422, detail='This earlier session has no explanation trace. Run a new analysis.')
     result = AdvisoryResultV2.model_validate(row.result_payload)
-    return answer_saved_question(result, session_id, payload)
+    return (answer_with_local_model(result, session_id, payload) if payload.use_model else
+            answer_saved_question(result, session_id, payload))

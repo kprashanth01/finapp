@@ -250,6 +250,12 @@ The response must cite evidence IDs belonging to that exact run. The server vali
 
 To try it: sign in, open **Advisor**, run an analysis, then press **Generate explanation** under the plan. Expand each section's linked evidence to see its source facts. For an RL example, choose **Trained RL**, press **Run selected method**, then use the same explanation button under that result. With no API key, expect **Deterministic explanation** and a configuration note; with a working key, expect **AI-written synthesis**. The exact educational guidance disclaimer appears below both.
 
+## Local Advisor chat
+
+The **Ask about this saved run** panel below an Advisor session now uses a local Ollama chat model for open-ended questions and short follow-ups. [Install Ollama](https://ollama.com/download) if needed, run `ollama pull qwen3.5:4b`, then restart FastAPI. No API key or cloud model is needed for this chat. The default model is `qwen3.5:4b`; `FINAPP_CHAT_MODEL` can select another locally installed Ollama model. The model download is about 3.4 GB. Its responses may be slower on a CPU.
+
+The browser sends the question and up to six earlier question/answer pairs to the API. The API sends those and a catalogue of the **selected saved run's** financial values, agent findings, decision, recommendation, plan and limitations to Ollama at `127.0.0.1:11434`. Broad overview questions receive a compact catalogue of the run's sections. Account name, email, and authentication data are excluded. Messages and generated answers are not saved to advisory history. The server checks the model's evidence IDs and rejects numbers absent from the cited facts, assumed currencies, and certain unsupported instructions or promises. These checks reduce errors, but cannot prove every sentence correct; the evidence cards remain available to inspect. If Ollama is absent or its answer fails validation, the UI labels the answer as a saved-run fallback.
+
 ## Synthetic financial population (Issue 2)
 
 The research population generator creates **exactly 12,000 anonymous synthetic profiles** from one seed. It does not use the account database, create app users, change the existing `coverage-scenarios-v1` DQN cases, or retrain a model. Each row has a synthetic ID, persona, generation seed, age, base monthly income, aggregate monthly expenses, debt balance and payment, savings contribution, emergency fund, savings balance, risk preference, and investment horizon. Money is written as two-decimal strings in INR. There are no names or email addresses.
