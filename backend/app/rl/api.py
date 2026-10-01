@@ -1,5 +1,6 @@
 """Authenticated, read-only policy comparison on the owner's saved profile."""
 
+from datetime import date
 from pathlib import Path
 from typing import Literal
 
@@ -14,7 +15,9 @@ from app.advisory.reasoning import ReasoningResponse, explain_run
 from app.auth_dependencies import require_owner
 from app.database import get_session
 from app.goal_api import load_active_goals
-from app.models import FinancialProfile, User
+from app.models import FinancialMonth, FinancialProfile, User
+from app.rl.account_months import FinancialMonthRead, FinancialMonthWrite, evaluate_account_month
+from app.rl.account_months_chat import MonthQuestion, answer_month_question
 from app.rl.baselines import RandomBaseline, RuleBaseline
 from app.rl.dqn_artifact import DEFAULT_ARTIFACT_DIR, read_training_evidence
 from app.rl.environment import AgentSelectionEnv
@@ -90,6 +93,99 @@ def list_research_actions(user_id: int, session: Session = Depends(get_session))
     if session.get(User, user_id) is None:
         raise HTTPException(status_code=404, detail="User not found.")
     return DEFAULT_CATALOG.describe()
+
+
+@router.get("/users/{user_id}/research/monthly-demo", dependencies=[Depends(require_owner)])
+def get_monthly_demo(user_id: int, session: Session = Depends(get_session)):
+    """Expose a reproducible synthetic monthly case, not the owner's profile."""
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    from app.rl.monthly_demo import build_monthly_demo
+
+    try:
+        return build_monthly_demo()
+    except (OSError, ValueError, ImportError) as error:
+        raise HTTPException(status_code=503, detail=f"Monthly demo unavailable: {error}") from error
+
+
+@router.get("/users/{user_id}/financial-months", response_model=list[FinancialMonthRead],
+            dependencies=[Depends(require_owner)])
+def list_financial_months(user_id: int, session: Session = Depends(get_session)):
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return session.scalars(select(FinancialMonth).where(FinancialMonth.user_id == user_id)
+                           .order_by(FinancialMonth.period)).all()
+
+
+@router.put("/users/{user_id}/financial-months/{period}", response_model=FinancialMonthRead,
+            dependencies=[Depends(require_owner)])
+def save_financial_month(user_id: int, period: str, payload: FinancialMonthWrite,
+                         session: Session = Depends(get_session)):
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    if period != payload.period.isoformat():
+        raise HTTPException(status_code=422, detail="The month in the URL must match the submitted month.")
+    row = session.scalar(select(FinancialMonth).where(FinancialMonth.user_id == user_id,
+                                                      FinancialMonth.period == payload.period))
+    if row is None:
+        row = FinancialMonth(user_id=user_id, **payload.model_dump())
+        session.add(row)
+    else:
+        for field, value in payload.model_dump().items():
+            setattr(row, field, value)
+    session.commit()
+    session.refresh(row)
+    return row
+
+
+@router.delete("/users/{user_id}/financial-months/{period}", status_code=204,
+               dependencies=[Depends(require_owner)])
+def delete_financial_month(user_id: int, period: str, session: Session = Depends(get_session)):
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    try:
+        parsed_period = date.fromisoformat(period)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="Use a YYYY-MM-01 month.") from error
+    row = session.scalar(select(FinancialMonth).where(FinancialMonth.user_id == user_id,
+                                                      FinancialMonth.period == parsed_period))
+    if row is None:
+        raise HTTPException(status_code=404, detail="Financial month not found.")
+    session.delete(row)
+    session.commit()
+
+
+@router.get("/users/{user_id}/financial-months/{period}/advice", dependencies=[Depends(require_owner)])
+def get_financial_month_advice(user_id: int, period: str,
+                               focus: Literal["all", "budget", "debt", "emergency", "goal", "risk", "investment"] = "all",
+                               session: Session = Depends(get_session)):
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    history = session.scalars(select(FinancialMonth).where(FinancialMonth.user_id == user_id)
+                              .order_by(FinancialMonth.period)).all()
+    selected = next((row for row in history if row.period.isoformat() == period), None)
+    if selected is None:
+        raise HTTPException(status_code=404, detail="Financial month not found.")
+    try:
+        return evaluate_account_month(history, selected, focus=focus)
+    except (OSError, ValueError, ImportError) as error:
+        raise HTTPException(status_code=503, detail=f"Monthly advice unavailable: {error}") from error
+
+
+@router.post("/users/{user_id}/financial-months/{period}/ask", dependencies=[Depends(require_owner)])
+def ask_financial_month(user_id: int, period: str, payload: MonthQuestion,
+                        session: Session = Depends(get_session)):
+    if session.get(User, user_id) is None:
+        raise HTTPException(status_code=404, detail="User not found.")
+    history = session.scalars(select(FinancialMonth).where(FinancialMonth.user_id == user_id)
+                              .order_by(FinancialMonth.period)).all()
+    selected = next((row for row in history if row.period.isoformat() == period), None)
+    if selected is None:
+        raise HTTPException(status_code=404, detail="Financial month not found.")
+    try:
+        return answer_month_question(evaluate_account_month(history, selected, focus=payload.focus), payload.question)
+    except (OSError, ValueError, ImportError) as error:
+        raise HTTPException(status_code=503, detail=f"Monthly answer unavailable: {error}") from error
 
 
 @router.get("/users/{user_id}/research/training-evidence", dependencies=[Depends(require_owner)])

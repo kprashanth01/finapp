@@ -4,6 +4,8 @@ import {
   runManualResearchAction,
 } from '../services/api.js'
 import EvaluationDashboard from './EvaluationDashboard.jsx'
+import MonthlyDemo from './MonthlyDemo.jsx'
+import AccountMonths from './AccountMonths.jsx'
 
 const agentNames = {
   budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', goal: 'Goal planning',
@@ -280,7 +282,7 @@ function ManualExperiment({ userId }) {
   </details>
 }
 
-export default function Research({ userId, hasProfile, onOpenProfile }) {
+export default function Research({ userId, user, profile, hasProfile, onOpenProfile }) {
   const [comparison, setComparison] = useState(null)
   const [evaluation, setEvaluation] = useState(null)
   const [trainingEvidence, setTrainingEvidence] = useState(null)
@@ -315,6 +317,10 @@ export default function Research({ userId, hasProfile, onOpenProfile }) {
       <p>Try an agent selection on your saved profile, then inspect results from generated test cases.</p></div>
       {!hasProfile && <button type="button" className="primary-action" onClick={onOpenProfile}>Create a profile</button>}
     </div>
+    <AccountMonths key={userId} userId={userId} user={user} profile={profile} />
+    <details className="research-advanced"><summary>View the prepared research example</summary>
+      <MonthlyDemo userId={userId} />
+    </details>
     <section className="research-personal" aria-labelledby="research-personal-heading">
     <h3 id="research-personal-heading" className="research-personal-heading">Explore your saved profile</h3>
     <p className="research-meta">Try a selection or compare methods using your saved values. Neither action changes your profile or saves an Advisor plan.</p>

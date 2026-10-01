@@ -63,7 +63,7 @@ def test_chat_limits_scope_and_requires_owned_explained_session(client):
     assert unsupported.status_code == 200
     assert unsupported.json()['topic'] == 'unsupported'
     assert 'guaranteed stock return' not in unsupported.json()['answer']
-    assert client.post(path, json={"question": "How much should I save?"}).json()['topic'] == 'unsupported'
+    assert client.post(path, json={"question": "How much should I save?"}).json()['topic'] == 'recommendation'
     assert client.post(path, json={"question": " "}).status_code == 422
     assert client.post(path, json={"question": "a" * 501}).status_code == 422
     assert client.post(path, json={"question": "Why?", "context_topic": "secret"}).status_code == 422
@@ -189,6 +189,41 @@ def test_model_chat_accepts_a_formatted_saved_amount_but_rejects_new_amounts():
     with pytest.raises(ValueError):
         _validated_draft({'answer': 'Your emergency fund is 5000.00 profile currency.',
                           'evidence_ids': ['state:emergency_fund']}, different_fact)
+    with pytest.raises(ValueError):
+        _validated_draft({'answer': 'Your income is 5000.00 currency.',
+                          'evidence_ids': ['state:monthly_income']}, catalog)
+    cleaned, _ = _validated_draft({'answer': 'Your income is 5000.00 profile currency [id: state:monthly_income].',
+                                   'evidence_ids': ['state:monthly_income']}, catalog)
+    assert cleaned.answer == 'Your income is 5000.00 profile currency.'
+    cleaned, _ = _validated_draft({'answer': 'Your income is 5000.00 profile currency (evidence_ids: [1, 2]).',
+                                   'evidence_ids': ['state:monthly_income']}, catalog)
+    assert cleaned.answer == 'Your income is 5000.00 profile currency.'
+    cleaned, _ = _validated_draft({'answer': 'Your income is 5000.00 profile currency [evidence: state:monthly_income].',
+                                   'evidence_ids': ['state:monthly_income']}, catalog)
+    assert cleaned.answer == 'Your income is 5000.00 profile currency.'
+
+
+def test_saved_run_model_retries_an_unsupported_draft_for_a_natural_question(client, monkeypatch):
+    from app.advisory import chat_model
+
+    user, _ = create_profile(client)
+    saved = client.post(f"/users/{user['id']}/advisory-sessions", json={}).json()
+    path = f"/users/{user['id']}/advisory-sessions/{saved['id']}/chat"
+    monkeypatch.setattr(chat_model, '_model_available', lambda _model: True)
+    attempts = []
+    def provider(catalog, question, history, model, feedback=None):
+        attempts.append(feedback)
+        if len(attempts) == 1:
+            return {'answer': 'You should save 999999.00 profile currency.',
+                    'evidence_ids': ['plan:capacity']}
+        return {'answer': 'The saved run records a monthly savings budget, but the exact amount you should save depends on the recorded plan and your current needs.',
+                'evidence_ids': ['plan:capacity']}
+    monkeypatch.setattr(chat_model, '_provider_request', provider)
+    result = client.post(path, json={'question': 'How much should I save?', 'use_model': True}).json()
+    assert result['source'] == 'llm'
+    assert result['topic'] == 'recommendation'
+    assert len(attempts) == 2
+    assert 'failed verification' in attempts[1]
 
 
 def test_model_chat_can_explain_run_contents_without_dumping_financial_figures(client, monkeypatch):
