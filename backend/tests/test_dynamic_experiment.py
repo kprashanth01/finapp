@@ -54,7 +54,12 @@ def test_every_method_uses_each_identical_test_month_and_real_agent_results(epis
 def test_random_is_reproducible_and_training_users_are_rejected(episodes):
     first = run_paired_experiment(episodes.test, model=FixedPolicy(), random_seed=17)
     second = run_paired_experiment(episodes.test, model=FixedPolicy(), random_seed=17)
-    assert first == second
+    assert [{key: value for key, value in row.items() if key != "execution_time_ns"}
+            for row in first["rows"]] == [
+                {key: value for key, value in row.items() if key != "execution_time_ns"}
+                for row in second["rows"]]
+    assert {key: value for key, value in first["manifest"].items() if key != "raw_rows_sha256"} == {
+        key: value for key, value in second["manifest"].items() if key != "raw_rows_sha256"}
     with pytest.raises(ValueError, match="test"):
         run_paired_experiment(episodes.training, model=FixedPolicy())
     with pytest.raises(ValueError, match="duplicate"):

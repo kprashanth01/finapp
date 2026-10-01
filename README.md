@@ -496,6 +496,8 @@ FastAPI also provides interactive API documentation at <http://localhost:8000/do
 
 For the paired synthetic monthly experiment (Random, Rule-Based, trained DQN), see [the experiment runner and raw output instructions](docs/paired-monthly-experiment.md). It uses the committed held-out cohort and runs offline; no new website screen is added by this experiment.
 
+For the paired cohort's measured risk coverage, agent calls, reward, timing, and explicitly unavailable goal and recommendation metrics, see [research metrics](docs/research-metrics.md).
+
 After installing development requirements, run the focused API checks:
 
 ```powershell
