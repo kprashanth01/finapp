@@ -77,3 +77,29 @@ def test_unavailable_dqn_is_reported_without_fallback(monkeypatch):
     orchestration.cached_dqn_model.cache_clear()
     with pytest.raises(orchestration.ModelUnavailableError):
         orchestration.run_orchestration(state(), mode="rl", seed=42)
+
+
+def test_configured_mode_resolves_each_policy_without_changing_explicit_comparisons(monkeypatch):
+    from app.rl import orchestration
+
+    for configured, expected in (("rule_based", "rule_based"), ("random", "random"),
+                                 ("trained_rl", "trained_rl")):
+        monkeypatch.setenv("ORCHESTRATOR_MODE", configured)
+        result = orchestration.run_orchestration(state(), seed=17)
+        assert result["mode"] == expected
+        assert result["selected_agents"] == [item["agent_id"] for item in result["agent_results"]]
+        assert result["action"] == action_for(result["selected_agents"])
+        if expected == "trained_rl":
+            assert result["policy_version"] == orchestration.MODEL_VERSION
+            assert result["explanation"]["method"] == "rl"
+    monkeypatch.setenv("ORCHESTRATOR_MODE", "random")
+    assert orchestration.run_orchestration(state(), mode="rule_based", seed=17)["mode"] == "rule_based"
+
+
+def test_bad_configured_mode_is_rejected_without_fallback(monkeypatch):
+    from app.rl import orchestration
+
+    monkeypatch.setenv("ORCHESTRATOR_MODE", "unknown")
+    with pytest.raises(orchestration.InvalidOrchestratorModeError, match="ORCHESTRATOR_MODE"):
+        orchestration.run_orchestration(state(), seed=42)
+    assert orchestration.run_orchestration(state(), mode="rule_based", seed=42)["mode"] == "rule_based"

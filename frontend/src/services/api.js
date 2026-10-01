@@ -106,8 +106,10 @@ export async function explainLiveRun(userId, result) {
 }
 
 export async function runOrchestration(userId, mode, seed = 42) {
-  return (await api.post(`/users/${userId}/research/orchestration-run`, { mode, seed }, {
-    timeout: mode === 'rl' ? 30000 : 5000,
+  return (await api.post(`/users/${userId}/research/orchestration-run`, {
+    ...(mode === 'configured' ? {} : { mode }), seed,
+  }, {
+    timeout: ['rl', 'trained_rl', 'configured'].includes(mode) ? 30000 : 5000,
   })).data
 }
 

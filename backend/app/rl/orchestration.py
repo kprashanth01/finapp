@@ -1,6 +1,7 @@
 """Run all three selection policies through the same registered agents and score."""
 
 from functools import lru_cache
+import os
 from typing import Literal
 
 from app.advisory.planning_types import PlanningAgentResult
@@ -16,7 +17,24 @@ from app.rl.environment import AgentSelectionEnv
 from app.rl.observation import encode_observation
 
 
-Mode = Literal["rule_based", "random", "rl"]
+Mode = Literal["rule_based", "random", "trained_rl", "rl"]
+CONFIGURED_MODES = ("rule_based", "random", "trained_rl")
+
+
+class InvalidOrchestratorModeError(ValueError):
+    """The server's default selection policy is not a supported mode."""
+
+
+def configured_mode() -> Mode:
+    mode = os.getenv("ORCHESTRATOR_MODE", "rule_based").strip().lower()
+    if mode not in CONFIGURED_MODES:
+        raise InvalidOrchestratorModeError(
+            "ORCHESTRATOR_MODE must be rule_based, random, or trained_rl.")
+    return mode
+
+
+def resolve_mode(mode: Mode | None) -> Mode:
+    return configured_mode() if mode is None else mode
 
 
 class ModelUnavailableError(Exception):
@@ -49,12 +67,13 @@ def get_policy(mode: Mode, seed: int) -> BaselinePolicy:
         return RuleBaseline()
     if mode == "random":
         return RandomBaseline(seed=seed)
-    if mode == "rl":
+    if mode in ("rl", "trained_rl"):
         return DQNPolicy()
-    raise ValueError("Choose rule_based, random, or rl.")
+    raise ValueError("Choose rule_based, random, or trained_rl.")
 
 
-def run_orchestration(state: PlanningState, *, mode: Mode, seed: int) -> dict:
+def run_orchestration(state: PlanningState, *, mode: Mode | None = None, seed: int = 42) -> dict:
+    mode = resolve_mode(mode)
     registry = AgentRegistry.default()
     environment = AgentSelectionEnv(state, registry=registry)
     environment.reset(seed=seed)
@@ -66,7 +85,7 @@ def run_orchestration(state: PlanningState, *, mode: Mode, seed: int) -> dict:
     advice_model = None
     selected = set(info["selected_agents"])
     decision = OrchestratorDecision(
-        method=mode, rule_version=RULE_VERSION,
+        method="rl" if mode == "trained_rl" else mode, rule_version=RULE_VERSION,
         selections=[AgentSelection(
             agent_id=agent_id, selected=agent_id in selected,
             reason=("Selected" if agent_id in selected else "Not selected") + f" by {mode} policy.",
@@ -86,7 +105,7 @@ def run_orchestration(state: PlanningState, *, mode: Mode, seed: int) -> dict:
         }
     return {
         "mode": mode,
-        "policy_version": MODEL_VERSION if mode == "rl" else RULE_VERSION if mode == "rule_based" else "seeded-random-v1",
+        "policy_version": MODEL_VERSION if mode in ("rl", "trained_rl") else RULE_VERSION if mode == "rule_based" else "seeded-random-v1",
         "seed": seed if mode == "random" else None,
         "source": "saved_profile",
         "as_of_date": state.as_of_date.isoformat(),

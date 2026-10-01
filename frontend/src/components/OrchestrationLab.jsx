@@ -11,7 +11,8 @@ const agentNames = {
 }
 
 const modes = [
-  ['rule_based', 'Rule based'], ['random', 'Seeded random'], ['rl', 'Trained RL'],
+  ['configured', 'Server default'], ['rule_based', 'Rule based'],
+  ['random', 'Seeded random'], ['trained_rl', 'Trained RL'],
 ]
 
 function evidenceText(item) {
@@ -25,7 +26,7 @@ export function OrchestrationResult({ result, userId, onOpenProfile = () => {}, 
   const complete = result.plan_readiness.can_build_full_plan
   return <div className="orchestration-result" aria-live="polite">
     <div className="orchestration-result-head">
-      <div><p className="research-small-label">{modes.find(([id]) => id === result.mode)?.[1]} · Action {result.action}</p>
+      <div><p className="research-small-label">{result.mode === 'rl' ? 'Trained RL' : modes.find(([id]) => id === result.mode)?.[1]} · Action {result.action}</p>
         <h3>{result.summary.title}</h3><p>{result.summary.text}</p></div>
       <div className="orchestration-score"><strong>{result.total_reward.toFixed(2)}</strong><span>proxy points</span></div>
     </div>
@@ -54,7 +55,7 @@ export function OrchestrationResult({ result, userId, onOpenProfile = () => {}, 
 }
 
 export default function OrchestrationLab({ userId, onOpenProfile, onOpenGoal }) {
-  const [mode, setMode] = useState('rl')
+  const [mode, setMode] = useState('configured')
   const [seed, setSeed] = useState('42')
   const [result, setResult] = useState(null)
   const [running, setRunning] = useState(false)
@@ -79,7 +80,8 @@ export default function OrchestrationLab({ userId, onOpenProfile, onOpenGoal }) 
       {mode === 'random' && <label>Random seed<input type="number" min="0" max="1000000000" step="1" required value={seed} disabled={running} onChange={(event) => setSeed(event.target.value)} /></label>}
       <button className="primary-action" type="submit" disabled={running}>{running ? 'Running…' : 'Run selected method'}</button>
     </form>
-    {mode === 'rl' && <p className="orchestration-mode-note">Trained RL uses the committed DQN model. It may choose fewer agents, so a complete monthly plan is shown only when all required checks ran.</p>}
+    {mode === 'configured' && <p className="orchestration-mode-note">Server default uses the method configured for this app. The result shows which policy ran; a complete plan appears only when all required checks ran.</p>}
+    {mode === 'trained_rl' && <p className="orchestration-mode-note">Trained RL uses the committed DQN model. It may choose fewer agents, so a complete monthly plan is shown only when all required checks ran.</p>}
     {error && <p role="alert" className="research-error">{error}</p>}
     {result && <OrchestrationResult result={result} userId={userId} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} />}
   </section>

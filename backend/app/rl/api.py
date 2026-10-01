@@ -20,7 +20,8 @@ from app.rl.dqn_artifact import DEFAULT_ARTIFACT_DIR, read_training_evidence
 from app.rl.environment import AgentSelectionEnv
 from app.rl.evaluation import read_evaluation_report
 from app.rl.observation import FEATURE_NAMES, OBSERVATION_VERSION
-from app.rl.orchestration import ModelUnavailableError, run_orchestration
+from app.rl.orchestration import (InvalidOrchestratorModeError, ModelUnavailableError,
+                                  run_orchestration)
 from app.rl.policy import FittedQPolicy, POLICY_VERSION
 from app.rl.reward import REWARD_VERSION
 from app.rl.selection import ACTION_VERSION, DEFAULT_CATALOG
@@ -41,11 +42,12 @@ class ManualActionRequest(BaseModel):
 
 
 class OrchestrationRunRequest(BaseModel):
-    mode: Literal["rule_based", "random", "rl"]
+    mode: Literal["rule_based", "random", "trained_rl", "rl"] | None = None
     seed: int = Field(default=42, ge=0, le=1_000_000_000)
 
 
 class OrchestrationReasoningRequest(OrchestrationRunRequest):
+    mode: Literal["rule_based", "random", "trained_rl", "rl"]
     state_fingerprint: str = Field(min_length=64, max_length=64)
     action: int = Field(ge=0)
 
@@ -109,7 +111,7 @@ def run_policy_on_saved_profile(user_id: int, payload: OrchestrationRunRequest,
     state = _saved_state(user_id, session)
     try:
         return run_orchestration(state, mode=payload.mode, seed=payload.seed)
-    except ModelUnavailableError as error:
+    except (InvalidOrchestratorModeError, ModelUnavailableError) as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
 
 
@@ -122,7 +124,7 @@ def explain_live_orchestration(user_id: int, payload: OrchestrationReasoningRequ
         raise HTTPException(status_code=409, detail='The saved profile changed. Run the selection again.')
     try:
         result = run_orchestration(state, mode=payload.mode, seed=payload.seed)
-    except ModelUnavailableError as error:
+    except (InvalidOrchestratorModeError, ModelUnavailableError) as error:
         raise HTTPException(status_code=503, detail=str(error)) from error
     if result['action'] != payload.action:
         raise HTTPException(status_code=409, detail='The selected action changed. Run the selection again.')
