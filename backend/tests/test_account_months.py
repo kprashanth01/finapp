@@ -104,3 +104,25 @@ def test_month_rejects_inconsistent_finances(clients):
     invalid["emergency_fund"] = "8000"
     assert owner.put(base, headers=HEADERS, json=invalid).status_code == 422
     assert owner.put(base, headers=HEADERS, json=month("2026-08-01", "5000")).status_code == 422
+
+
+def test_investment_question_uses_the_requested_check_not_just_remaining_cash(clients, monkeypatch):
+    from app.rl import account_months_chat
+
+    owner, _, _ = clients
+    user_id = signup(owner, "investor@example.org")
+    row = month("2026-06-01", "75000")
+    row.update(monthly_expenses="46700", fixed_expenses="15000", scheduled_emi="25000",
+               paid_emi="25000", savings="0", emergency_fund="0", outstanding_debt="150000")
+    path = f"/users/{user_id}/financial-months/{row['period']}"
+    assert owner.put(path, headers=HEADERS, json=row).status_code == 200
+    monkeypatch.setattr(account_months_chat, "_model_available", lambda model: False)
+    response = owner.post(f"{path}/ask", headers=HEADERS, json={
+        "question": "How much money should I invest from this month?", "focus": "investment"})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["source"] == "recorded_evidence"
+    assert "not an investment recommendation" in body["answer"].lower()
+    assert "emergency reserve" in body["answer"].lower()
+    assert "loan" in body["answer"].lower()
+    assert "requested:investment:assessment" in {item["id"] for item in body["evidence"]}

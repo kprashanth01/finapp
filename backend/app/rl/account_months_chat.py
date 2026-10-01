@@ -4,6 +4,7 @@ import json
 import os
 import re
 from decimal import Decimal
+from typing import Literal
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -12,10 +13,28 @@ from pydantic import BaseModel, Field, ValidationError
 from app.advisory.chat import ChatEvidence
 from app.advisory.chat_model import (ChatDraft, DEFAULT_MODEL, OLLAMA_URL,
                                      _model_available, _validated_draft)
+from app.rl.account_months import interpret_investment_review
 
 
 class MonthQuestion(BaseModel):
     question: str = Field(min_length=3, max_length=500, pattern=r"\S")
+    focus: Literal["all", "budget", "debt", "emergency", "goal", "risk", "investment"] = "all"
+
+
+def _investment_assessment(report: dict) -> tuple[str, str, dict] | None:
+    focused = report.get("focused_review")
+    if focused and focused["agent_id"] == "investment":
+        interpretation = focused.get("interpretation") or interpret_investment_review(
+            focused["result"], report["context"]["net_cash_flow"])
+        if interpretation:
+            return "requested:investment:assessment", "Investment check you requested", interpretation
+    for method in ("rule_based", "trained_rl"):
+        for result in report["methods"][method].get("agent_results", []):
+            if result["agent_id"] == "investment":
+                interpretation = interpret_investment_review(result, report["context"]["net_cash_flow"])
+                if interpretation:
+                    return f"{method}:investment:assessment", f"{method.replace('_', ' ')} investment check", interpretation
+    return None
 
 
 def _evidence(report: dict) -> list[ChatEvidence]:
@@ -68,17 +87,33 @@ def _evidence(report: dict) -> list[ChatEvidence]:
                 f"{finding['title']}: {finding['reason']}")
     for index, limit in enumerate(report["limitations"]):
         add(f"limit:{index}", "Method limitation", limit)
+    assessment = _investment_assessment(report)
+    if assessment:
+        identifier, label, interpretation = assessment
+        add(identifier, label, " ".join([interpretation["status"], interpretation["headline"],
+                                         *interpretation["steps"]]))
     return items
+
+
+def _investment_intent(report: dict, question: str) -> bool:
+    if re.search(r"\b(?:invest\w*|stocks?|shares?|portfolio|equities|equity|mutual funds?|index funds?)\b",
+                 question, re.I):
+        return True
+    focused = report.get("focused_review") or {}
+    return focused.get("agent_id") == "investment" and bool(re.search(
+        r"\b(?:extra cash|surplus|remainder|leftover|available money|how much|allocate|allocation)\b",
+        question, re.I))
 
 
 def _allocation_answer(report: dict, question: str) -> dict | None:
     """Give a bounded answer to a debt-versus-investing question from entered cash flow."""
-    if not (re.search(r"\binvest(?:ing|ment|ments)?\b", question, re.I)
+    if not (_investment_intent(report, question)
             and re.search(r"\b(?:debt|loan|repay|payment|pay)\b", question, re.I)):
         return None
     month = report["month"]
     cash_flow = Decimal(report["context"]["net_cash_flow"])
     due = Decimal(month["scheduled_emi"])
+    assessment = _investment_assessment(report)
     def money(value: Decimal) -> str:
         return f"{value:,.2f} profile currency"
 
@@ -91,14 +126,17 @@ def _allocation_answer(report: dict, question: str) -> dict | None:
             "Review essential and other spending; if the next payment may be unaffordable, contact the lender before it is due."
         )
     else:
-        answer = (
-            f"After planned spending, including the {money(due)} debt payment due, "
-            f"{money(cash_flow)} remains from this month's income. "
-            "The debt interest rate and your target emergency reserve are not recorded here, "
-            "so I cannot justify an exact split between extra debt payments and investing."
-        )
+        answer = (f"After planned spending, including the {money(due)} debt payment due, "
+                  f"{money(cash_flow)} remains from this month's income. ")
+        if not assessment:
+            answer += ("The debt interest rate and your target emergency reserve are not recorded here, "
+                       "so I cannot justify an exact split between extra debt payments and investing.")
     ids = {"month:monthly_income", "month:monthly_expenses", "month:scheduled_emi",
            "context:net_cash_flow"}
+    if assessment:
+        identifier, _, interpretation = assessment
+        answer += f" {interpretation['headline']} {' '.join(interpretation['steps'])}"
+        ids.add(identifier)
     evidence = [item.model_dump() for item in _evidence(report) if item.id in ids]
     return {"source": "recorded_evidence", "answer": answer, "evidence": evidence,
             "state_fingerprint": report["state_fingerprint"]}
@@ -120,7 +158,7 @@ def _recorded_answer(report: dict, question: str) -> dict:
         cash = f"After planned spending, {money(flow)} remains from this month's income."
     debt = re.search(r"\b(?:debt|loan|repay|payment)\b", question, re.I)
     reserve = re.search(r"\b(?:emergency|reserve|savings?)\b", question, re.I)
-    invest = re.search(r"\b(?:invest|investment|investing)\b", question, re.I)
+    invest = _investment_intent(report, question)
     ids = {"month:monthly_income", "month:monthly_expenses", "context:net_cash_flow"}
     payment_question = (re.search(r"\b(?:miss|missed|unpaid|paid|late)\b", question, re.I)
                         and re.search(r"\b(?:debt|loan|payment)\b", question, re.I))
@@ -154,6 +192,16 @@ def _recorded_answer(report: dict, question: str) -> dict:
                       f"{'covers' if savings >= gap else 'does not cover'} the planned {money(gap)} gap. "
                       "This does not mean those savings were spent or that any bill was missed.")
         ids.update(("month:savings", "context:planned_shortfall", "context:savings_cover_shortfall"))
+    elif invest:
+        assessment = _investment_assessment(report)
+        if assessment:
+            identifier, _, interpretation = assessment
+            answer = f"{cash} {interpretation['headline']} {' '.join(interpretation['steps'])}"
+            ids.add(identifier)
+        else:
+            answer = (f"{cash} " + ("There is no surplus from this month's income for a new investment. "
+                                     if flow <= 0 else "That is the maximum unallocated amount from this month's income, not an investment recommendation. ")
+                      + "A specific amount also depends on your debt interest rate and emergency needs.")
     elif asks_priority and flow < 0:
         answer = (f"Focus first on the {money(-flow)} gap between planned spending and income. "
                   "Review essential bills and which other costs can change before committing money to a new investment or extra debt payment. "
@@ -169,10 +217,6 @@ def _recorded_answer(report: dict, question: str) -> dict:
         answer = (f"You recorded {money(month['emergency_fund'])} set aside for emergencies. "
                   f"{cash} Review what you need for bills before deciding how much to set aside.")
         ids.add("month:emergency_fund")
-    elif invest:
-        answer = (f"{cash} " + ("There is no surplus from this month's income for a new investment. "
-                                 if flow <= 0 else "That is the maximum unallocated amount from this month's income, not an investment recommendation. ")
-                  + "A specific amount also depends on your debt interest rate and emergency needs.")
     else:
         answer = (f"You entered {money(month['monthly_income'])} of income and "
                   f"{money(month['monthly_expenses'])} of planned spending. {cash} "
@@ -207,6 +251,9 @@ def answer_month_question(report: dict, question: str) -> dict:
         "Do not claim the DQN learned from this account, improved future balances, or generally beats rules. "
         "Do not invent an amount, calculate new numbers, promise an outcome, recommend a product, or instruct a transaction. "
         "If an exact allocation is unsupported, explain the available monthly amount and which missing facts prevent a precise split. "
+        "For an investing question, use the investment check assessment when supplied. If it is deferred, say that "
+        "the remaining cash is not an investment recommendation, explain the blockers, and give the next checks. "
+        "Do not answer an investment question with only the remaining cash amount. "
         "Use an amount only when recorded or precomputed in the evidence and call its unit profile currency. "
         "Cite 1-8 exact evidence IDs in evidence_ids; every number in the answer must occur in cited evidence. "
         "Put evidence IDs only in evidence_ids, never in the answer text. Use the exact phrase 'profile currency' for money. "
@@ -215,6 +262,10 @@ def answer_month_question(report: dict, question: str) -> dict:
     messages = [{"role": "system", "content": system},
                 {"role": "user", "content": json.dumps({"evidence": [item.model_dump() for item in catalog]})},
                 {"role": "user", "content": question}]
+    investment_request = (_investment_intent(report, question)
+                          and re.search(r"\b(?:should|how much|amount|can i|could i|now|start|versus|vs|allocate|afford|ready)\b",
+                                        question, re.I))
+    assessment = _investment_assessment(report) if investment_request else None
     for attempt in range(2):
         body = {"model": model, "stream": False, "think": False,
                 "format": ChatDraft.model_json_schema(), "messages": messages,
@@ -244,6 +295,24 @@ def answer_month_question(report: dict, question: str) -> dict:
                     and not re.search(r"\bno (?:debt|loan) payment (?:was|is) (?:recorded as )?missed\b",
                                       draft.answer, re.I)):
                 raise ValueError("The answer implied the scheduled debt payment should stop.")
+            if assessment and assessment[2]["status"] == "deferred":
+                factors = set((report.get("focused_review") or {}).get("result", {}).get("facts", {}).get("factor_codes") or [])
+                next_step = re.search(r"\b(?:build|save|set aside|review|confirm|check|compare|contact|"
+                                      r"priorit\w*|focus|direct|adjust)\b", draft.answer, re.I)
+                addresses_reserve = ("reserve_gap" not in factors or
+                                     re.search(r"\b(?:reserve|emergency sav\w*|savings?)\b", draft.answer, re.I))
+                addresses_debt = ("high_debt" not in factors or
+                                  re.search(r"\b(?:debt|loan|repay\w*|payment)\b", draft.answer, re.I))
+                grounded = (assessment[0] in draft.evidence_ids
+                            and re.search(r"\binvest\w*\b", draft.answer, re.I)
+                            and re.search(r"\b(?:reserve|debt|loan|payment|income|shortfall|horizon)\b",
+                                          draft.answer, re.I)
+                            and re.search(r"\b(?:before|defer\w*|first|priorit\w*|hold off|cannot recommend|can't recommend|"
+                                          r"does not support|not an investment recommendation|not automatically)\b",
+                                          draft.answer, re.I)
+                            and next_step and addresses_reserve and addresses_debt)
+                if not grounded:
+                    raise ValueError("The answer omitted the deferred investment check and its next steps.")
             return {"source": "local_model", "model": model, "answer": draft.answer,
                     "evidence": [item.model_dump() for item in cited],
                     "state_fingerprint": report["state_fingerprint"]}
@@ -255,5 +324,7 @@ def answer_month_question(report: dict, question: str) -> dict:
                                  f"Your previous draft failed verification: {error}. Answer the original question "
                                  "again using only supported facts and valid evidence IDs. "
                                  "Use 'planned shortfall' for income below planned expenses; if unpaid expenses are zero, "
-                                 "do not write the word 'unfunded'. Put citations only in evidence_ids."})
+                                 "do not write the word 'unfunded'. Put citations only in evidence_ids. "
+                                 "If an investment check is deferred, cite its assessment and explain why the cash remainder "
+                                 "is not an investment recommendation and what to review first."})
     return _recorded_answer(report, question)

@@ -166,6 +166,44 @@ def _method_result(state: DynamicPlanningState, action: int, method: Literal["tr
     }
 
 
+def interpret_investment_review(result: dict, cash_flow: Decimal | str) -> dict | None:
+    """Turn the existing investment check into bounded next steps, without setting an allocation."""
+    facts = result.get("facts") or {}
+    status = facts.get("status")
+    if status not in ("deferred", "insufficient_information", "ready_to_consider"):
+        return None
+    factors = set(facts.get("factor_codes") or [])
+    steps = []
+    if "no_current_surplus" in factors or Decimal(cash_flow) <= 0:
+        steps.append("Review planned spending and required loan payments before making a new allocation.")
+    if "missed_payment" in factors:
+        steps.append("Review the scheduled loan payment that was not fully met.")
+    if "reserve_gap" in factors:
+        steps.append("Build an accessible emergency reserve before deciding on a new investment.")
+    if "high_debt" in factors:
+        steps.append("Confirm your loan interest rate and required payment before choosing between extra repayment and investing.")
+    if "income_instability" in factors:
+        steps.append("Check whether the income drop will continue and adjust planned spending.")
+    if "zero_horizon" in factors or "missing_horizon" in factors:
+        steps.append("Set a time horizon for money you may invest.")
+    if "unknown_debt" in factors:
+        steps.append("Record current income and debt payments to assess the debt burden.")
+    if "unknown_reserve" in factors:
+        steps.append("Record scheduled expenses to assess the emergency reserve.")
+    if status == "deferred":
+        headline = ("This month's investment readiness check does not support a new investment amount. "
+                    "Money left after planned spending is not an investment recommendation.")
+    elif status == "insufficient_information":
+        headline = ("This month's investment readiness check needs more information before suggesting an investment amount. "
+                    "Money left after planned spending is not an investment recommendation.")
+    else:
+        headline = ("This month's investment readiness checks passed, but they do not choose an investment amount or product. "
+                    "Money left after planned spending is not an investment recommendation.")
+    if not steps:
+        steps.append("Check your emergency needs, debt interest rate, and goals before choosing an amount.")
+    return {"status": status, "headline": headline, "steps": steps}
+
+
 def evaluate_account_month(history: list[FinancialMonth], selected: FinancialMonth,
                            focus: Literal["all", "budget", "debt", "emergency", "goal", "risk", "investment"] = "all") -> dict:
     """Inference only; never train the policy or update an account balance."""
@@ -188,6 +226,8 @@ def evaluate_account_month(history: list[FinancialMonth], selected: FinancialMon
         result = AgentRegistry.default().get(focus).analyze(state)
         focused = {"agent_id": focus, "selected_by_dqn": focus in trained["selected_agents"],
                    "result": result.model_dump(mode="json")}
+        if focus == "investment":
+            focused["interpretation"] = interpret_investment_review(focused["result"], context["net_cash_flow"])
     return {
         "source": "account_entered_months", "model_version": metadata["model_version"],
         "model_artifact_sha256": metadata["artifact_sha256"],

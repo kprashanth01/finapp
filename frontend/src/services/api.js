@@ -146,8 +146,8 @@ export async function getFinancialMonthAdvice(userId, period, focus = 'all') {
   })).data
 }
 
-export async function askFinancialMonth(userId, period, question) {
-  return (await api.post(`/users/${userId}/financial-months/${period}/ask`, { question }, { timeout: 100000 })).data
+export async function askFinancialMonth(userId, period, question, focus = 'all') {
+  return (await api.post(`/users/${userId}/financial-months/${period}/ask`, { question, focus }, { timeout: 100000 })).data
 }
 
 export async function getResearchTrainingEvidence(userId) {

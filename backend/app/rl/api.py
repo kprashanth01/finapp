@@ -183,7 +183,7 @@ def ask_financial_month(user_id: int, period: str, payload: MonthQuestion,
     if selected is None:
         raise HTTPException(status_code=404, detail="Financial month not found.")
     try:
-        return answer_month_question(evaluate_account_month(history, selected), payload.question)
+        return answer_month_question(evaluate_account_month(history, selected, focus=payload.focus), payload.question)
     except (OSError, ValueError, ImportError) as error:
         raise HTTPException(status_code=503, detail=f"Monthly answer unavailable: {error}") from error
 

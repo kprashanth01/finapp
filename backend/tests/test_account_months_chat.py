@@ -2,6 +2,7 @@
 
 from io import BytesIO
 import json
+from copy import deepcopy
 
 from app.rl import account_months_chat as chat
 
@@ -24,6 +25,21 @@ REPORT = {
     "focused_review": None, "limitations": ["Synthetic training does not establish account outcomes."],
     "state_fingerprint": "a" * 64,
 }
+
+
+def investment_report():
+    report = deepcopy(REPORT)
+    report["month"].update(monthly_income="75000.00", monthly_expenses="46700.00",
+                           scheduled_emi="25000.00", paid_emi="25000.00",
+                           savings="0.00", emergency_fund="0.00", outstanding_debt="150000.00")
+    report["context"]["net_cash_flow"] = "28300.00"
+    report["focused_review"] = {"agent_id": "investment", "selected_by_dqn": False, "result": {
+        "facts": {"status": "deferred", "factor_codes": ["reserve_gap", "high_debt"],
+                  "reasons": ["The emergency reserve is below this month's illustrative target.",
+                              "Scheduled EMI is at least 20% of current income."]},
+        "findings": [{"title": "Investment readiness", "reason":
+                      "The emergency reserve is below this month's illustrative target. Scheduled EMI is at least 20% of current income."}]}}
+    return report
 
 
 def test_question_uses_verified_local_evidence_and_rejects_unfunded_claim(monkeypatch):
@@ -195,3 +211,55 @@ def test_recorded_fallback_answers_whether_savings_cover_the_gap(monkeypatch):
     assert "500" in answer["answer"] and "3,500" in answer["answer"]
     assert {item["id"] for item in answer["evidence"]} >= {
         "month:savings", "context:planned_shortfall", "context:savings_cover_shortfall"}
+
+
+def test_investment_question_rejects_math_only_model_answer(monkeypatch):
+    monkeypatch.setattr(chat, "_model_available", lambda model: True)
+    draft = {"answer": "You have 28300.00 profile currency available after planned spending.",
+             "evidence_ids": ["context:available_for_new_allocations"]}
+    calls = []
+    def provider(*args, **kwargs):
+        calls.append(1)
+        return BytesIO(json.dumps({"message": {"content": json.dumps(draft)}}).encode())
+    monkeypatch.setattr(chat, "urlopen", provider)
+    for question in ("How much should I invest?", "Should I invest now or build savings first?"):
+        answer = chat.answer_month_question(investment_report(), question)
+        assert answer["source"] == "recorded_evidence"
+        assert "not an investment recommendation" in answer["answer"].lower()
+        assert "emergency reserve" in answer["answer"].lower()
+        assert "requested:investment:assessment" in {item["id"] for item in answer["evidence"]}
+    assert len(calls) == 4
+
+
+def test_investment_and_debt_question_uses_readiness_result_without_model(monkeypatch):
+    monkeypatch.setattr(chat, "_model_available", lambda model: False)
+    answer = chat.answer_month_question(
+        investment_report(), "Should I invest this month's remainder or pay extra on my loan?")
+    assert answer["source"] == "recorded_evidence"
+    assert "not an investment recommendation" in answer["answer"].lower()
+    assert "emergency reserve" in answer["answer"].lower()
+    assert "interest rate" in answer["answer"].lower()
+    assert "requested:investment:assessment" in {item["id"] for item in answer["evidence"]}
+
+
+def test_deferred_investment_answer_must_include_next_checks_for_recorded_blockers(monkeypatch):
+    monkeypatch.setattr(chat, "_model_available", lambda model: True)
+    draft = {"answer": "Investment readiness is deferred because the emergency reserve is below target.",
+             "evidence_ids": ["requested:investment:assessment"]}
+    monkeypatch.setattr(chat, "urlopen", lambda *args, **kwargs: BytesIO(json.dumps(
+        {"message": {"content": json.dumps(draft)}}).encode()))
+    answer = chat.answer_month_question(investment_report(), "How much should I invest this month?")
+    assert answer["source"] == "recorded_evidence"
+    assert "build an accessible emergency reserve" in answer["answer"].lower()
+    assert "loan interest rate" in answer["answer"].lower()
+
+
+def test_investment_review_answers_equivalent_stocks_and_extra_cash_questions(monkeypatch):
+    monkeypatch.setattr(chat, "_model_available", lambda model: False)
+    for question in ("Should I put this month's extra cash into stocks?",
+                     "What should I do with the extra cash?",
+                     "Should I buy shares or pay extra on my loan?"):
+        answer = chat.answer_month_question(investment_report(), question)
+        assert "not an investment recommendation" in answer["answer"].lower()
+        assert "emergency reserve" in answer["answer"].lower()
+        assert "requested:investment:assessment" in {item["id"] for item in answer["evidence"]}

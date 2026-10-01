@@ -88,4 +88,17 @@ test('zero-income result names the DQN miss and exposes the rule and requested s
   assert.match(text, /0\.00 months/)
   assert.doesNotMatch(text, /Interest rate:/)
   assert.doesNotMatch(text, /proxy points|ACTION 1|16\.666666/)
+
+  const investmentView = renderToStaticMarkup(createElement(AccountAdvice, { advice: {
+    ...advice, focused_review: { agent_id: 'investment', selected_by_dqn: false,
+      result: { findings: [{ code: 'investment_prerequisites', title: 'Investment readiness',
+        reason: 'The emergency reserve is below target.', evidence: [] }] },
+      interpretation: { status: 'deferred',
+        headline: 'Money left after planned spending is not an investment recommendation.',
+        steps: ['Build an accessible emergency reserve before deciding on a new investment.',
+          'Confirm your loan interest rate before choosing between repayment and investing.'] } },
+  } })).replace(/<[^>]+>/g, ' ')
+  assert.match(investmentView, /What this means for your investment decision/)
+  assert.match(investmentView, /not an investment recommendation/)
+  assert.match(investmentView, /loan interest rate/)
 })

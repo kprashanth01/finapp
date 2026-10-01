@@ -90,6 +90,11 @@ export function AccountAdvice({ advice }) {
     </div>
     {focused && <section className="account-month-focus"><h5>Your requested review: {names[focused.agent_id]}</h5>
       <p>{focused.selected_by_dqn ? 'The DQN also selected this check.' : 'This check ran because you requested it; the DQN did not select it.'}</p>
+      {focused.interpretation && <div className="account-month-interpretation">
+        <strong>What this means for your investment decision</strong>
+        <p>{focused.interpretation.headline}</p>
+        <ul>{focused.interpretation.steps.map((step) => <li key={step}>{step}</li>)}</ul>
+      </div>}
       {focused.result.findings.map((finding) => <article key={finding.code}>
         <strong>{finding.title}</strong><p>{finding.reason}</p>
         {finding.evidence?.length > 0 && <details><summary>See the figures used</summary><ul>{finding.evidence.filter((item) => evidenceValue(item) !== null).map((item, index) =>
@@ -167,7 +172,7 @@ export default function AccountMonths({ userId, user, profile }) {
     event.preventDefault()
     if (busy || !advice || !question.trim()) return
     setBusy(true); setError(''); setAnswer(null)
-    try { setAnswer(await askFinancialMonth(userId, advice.month.period, question.trim())) }
+    try { setAnswer(await askFinancialMonth(userId, advice.month.period, question.trim(), focus)) }
     catch (requestError) { setError(explainApiError(requestError)) }
     finally { setBusy(false) }
   }
