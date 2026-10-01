@@ -2,7 +2,7 @@
 
 import argparse
 from dataclasses import dataclass
-from hashlib import sha256
+from datetime import datetime, timezone
 import json
 import platform
 from pathlib import Path
@@ -15,6 +15,11 @@ from stable_baselines3.common.env_checker import check_env
 import torch
 
 from app.rl.dynamic_environment import DYNAMIC_ENVIRONMENT_VERSION, DynamicAgentSelectionEnv
+from app.rl.dynamic_model_management import (
+    DEFAULT_ARTIFACT_DIR, MODEL_FILENAME, MODEL_NAME,
+    MODEL_VERSION as DYNAMIC_MODEL_VERSION, get_model_metadata as verified_dynamic_metadata,
+    load_model as load_dynamic_dqn, save_model,
+)
 from app.rl.dynamic_reward import DYNAMIC_REWARD_VERSION
 from app.rl.dynamic_scenarios import build_dynamic_episode_splits, DYNAMIC_SCENARIO_VERSION
 from app.rl.dynamic_state import DYNAMIC_FEATURE_NAMES, DYNAMIC_OBSERVATION_VERSION
@@ -22,12 +27,6 @@ from app.rl.population import DEFAULT_SEED
 from app.rl.selection import ACTION_COUNT, ACTION_VERSION
 from app.rl.splits import DEFAULT_SPLIT_SEED
 from app.rl.trajectories import DEFAULT_TRAJECTORY_SEED
-
-
-DYNAMIC_MODEL_VERSION = "dynamic-dqn-monthly-v1"
-MODEL_FILENAME = "dynamic_dqn_policy.zip"
-METADATA_FILENAME = "dynamic_dqn_metadata.json"
-DEFAULT_ARTIFACT_DIR = Path(__file__).parent / "dynamic_model"
 
 
 @dataclass(frozen=True)
@@ -81,42 +80,6 @@ def evaluate_dynamic_model(model: DQN, episodes) -> dict:
     }
 
 
-def verified_dynamic_metadata(directory: Path) -> dict:
-    directory = Path(directory)
-    metadata = json.loads((directory / METADATA_FILENAME).read_text(encoding="utf-8"))
-    expected = {
-        "model_version": DYNAMIC_MODEL_VERSION,
-        "environment_version": DYNAMIC_ENVIRONMENT_VERSION,
-        "observation_version": DYNAMIC_OBSERVATION_VERSION,
-        "action_version": ACTION_VERSION,
-        "reward_version": DYNAMIC_REWARD_VERSION,
-        "scenario_version": DYNAMIC_SCENARIO_VERSION,
-        "feature_names": list(DYNAMIC_FEATURE_NAMES),
-        "action_count": ACTION_COUNT,
-    }
-    if any(metadata.get(key) != value for key, value in expected.items()):
-        raise ValueError("Dynamic DQN artifact schema or version is incompatible.")
-    if (metadata.get("algorithm") != "DQN" or
-            not isinstance(metadata.get("validation_history"), list) or
-            not metadata["validation_history"] or
-            metadata.get("selected_step") not in [row.get("step") for row in metadata["validation_history"]] or
-            not isinstance(metadata.get("test"), dict) or
-            metadata["test"].get("episode_count") != metadata.get("split_counts", {}).get("test")):
-        raise ValueError("Dynamic DQN evidence metadata is incomplete.")
-    if sha256((directory / MODEL_FILENAME).read_bytes()).hexdigest() != metadata.get("artifact_sha256"):
-        raise ValueError("Dynamic DQN model checksum mismatch.")
-    return metadata
-
-
-def load_dynamic_dqn(directory: Path = DEFAULT_ARTIFACT_DIR) -> DQN:
-    verified_dynamic_metadata(directory)
-    model = DQN.load(Path(directory) / MODEL_FILENAME, device="cpu")
-    if (model.action_space.n != ACTION_COUNT or
-            tuple(model.observation_space.shape) != (len(DYNAMIC_FEATURE_NAMES),)):
-        raise ValueError("Dynamic DQN model spaces are incompatible with the current schema.")
-    return model
-
-
 def run_dynamic_training(output_dir: Path, config: DynamicTrainingConfig = DynamicTrainingConfig()) -> dict:
     """Choose the best validation checkpoint and evaluate it once on held-out test users."""
     output_dir = Path(output_dir)
@@ -159,14 +122,15 @@ def run_dynamic_training(output_dir: Path, config: DynamicTrainingConfig = Dynam
             model.save(candidate_path)
     selected = DQN.load(candidate_path, device="cpu")
     test_metrics = evaluate_dynamic_model(selected, splits.test)
-    model_path = output_dir / MODEL_FILENAME
-    candidate_path.replace(model_path)
     metadata = {
-        "model_version": DYNAMIC_MODEL_VERSION, "algorithm": "DQN",
+        "model_name": MODEL_NAME, "model_version": DYNAMIC_MODEL_VERSION, "algorithm": "DQN",
+        "training_date": datetime.now(timezone.utc).date().isoformat(),
+        "training_steps": selected_step, "seed": config.seed,
         "environment_version": DYNAMIC_ENVIRONMENT_VERSION,
         "observation_version": DYNAMIC_OBSERVATION_VERSION,
         "action_version": ACTION_VERSION, "reward_version": DYNAMIC_REWARD_VERSION,
         "scenario_version": DYNAMIC_SCENARIO_VERSION,
+        "dataset_version": DYNAMIC_SCENARIO_VERSION,
         "feature_names": list(DYNAMIC_FEATURE_NAMES), "action_count": ACTION_COUNT,
         "split_counts": splits.summary["user_counts"],
         "dataset": splits.summary,
@@ -179,11 +143,9 @@ def run_dynamic_training(output_dir: Path, config: DynamicTrainingConfig = Dynam
         "reward_note": "Selection proxy only; not a measured financial outcome.",
         "dependencies": {"python": platform.python_version(), "gymnasium": gymnasium.__version__,
                          "stable_baselines3": stable_baselines3.__version__, "torch": torch.__version__},
-        "artifact_sha256": sha256(model_path.read_bytes()).hexdigest(),
     }
-    pending = output_dir / "dynamic_dqn_metadata.pending.json"
-    pending.write_text(json.dumps(metadata, indent=2, allow_nan=False) + "\n", encoding="utf-8")
-    pending.replace(output_dir / METADATA_FILENAME)
+    metadata = save_model(selected, metadata, output_dir)
+    candidate_path.unlink(missing_ok=True)
     environment.close()
     return metadata
 

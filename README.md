@@ -440,6 +440,12 @@ Run the offline experiment from `backend/` after installing `requirements-rl.txt
 
 The CLI prints the saved artifact path, chosen step, and held-out test proxy metrics. This issue adds no new website screen and does not use saved account data. Its score does not measure financial improvement.
 
+### Monthly RL model management (Issue 13)
+
+The monthly DQN has `save_model()`, `load_model()`, `model_exists()`, and `get_model_metadata()` helpers with explicit name, version, UTC training date, checkpoint steps, environment, seed, dataset, and checksum checks. Repeated loads of a valid artifact reuse the in-process model. The older website selector keeps its existing cache. See [docs/rl-model-management.md](docs/rl-model-management.md) for the contract and inspection command.
+
+From `backend/`, run `..\.venv\Scripts\python -m app.rl.dynamic_model_management` to inspect the committed model provenance. This backend milestone adds no new website screen or account-data use.
+
 ## API available now
 
 | Method | Path | Purpose |
