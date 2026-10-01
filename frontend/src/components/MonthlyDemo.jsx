@@ -16,7 +16,7 @@ const money = (value) => value == null ? 'Unavailable' : Number(value).toLocaleS
   minimumFractionDigits: 2, maximumFractionDigits: 2,
 })
 
-function MethodCard({ title, result }) {
+export function MethodCard({ title, result }) {
   const partial = result.recommendation.status === 'partial'
   return <article className="monthly-demo-method">
     <div className="monthly-demo-method-head"><div><h4>{title}</h4>
