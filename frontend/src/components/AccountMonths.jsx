@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MethodCard, evidenceValue } from './MonthlyDemo.jsx'
 import { askFinancialMonth, deleteFinancialMonth, explainApiError, getFinancialMonthAdvice, getFinancialMonths, saveFinancialMonth } from '../services/api.js'
 import MonthlyPlanningSummary from './MonthlyPlanningSummary.jsx'
+import RecordedMonthPlan from './RecordedMonthPlan.jsx'
 
 const names = { budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', risk: 'Risk', investment: 'Investment readiness' }
 const todayMonth = () => {
@@ -110,7 +111,7 @@ export function AccountAdvice({ advice }) {
   </section>
 }
 
-export default function AccountMonths({ userId, user, profile, mode = 'research', onOpenProfile }) {
+export default function AccountMonths({ userId, user, profile, mode = 'research', onOpenProfile, onOpenGoal }) {
   const planning = mode === 'planning'
   const [months, setMonths] = useState([])
   const [draft, setDraft] = useState(() => startingMonth(user, profile))
@@ -197,7 +198,8 @@ export default function AccountMonths({ userId, user, profile, mode = 'research'
     <h3 id="account-months-heading">{planning ? 'Plan for changing income' : 'Build your own month-by-month situation'}</h3>
     <p>Enter an ordinary month first, then enter a later month with changed income or expenses. These are your account's records, separate from the current Profile snapshot. You can correct a month at any time.</p>
     {planning && <p>The first form starts with amounts from your current Profile. Check them for the month you chose. Other planned spending starts with all non-debt expenses; move any essential bills you enter out of that amount so they are counted once. Review the copied balances under Additional month details before saving.</p>}
-    {planning && !loading && months.length > 0 && <MonthlyPlanningSummary months={months} profile={profile} onOpenProfile={onOpenProfile} />}
+    {planning && !loading && months.length > 0 && <MonthlyPlanningSummary months={months} profile={profile}
+      onOpenProfile={() => onOpenProfile?.('monthly_savings_contribution')} />}
     <form onSubmit={save} className="account-month-form">
       <div className="account-month-fields">
         <label>Month<input name="period" type="month" max={todayMonth()} required value={draft.period} onChange={edit} /></label>
@@ -237,6 +239,8 @@ export default function AccountMonths({ userId, user, profile, mode = 'research'
     </> : <p>No months saved yet. Start with a normal month so a later income change can be measured.</p>}
     {message && <p role="status">{message}</p>}
     {error && <p role="alert" className="research-error">{error}</p>}
+    {planning && !loading && months.length > 0 && <RecordedMonthPlan key={JSON.stringify(months)} months={months}
+      userId={userId} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} />}
     {!planning && advice && <><AccountAdvice advice={advice} />
       <form className="account-month-question" onSubmit={ask}><h4>Ask about this month</h4>
         <p>Ask in your own words. Answers use this month's entered amounts and recorded checks; the local language model helps word questions it can verify. Your question and answer are not saved.</p>

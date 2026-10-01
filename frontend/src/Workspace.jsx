@@ -330,7 +330,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
               )}
               {activeView === 'months' && (profile
                 ? <AccountMonths key={user.id} mode="planning" userId={user.id} user={user} profile={profile}
-                    onOpenProfile={() => openProfile('monthly_savings_contribution')} />
+                    onOpenProfile={openProfile} onOpenGoal={openGoal} />
                 : <div><p>Save a financial profile before recording months for your plan.</p>
                     <button type="button" className="mt-3 font-semibold underline" onClick={() => openProfile()}>Open Profile</button></div>)}
               {activeView === 'advisor' && profile && (
