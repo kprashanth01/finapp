@@ -51,6 +51,11 @@ test('trace connects real findings, agent, numbers, action, and reward without c
   assert.match(output, /complete plan needs Budget/)
   assert.match(output, /-2\.15 project points/)
   assert.match(output, /feature influence is unavailable/)
+  for (const label of ['What', 'Why', 'Evidence', 'Agents', 'Orchestration', 'Limitations']) {
+    assert.match(output, new RegExp(label))
+  }
+  assert.match(output, /Coverage is low/)
+  assert.match(output, /Illustrative target/)
 })
 
 test('old saved sessions without a trace remain readable', () => {

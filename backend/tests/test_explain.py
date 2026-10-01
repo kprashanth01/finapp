@@ -24,6 +24,9 @@ def test_saved_plan_links_allocations_and_actions_to_real_findings_and_values():
     assert trace.missing_agents == []
     assert trace.reward_components == audit_reward(snapshot, tuple(item.agent_id for item in result.agent_results)).components
     assert sum(trace.reward_components.values()) == audit_reward(snapshot, tuple(item.agent_id for item in result.agent_results)).total
+    summary = next(item for item in trace.recommendations if item.kind == 'summary')
+    assert summary.explainability.what == f'{result.advice.summary.title}: {result.advice.summary.text}'
+    assert {'budget', 'emergency'} <= set(summary.explainability.agents)
     reserve = next(item for item in trace.recommendations if item.kind == 'reserve')
     assert '500.00' in reserve.text
     assert {item.agent_id for item in reserve.findings} == {'budget', 'emergency'}
@@ -35,6 +38,17 @@ def test_saved_plan_links_allocations_and_actions_to_real_findings_and_values():
     assert {item.agent_id for item in allocation.findings} == {'budget', 'goal'}
     assert all(f.finding.code in {finding.code for result in result.agent_results for finding in result.findings}
                for rec in trace.recommendations for f in rec.findings)
+    for item in trace.recommendations:
+        explained = item.explainability
+        assert explained.what == f'{item.title}: {item.text}'
+        assert explained.why == ' '.join(f.finding.reason for f in item.findings)
+        assert explained.agents == list(dict.fromkeys(f.agent_id for f in item.findings))
+        assert explained.orchestration
+        assert explained.evidence
+        assert explained.limitations == item.limitations
+        assert any('not validated financial outcomes' in limit for limit in explained.limitations)
+    assert any(metric.label == 'Emergency fund balance' and metric.value == '4000'
+               for metric in reserve.explainability.evidence)
 
 
 def test_explanation_rejects_unresolved_recommendation_reference():
@@ -76,6 +90,10 @@ def test_partial_dqn_trace_reports_context_as_observation_not_cause(monkeypatch)
     assert any(item['key'] == 'emergency_fund' and item['value'] == '4000'
                for item in trace['selections'][2]['context'])
     assert all(all(f['agent_id'] == 'emergency' for f in rec['findings'])
+               for rec in trace['recommendations'])
+    assert all('feature influence is unavailable' in rec['explainability']['orchestration']
+               for rec in trace['recommendations'])
+    assert all(any('coordinated plan was withheld' in limit for limit in rec['explainability']['limitations'])
                for rec in trace['recommendations'])
     assert trace['reward_components'] == run['reward_components']
 

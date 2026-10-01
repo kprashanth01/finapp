@@ -46,11 +46,26 @@ def test_no_request_or_missing_key_uses_unchanged_deterministic_case(case, monke
                         lambda *_args: pytest.fail("Provider was called without an explicit request"))
     original = json.dumps(case, sort_keys=True)
     skipped = explain_case(case, "trained_rl")
+    assert skipped["reasoning_version"] == "monthly-case-reasoning-v3"
     assert skipped["source"] == "deterministic"
     assert skipped["fallback_reason"] == "not_requested"
     assert set(skipped["sections"]) == set(valid_sections())
     assert skipped["sections"]["key_findings"]
     assert skipped["sections"]["limitations"]
+    explanations = skipped["recommendation_explanations"]
+    assert [item["key"] for item in explanations] == [
+        "summary", *[f"priority:{item['agent_id']}:{item['finding_code']}"
+                     for item in case["methods"]["trained_rl"]["priority_actions"]]]
+    for item in explanations:
+        assert set(item) == {"key", "what", "why", "evidence", "agents", "orchestration", "limitations"}
+        assert item["orchestration"].startswith("trained_rl selected action ")
+        assert "feature causes are not available" in item["orchestration"]
+    if case["methods"]["trained_rl"]["priority_actions"]:
+        action = case["methods"]["trained_rl"]["priority_actions"][0]
+        explained = explanations[1]
+        assert explained["agents"] == [action["agent_id"]]
+        assert explained["evidence"] == action["evidence"]
+        assert explained["why"] == action["reason"]
     assert skipped["narrative"].startswith(" ".join(case["methods"]["trained_rl"]["explanation"]))
     first_finding = case["methods"]["trained_rl"]["agent_outputs"][0]["findings"][0]
     assert first_finding["reason"] in skipped["narrative"]
@@ -101,6 +116,7 @@ def test_provider_receives_only_recorded_synthetic_evidence_and_cannot_change_fa
     assert answer["fallback_reason"] is None
     assert answer["deterministic"]["action"] == case["methods"]["trained_rl"]["action"]
     assert answer["deterministic"]["agent_outputs"] == case["methods"]["trained_rl"]["agent_outputs"]
+    assert answer["recommendation_explanations"] == explain_case(case, "trained_rl")["recommendation_explanations"]
     assert captured["url"] == "https://api.openai.com/v1/responses"
     assert captured["body"]["store"] is False
     assert captured["body"]["text"]["format"]["type"] == "json_schema"
@@ -177,3 +193,22 @@ def test_provider_failure_falls_back_and_unknown_method_is_rejected(case, monkey
     assert answer["fallback_reason"] == "provider_error"
     with pytest.raises(ValueError, match="method"):
         explain_case(case, "not_a_policy", use_llm=True)
+
+
+def test_recommendation_explanation_rejects_a_mismatched_finding(case):
+    changed = json.loads(json.dumps(case))
+    method = next(name for name, detail in changed["methods"].items()
+                  if detail["priority_actions"])
+    changed["methods"][method]["priority_actions"][0]["finding_code"] = "made_up"
+    with pytest.raises(ValueError, match="priority action"):
+        explain_case(changed, method)
+
+
+def test_summary_evidence_includes_nonpriority_selected_findings(case):
+    detail = case["methods"]["rule_based"]
+    priority_metrics = [metric for action in detail["priority_actions"] for metric in action["evidence"]]
+    nonpriority_metric = next(metric for result in detail["agent_outputs"]
+                              for finding in result["findings"] for metric in finding["evidence"]
+                              if metric not in priority_metrics)
+    summary = explain_case(case, "rule_based")["recommendation_explanations"][0]
+    assert nonpriority_metric in summary["evidence"]

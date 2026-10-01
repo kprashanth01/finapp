@@ -16,9 +16,9 @@ from app.rl.dynamic_cases import (DEFAULT_CASE_PATH, DEFAULT_RAW_PATH,
 from app.rl.dynamic_experiment import METHODS, _write_atomic
 
 
-REASONING_VERSION = "monthly-case-reasoning-v2"
+REASONING_VERSION = "monthly-case-reasoning-v3"
 DEFAULT_REASONING_PATH = (DEFAULT_CASE_PATH.parent /
-                          "paired-monthly-reasoning-v2.summary.json")
+                          "paired-monthly-reasoning-v3.summary.json")
 _CAUSAL_ATTRIBUTION = re.compile(
     r"\b(?:dqn|model|rl|policy)\b.{0,80}\b(?:because|due to|driven by|caused by|based on)\b|"
     r"\b(?:because|due to|driven by|caused by|caused|based on)\b.{0,80}\b(?:dqn|model|rl|policy)\b", re.I)
@@ -117,6 +117,64 @@ def _fallback_sections(case: dict, method: str) -> StructuredCaseReasoning:
     )
 
 
+def _recommendation_explanations(case: dict, method: str) -> list[dict]:
+    """Connect each saved recommendation to the selected agents' recorded facts."""
+    detail = case["methods"][method]
+    recommendation = detail["recommendation"]
+    selected = detail["selected_agents"]
+    by_finding = {(result["agent_id"], finding["code"]): (result, finding)
+                  for result in detail["agent_outputs"] for finding in result["findings"]}
+    orchestration = (f"{method} selected action {detail['action']}, running {', '.join(selected)}. "
+                     + _policy_basis(method))
+    base_limits = list(case["limitations"])
+    missing = recommendation["plan_readiness"]["missing_agents"]
+    if recommendation["status"] == "partial":
+        base_limits.append("A coordinated plan was withheld because required agents did not run: "
+                           + ", ".join(missing) + ".")
+        base_limits.append("Planning conflicts were not assessed for this partial selection.")
+        summary_why = "The selection omitted agents required for a coordinated plan."
+    else:
+        summary_why = "The required agent checks ran and the coordinated plan uses their recorded outputs."
+    actions = detail["priority_actions"]
+    if not actions:
+        base_limits.append("No priority action was recorded for this selection.")
+    summary_evidence = []
+    seen = set()
+    for result in detail["agent_outputs"]:
+        for finding in result["findings"]:
+            for metric in finding["evidence"]:
+                identity = (metric["label"], metric["value"], metric["unit"])
+                if identity not in seen:
+                    summary_evidence.append(metric)
+                    seen.add(identity)
+    if not summary_evidence:
+        base_limits.append("No metric was recorded by the selected agents.")
+    summary = recommendation["summary"]
+    explanations = [{
+        "key": "summary", "what": f"{summary['title']}: {summary['text']}",
+        "why": summary_why, "evidence": summary_evidence,
+        "agents": selected, "orchestration": orchestration,
+        "limitations": base_limits,
+    }]
+    for action in actions:
+        linked = by_finding.get((action["agent_id"], action["finding_code"]))
+        if linked is None:
+            raise ValueError("A priority action has no selected-agent finding.")
+        result, finding = linked
+        if (action["title"] != finding["title"] or action["reason"] != finding["reason"] or
+                action["evidence"] != finding["evidence"]):
+            raise ValueError("A priority action differs from its recorded finding.")
+        explanations.append({
+            "key": f"priority:{action['agent_id']}:{action['finding_code']}",
+            "what": action["title"],
+            "why": action["reason"], "evidence": action["evidence"],
+            "agents": [action["agent_id"]], "orchestration": orchestration,
+            "limitations": list(dict.fromkeys([*action["limitations"],
+                                               *result["limitations"], *base_limits])),
+        })
+    return explanations
+
+
 def _provider_schema() -> dict:
     """Remove local length limits unsupported by the provider's strict schema."""
     def compatible(node):
@@ -202,6 +260,7 @@ def explain_case(case: dict, method: str, *, use_llm: bool = False) -> dict:
     model = os.getenv("FINAPP_LLM_MODEL", "gpt-4o-mini").strip() or "gpt-4o-mini"
     narrative = _fallback_narrative(case, method)
     sections = _fallback_sections(case, method)
+    recommendation_explanations = _recommendation_explanations(case, method)
     source = "deterministic"
     reason = "not_requested" if not use_llm else "not_configured" if not key else None
     if key:
@@ -230,6 +289,7 @@ def explain_case(case: dict, method: str, *, use_llm: bool = False) -> dict:
                  "month_index": case["month_index"], "method": method},
         "narrative": narrative,
         "sections": sections.model_dump(mode="json"),
+        "recommendation_explanations": recommendation_explanations,
         "deterministic": {
             "action": detail["action"], "selected_agents": detail["selected_agents"],
             "agent_outputs": detail["agent_outputs"],
@@ -264,6 +324,7 @@ def main() -> None:
     print(json.dumps({
         "source": answer["source"], "fallback_reason": answer["fallback_reason"],
         "case": answer["case"], "sections": answer["sections"],
+        "recommendation_explanations": answer["recommendation_explanations"],
         "output_path": str(args.output.resolve()),
     }, indent=2))
 

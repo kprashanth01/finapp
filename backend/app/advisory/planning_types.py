@@ -133,13 +133,23 @@ class ExplanationSelection(BaseModel):
     context: list[ExplanationMetric]
 
 
+class RecommendationExplanation(BaseModel):
+    what: str
+    why: str
+    evidence: list[ExplanationMetric]
+    agents: list[str]
+    orchestration: str
+    limitations: list[str]
+
+
 class ExplanationRecommendation(BaseModel):
-    kind: Literal['priority', 'reserve', 'goal', 'hold', 'investment', 'partial_finding']
+    kind: Literal['summary', 'priority', 'reserve', 'goal', 'hold', 'investment', 'partial_finding']
     title: str
     text: str
     findings: list[ExplanationFinding]
     context: list[ExplanationMetric]
     limitations: list[str]
+    explainability: RecommendationExplanation | None = None
 
 
 class ExplanationTrace(BaseModel):

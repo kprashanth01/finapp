@@ -502,6 +502,8 @@ To inspect one held-out user-month across Random, Rule-Based, and trained RL wit
 
 For validated six-section reasoning over one synthetic monthly case, with an optional provider request and deterministic fallback, see [monthly LLM reasoning](docs/monthly-llm-reasoning.md).
 
+For each recommendation's recorded what, why, evidence, agents, orchestration basis, and limitations in Advisor and the offline monthly case, see [recommendation explainability](docs/recommendation-explainability.md).
+
 After installing development requirements, run the focused API checks:
 
 ```powershell
