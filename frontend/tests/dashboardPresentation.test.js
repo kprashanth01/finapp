@@ -31,7 +31,7 @@ function savedSession(isStale) {
       priority_actions: [{ code: 'review_emergency', title: 'Review emergency reserve', reason: 'Coverage is below the illustrative three-month target.', source_refs: [{ agent_id: 'emergency', finding_code: 'emergency_gap' }], next_action: { view: 'profile', field: 'emergency_fund' } }],
       monthly_plan: { capacity: '5000', emergency_allocation: '4000', goal_allocations: [{ requirement: { goal: { id: 1, name: 'Laptop' } }, allocated_monthly: '1000' }], unassigned: '0', hold_reason: null },
     },
-    agent_results: [{ agent_id: 'emergency', findings: [{ code: 'emergency_gap', evidence: [{ label: 'Emergency fund coverage', value: '0.50', unit: 'months' }] }] }],
+    agent_results: [{ agent_id: 'emergency', findings: [{ code: 'emergency_gap', evidence: [{ label: 'Emergency fund coverage', value: '0.50', unit: 'months' }], impact: 'A small reserve leaves less room for an unexpected expense.', suggested_action: 'Use the coordinated plan to build your reserve.' }] }],
   } }
 }
 
@@ -39,6 +39,8 @@ test('dashboard shows the current priority, its evidence, and the coordinated mo
   const html = render(savedSession(false))
   assert.match(html, /What should I do this month\?/)
   assert.match(html, /Emergency fund coverage: 0\.50 months/)
+  assert.match(html, /A small reserve leaves less room for an unexpected expense/)
+  assert.match(html, /Use the coordinated plan to build your reserve/)
   assert.match(html, /Emergency reserve<\/dt><dd>4,000\.00/)
   assert.match(html, /Laptop<\/dt><dd>1,000\.00/)
   assert.ok(html.indexOf('What should I do this month?') < html.indexOf('All saved amounts and calculated ratios'))
@@ -49,6 +51,7 @@ test('dashboard with changed inputs asks for a new plan and does not show old al
   assert.match(html, /Run updated plan/)
   assert.doesNotMatch(html, /Emergency reserve<\/dt><dd>4,000\.00/)
   assert.doesNotMatch(html, /Your first priority/)
+  assert.doesNotMatch(html, /Use the coordinated plan to build your reserve/)
 })
 
 test('dashboard with no saved plan offers to create one', () => {

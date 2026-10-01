@@ -54,3 +54,21 @@ test('saved-goal input explains exclusive earmarks and the verification limit', 
   assert.match(text, /Exclude your emergency reserve and money already assigned to another goal/)
   assert.match(text, /The app cannot verify whether these amounts overlap/)
 })
+
+test('Advisor shows specialist findings as situation, impact, and next step after the coordinated plan', () => {
+  const result = savedResult('1000', 12)
+  result.agent_results = ['budget', 'debt', 'emergency', 'goal', 'risk', 'investment'].map((agent_id) => ({
+    agent_id, findings: [{ code: agent_id, title: `${agent_id} check`, reason: `Recorded ${agent_id} situation.`,
+      impact: `Why ${agent_id} matters.`, suggested_action: `Review ${agent_id} next.`,
+      evidence: [{ label: 'Coverage', value: '1.25', unit: 'months' }], limitations: [] }],
+  }))
+  const text = visibleText(createElement(AdvisoryPlan, { result }))
+  assert.match(text, /What each check found/)
+  assert.ok(text.indexOf('Your monthly savings plan') < text.indexOf('What each check found'))
+  for (const agent of result.agent_results) {
+    assert.match(text, new RegExp(`Recorded ${agent.agent_id} situation`))
+    assert.match(text, new RegExp(`Why ${agent.agent_id} matters`))
+    assert.match(text, new RegExp(`Review ${agent.agent_id} next`))
+  }
+  assert.match(text, /Coverage: 1\.25 months/)
+})

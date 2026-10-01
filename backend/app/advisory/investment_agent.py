@@ -39,7 +39,17 @@ class InvestmentAgent:
                                   factor_codes=[code for code,_ in blockers+missing],reasons=reasons),
             findings=[Finding(code='investment_prerequisites',title='Investment readiness',
                 reason=' '.join(reasons) if reasons else 'Profile prerequisites met; the coordinator also checks goal funding.',
-                priority=False,evidence=[],limitations=['No asset selection, returns, or suitability prediction.'])],limitations=[])
+                priority=False,
+                evidence=[Evidence(label='Monthly savings contribution', value=state.monthly_savings_contribution, unit='currency'),
+                          Evidence(label='Emergency fund coverage', value=state.emergency_fund_months, unit='months'),
+                          Evidence(label='Debt-to-income ratio', value=state.debt_to_income_percent, unit='%')],
+                limitations=['No asset selection, returns, or suitability prediction.'],
+                impact=('One or more project prerequisites need attention before a new investment amount is considered.' if status == 'deferred' else
+                        'Missing profile inputs prevent a readiness check.' if status == 'insufficient_information' else
+                        'Passing these project checks does not establish investment suitability or an amount.'),
+                suggested_action=('Follow the coordinated reserve, debt, and goal plan first; revisit investing when blockers improve.' if status == 'deferred' else
+                                  'Complete the missing profile inputs, then review the coordinated plan.' if status == 'insufficient_information' else
+                                  'Review goal commitments and risk horizon before deciding whether or how much to invest.'))],limitations=[])
 
     def _analyze_dynamic(self, state: DynamicPlanningState) -> PlanningAgentResult:
         blockers, missing = [], []

@@ -46,6 +46,14 @@ class BudgetAgent:
                 Evidence(label="Savings rate", value=savings_rate, unit="%"),
             ],
             limitations=limitations,
+            impact=("Gross income is needed to judge recorded expense pressure." if expense_ratio is None else
+                    "Without a recorded savings contribution, the plan cannot allocate a monthly savings budget." if savings_rate is None else
+                    "A high share of gross income going to expenses may leave less room for savings and unexpected costs." if priority else
+                    "This project check found no high expense ratio, but gross-income ratios do not show take-home cash."),
+            suggested_action=("Enter positive gross monthly income and review expenses." if expense_ratio is None else
+                              "Enter your planned monthly savings contribution before relying on an allocation." if savings_rate is None else
+                              "Review your largest expenses against take-home pay and update your planned savings contribution." if priority else
+                              "Keep expenses and your planned savings contribution current; compare the plan with take-home pay."),
         )
         return PlanningAgentResult(
             facts=BudgetFacts(capacity=state.monthly_savings_contribution),
@@ -116,6 +124,12 @@ class DebtAgent:
                 Evidence(label="Outstanding debt", value=state.existing_debt, unit="currency"),
             ],
             limitations=limitations,
+            impact=("Without income and a monthly payment, the debt burden cannot be assessed." if dti is None else
+                    "Required debt payments take a substantial share of gross income under this project's rule and may constrain other goals." if priority else
+                    "This project check found no high payment burden, though an outstanding balance still needs attention."),
+            suggested_action=("Record the required monthly debt payment and positive gross income." if dti is None else
+                              "Keep required payments current and review loan terms before assigning remaining savings." if priority else
+                              "Keep required payments current and check loan terms before deciding on extra repayment."),
         )
         return PlanningAgentResult(
             facts=DebtFacts(review_required=priority or dti is None, reason_code='high_debt' if priority else 'unknown_debt' if dti is None else None),
@@ -200,6 +214,12 @@ class EmergencyAgent:
                 Evidence(label="Gap to illustrative target", value=gap, unit="currency"),
             ],
             limitations=limitations,
+            impact=("Without positive monthly expenses, reserve coverage and the target gap cannot be calculated." if coverage is None else
+                    "A smaller accessible reserve leaves less room to absorb a loss of income or an unexpected expense." if priority else
+                    "The recorded reserve meets this project's illustrative target based on current expenses."),
+            suggested_action=("Enter positive monthly expenses to assess the reserve." if coverage is None else
+                              "Consider directing the recorded monthly savings contribution toward the reserve, using the coordinated plan's proposed amount." if priority else
+                              "Keep this reserve available for emergencies and review it when your expenses change."),
         )
         return PlanningAgentResult(
             facts=EmergencyFacts(gap=gap, coverage=coverage),

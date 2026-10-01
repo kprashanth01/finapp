@@ -45,6 +45,18 @@ def create_profile(client, email="example@sample-finapp.org"):
     return user, profile
 
 
+def test_saved_plan_retains_agent_guidance_for_later_visits(client):
+    user, _ = create_profile(client)
+    created = client.post(f"/users/{user['id']}/advisory-sessions", json={})
+    assert created.status_code == 201, created.text
+    latest = client.get(f"/users/{user['id']}/advisory-sessions/latest")
+    assert latest.status_code == 200, latest.text
+    findings = [finding for agent in latest.json()['result']['agent_results']
+                for finding in agent['findings']]
+    assert findings
+    assert all(finding['impact'] and finding['suggested_action'] for finding in findings)
+
+
 def test_saved_reasoning_uses_captured_run_and_owner_scope(client, monkeypatch):
     from app.advisory import reasoning
 

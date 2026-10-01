@@ -2,9 +2,19 @@ import { formatAmount } from '../utils/format.js'
 import ExplanationTrail from './ExplanationTrail.jsx'
 
 const statuses = { completed: 'Target reached', overdue: 'Deadline needs updating', budget_covered: 'Monthly requirement covered', underfunded: 'Monthly funding gap', missing_budget: 'Add monthly savings contribution' }
+const agentNames = { budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', goal: 'Goal planning', risk: 'Risk assessment', investment: 'Investment readiness' }
+
+function evidenceText(item) {
+  if (item.value == null) return `${item.label}: not supplied`
+  if (item.unit === 'currency') return `${item.label}: ${formatAmount(item.value)} (profile currency)`
+  return `${item.label}: ${item.value}${item.unit === '%' ? '%' : item.unit ? ` ${item.unit}` : ''}`
+}
 
 export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal, showExplanation = true }) {
   const { summary, monthly_plan: plan, investment, priority_actions: actions } = result.advice
+  const guidedFindings = (result.agent_results ?? []).flatMap((agent) => (agent.findings ?? [])
+    .filter((finding) => finding.impact && finding.suggested_action)
+    .map((finding) => ({ agentId: agent.agent_id, finding })))
   function follow(next) {
     if (next.view === 'goals') onOpenGoal(next.goal_id)
     else if (next.view === 'profile') onOpenProfile(next.field)
@@ -47,6 +57,18 @@ export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal, showEx
       {investment.category && <p className="mt-1 text-sm capitalize">Illustrative category: {investment.category}</p>}
       {investment.reasons.length > 0 ? <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">{investment.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul> : <p className="mt-2 text-sm text-slate-600">The saved profile passes these project checks. Unassigned savings: {formatAmount(plan.unassigned)}. Passing checks does not select an investment or promise returns.</p>}
     </section>
+    {guidedFindings.length > 0 && <section aria-labelledby="specialist-guidance-heading">
+      <h3 id="specialist-guidance-heading" className="text-lg font-semibold">What each check found</h3>
+      <p className="mt-1 text-sm text-slate-600">These checks explain the coordinated plan above. They do not assign additional money.</p>
+      <ul className="mt-3 grid gap-3 md:grid-cols-2">{guidedFindings.map(({ agentId, finding }) => <li key={`${agentId}-${finding.code}`} className="rounded-xl border border-slate-200 p-4 text-sm">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{agentNames[agentId] ?? agentId}</p>
+        <h4 className="mt-1 font-semibold">{finding.title}</h4>
+        <p className="mt-2 text-slate-700"><span className="font-medium text-slate-900">What we found:</span> {finding.reason}</p>
+        {finding.evidence?.length > 0 && <ul className="mt-2 flex flex-wrap gap-2">{finding.evidence.map((item) => <li key={item.label} className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700">{evidenceText(item)}</li>)}</ul>}
+        <p className="mt-2 text-slate-700"><span className="font-medium text-slate-900">Why it matters:</span> {finding.impact}</p>
+        <p className="mt-2 text-slate-700"><span className="font-medium text-slate-900">What to do:</span> {finding.suggested_action}</p>
+      </li>)}</ul>
+    </section>}
     <details className="rounded-xl border border-slate-200 p-4"><summary className="cursor-pointer font-medium">Why this plan and what to update</summary>
       <p className="mt-3 text-sm text-slate-600">One savings budget is used once. Emergency needs come first; high or unknown debt burden holds the remainder for review. Future goals then receive up to their monthly requirement.</p>
       <p className="mt-2 text-sm text-slate-600">Goal requirement = remaining target ÷ rounded-up 30-day months, rounded up to cents. No growth is assumed.</p>

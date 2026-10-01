@@ -37,5 +37,11 @@ class GoalPlanningAgent:
                     reason += ' Current surplus or competing reserve and debt needs may prevent this monthly amount.'
                 limitations.append('Current surplus is a one-month estimate, not a committed goal contribution.')
             findings.append(Finding(code=f'goal_{goal.id}', title=goal.name,
-                reason=reason, priority=priority, evidence=evidence, limitations=limitations))
+                reason=reason, priority=priority, evidence=evidence, limitations=limitations,
+                impact=('The saved amount meets this target.' if status == 'completed' else
+                        'A passed deadline prevents a meaningful new monthly funding schedule.' if status == 'overdue' else
+                        'Meeting this deadline requires the calculated monthly contribution alongside other financial needs.'),
+                suggested_action=('Confirm the earmarked amount is still available and update the goal if it was used.' if status == 'completed' else
+                                  'Update the target date or amount before relying on a new allocation.' if status == 'overdue' else
+                                  'Compare the required amount with the coordinated plan; if it falls short, review the deadline, target, or planned savings contribution.')))
         return PlanningAgentResult(agent_id=self.agent_id,status='ok',findings=findings,limitations=[],facts=GoalFacts(requirements=requirements))
