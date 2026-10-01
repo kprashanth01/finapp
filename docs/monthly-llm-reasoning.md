@@ -10,7 +10,7 @@ Set-Location backend
 ..\.venv\Scripts\python -m app.rl.dynamic_case_reasoning
 ```
 
-The result is saved to `data/synthetic/paired-monthly-reasoning-v2.summary.json`. Its `sections` object contains `summary`, `key_findings`, `priority_actions`, `reasoning`, `agent_contributions`, and `limitations`. The existing `narrative` remains available for older readers. The report also retains the unchanged deterministic action, selected agents, agent outputs, reward and components, recommendation, and supported constraints. `source` and `fallback_reason` identify provider wording or deterministic fallback.
+The result is saved to `data/synthetic/paired-monthly-reasoning-v3.summary.json`. Its `sections` object contains `summary`, `key_findings`, `priority_actions`, `reasoning`, `agent_contributions`, and `limitations`. The existing `narrative` remains available for older readers. Issue 21 also adds deterministic `recommendation_explanations` for the summary and each priority action. The report retains the unchanged action, selected agents, agent outputs, reward and components, recommendation, and supported constraints. `source` and `fallback_reason` identify provider wording or deterministic fallback.
 
 For a particular case and method, use `--synthetic-id`, `--month-index`, and `--method random|rule_based|trained_rl`. The provider is contacted **only** with `--llm` and a configured `OPENAI_API_KEY`:
 

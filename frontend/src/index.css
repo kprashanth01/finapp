@@ -197,6 +197,7 @@ button:focus-visible, a:focus-visible, summary:focus-visible, input:focus-visibl
 .explanation-heading > span { color: #157167; font-size: .74rem; font-weight: 700; }
 .explanation-flow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
 .explanation-step { min-width: 0; padding: 13px 15px; border: 1px solid #dfebe8; border-radius: 10px; background: #fff; }
+.explanation-step:nth-child(n+3) { grid-column: 1 / -1; }
 .explanation-step small { display: block; margin-bottom: 7px; color: #0a786c; font-size: .7rem; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }
 .explanation-step strong { font-size: .83rem; }
 .explanation-step p, .explanation-details p, .explanation-details li { margin: 6px 0; color: #4c6871; font-size: .78rem; line-height: 1.55; }

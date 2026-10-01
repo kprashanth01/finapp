@@ -7,6 +7,7 @@ describes the choice, then separately reports relevant saved context.
 from app.advisory.planning_types import (
     CoordinatedAdvice, EvidenceRef, ExplanationFinding, ExplanationMetric,
     ExplanationRecommendation, ExplanationSelection, ExplanationTrace,
+    RecommendationExplanation,
     PlanningAgentResult,
 )
 from app.advisory.state import PlanningState
@@ -120,12 +121,37 @@ def build_explanation(state: PlanningState, decision: OrchestratorDecision, acti
                 raise ValueError(f'Unresolved recommendation evidence: {ref.agent_id}/{ref.finding_code}.')
             findings.append(ExplanationFinding(agent_id=ref.agent_id, finding=finding))
         agents = tuple(dict.fromkeys(ref.agent_id for ref in refs))
+        context = _metrics(state, agents)
         all_limits = list(dict.fromkeys([*limitations,
             *(limit for linked in findings for limit in linked.finding.limitations),
-            *(limit for agent_id in agents for limit in by_id[agent_id].limitations)]))
+            *(limit for agent_id in agents for limit in by_id[agent_id].limitations),
+            *(f'{metric.label} is unavailable.' for metric in context if metric.value is None),
+            'This recommendation explains project rules and recorded findings, not validated financial outcomes.',
+            *(['A coordinated plan was withheld because required agents did not run.']
+              if advice is None else [])]))
+        evidence = [ExplanationMetric(
+            key=f'finding:{linked.agent_id}:{linked.finding.code}:{index}',
+            label=metric.label, value=str(metric.value) if metric.value is not None else None,
+            unit=metric.unit)
+            for linked in findings for index, metric in enumerate(linked.finding.evidence)]
+        seen = {(item.label, item.value, item.unit) for item in evidence}
+        for metric in context:
+            identity = (metric.label, metric.value, metric.unit)
+            if identity not in seen:
+                evidence.append(metric)
+                seen.add(identity)
+        bases = {item.agent_id: item.basis for item in selections}
+        orchestration = (policy_explanation + ' ' + ' '.join(
+            f'{agent_id}: {bases[agent_id]}' for agent_id in agents))
         return ExplanationRecommendation(kind=kind, title=title, text=text,
-                                         findings=findings, context=_metrics(state, agents),
-                                         limitations=all_limits)
+                                         findings=findings, context=context,
+                                         limitations=all_limits,
+                                         explainability=RecommendationExplanation(
+                                             what=f'{title}: {text}',
+                                             why=' '.join(linked.finding.reason for linked in findings),
+                                             evidence=evidence, agents=list(agents),
+                                             orchestration=orchestration,
+                                             limitations=all_limits))
 
     recommendations = []
     if advice is None:
@@ -135,6 +161,11 @@ def build_explanation(state: PlanningState, decision: OrchestratorDecision, acti
                     recommendations.append(recommendation('partial_finding', finding.title, finding.reason,
                         [EvidenceRef(agent_id=agent.agent_id, finding_code=finding.code)], finding.limitations))
     else:
+        summary_refs = [EvidenceRef(agent_id=agent_id, finding_code=by_id[agent_id].findings[0].code)
+                        for agent_id in ('budget', 'emergency', 'goal')
+                        if agent_id in by_id and by_id[agent_id].findings]
+        recommendations.append(recommendation('summary', advice.summary.title, advice.summary.text,
+                                               summary_refs))
         for item in advice.priority_actions:
             recommendations.append(recommendation('priority', item.title, item.reason,
                                                    item.source_refs, item.limitations))

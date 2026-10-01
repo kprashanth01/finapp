@@ -16,18 +16,24 @@ function metricText(item) {
   return `${item.label}: ${item.value}${item.unit ? ` ${item.unit}` : ''}`
 }
 
-function RecommendationEvidence({ recommendation }) {
-  const evidence = recommendation.findings.flatMap(({ agent_id, finding }) =>
-    finding.evidence.map((item) => ({ ...item, agent_id })))
-  const evidenceLabels = new Set(evidence.map((item) => item.label))
-  const context = recommendation.context.filter((item) => !evidenceLabels.has(item.label)).slice(0, 5)
-  return <>
-    <p className="explanation-source">From {Array.from(new Set(recommendation.findings.map((item) => agentNames[item.agent_id] ?? item.agent_id))).join(' + ')}</p>
-    <ul className="explanation-metrics">
-      {evidence.map((item, index) => <li key={`${item.agent_id}-${item.label}-${index}`}>{metricText(item)}</li>)}
-      {context.map((item) => <li key={item.key}>{metricText(item)}</li>)}
-    </ul>
-  </>
+function RecommendationBreakdown({ recommendation, trace }) {
+  const detail = recommendation.explainability
+  const agents = detail?.agents ?? Array.from(new Set(recommendation.findings.map((item) => item.agent_id)))
+  const linked = recommendation.findings.flatMap(({ finding }) => finding.evidence)
+  const labels = new Set(linked.map((item) => item.label))
+  const metrics = detail?.evidence ?? [...linked, ...recommendation.context.filter((item) => !labels.has(item.label))]
+  const bases = trace.selections.filter((item) => agents.includes(item.agent_id))
+  const orchestration = detail?.orchestration ?? `${trace.policy_explanation} ${bases.map((item) => `${agentNames[item.agent_id] ?? item.agent_id}: ${item.basis}`).join(' ')}`
+  const limits = detail?.limitations ?? recommendation.limitations
+  return <dl className="mt-3 space-y-2 text-sm">
+    <div><dt className="font-semibold">What</dt><dd>{detail?.what ?? `${recommendation.title}: ${recommendation.text}`}</dd></div>
+    <div><dt className="font-semibold">Why</dt><dd>{detail?.why ?? recommendation.findings.map(({ finding }) => finding.reason).join(' ')}</dd></div>
+    <div><dt className="font-semibold">Evidence</dt><dd>{metrics.length ? <ul className="explanation-metrics">{metrics.map((item, index) =>
+      <li key={`${item.key ?? item.label}-${index}`}>{metricText(item)}</li>)}</ul> : 'No supporting metric was recorded.'}</dd></div>
+    <div><dt className="font-semibold">Agents</dt><dd className="explanation-source">From {agents.map((id) => agentNames[id] ?? id).join(' + ')}</dd></div>
+    <div><dt className="font-semibold">Orchestration</dt><dd>{orchestration}</dd></div>
+    <div><dt className="font-semibold">Limitations</dt><dd>{limits.length ? <ul>{limits.map((item, index) => <li key={index}>{item}</li>)}</ul> : 'No additional limitation was recorded for this recommendation.'}</dd></div>
+  </dl>
 }
 
 export default function ExplanationTrail({ trace }) {
@@ -40,12 +46,12 @@ export default function ExplanationTrail({ trace }) {
       <h3 id="explanation-heading">How this result was reached</h3></div><span>Action {trace.action}</span></div>
     <div className="explanation-flow">
       <div className="explanation-step"><small>1 · Saved state</small>
-        <p>These values were captured for this run. {first ? 'The numbers supporting the first finding appear below.' : 'No complete recommendation was produced.'}</p></div>
+        <p>These values were captured for this run. {first ? 'The metrics supporting the recommendation appear below.' : 'No complete recommendation was produced.'}</p></div>
       <div className="explanation-step"><small>2 · Selection</small>
         <p>{trace.policy_explanation}</p>
         <p className="explanation-agent-line">Ran: {selected.map((item) => agentNames[item.agent_id] ?? item.agent_id).join(', ')}.</p></div>
       <div className="explanation-step"><small>3 · Finding → recommendation</small>
-        {first ? <><strong>{first.title}</strong><p>{first.text}</p><RecommendationEvidence recommendation={first} /></>
+        {first ? <><strong>{first.title}</strong><RecommendationBreakdown recommendation={first} trace={trace} /></>
           : <p>No priority finding was returned by the selected agents.</p>}
         {trace.missing_agents.length > 0 && <p className="explanation-missing">A complete plan needs {trace.missing_agents.map((id) => agentNames[id] ?? id).join(', ')}.</p>}</div>
       <div className="explanation-step"><small>4 · Proxy score</small>
@@ -64,8 +70,7 @@ export default function ExplanationTrail({ trace }) {
         <li key={`${item.kind}-${index}`}><strong>{item.title}</strong><p>{item.text}</p>
           {item.findings.map(({ agent_id, finding }) => <div key={`${agent_id}-${finding.code}`} className="explanation-finding">
             <span>{agentNames[agent_id] ?? agent_id} · {finding.title}</span><p>{finding.reason}</p></div>)}
-          <RecommendationEvidence recommendation={item} />
-          {item.limitations.length > 0 && <p className="explanation-limit">{item.limitations.join(' ')}</p>}
+          <RecommendationBreakdown recommendation={item} trace={trace} />
         </li>)}</ol> : <p>No actionable finding was returned by this selection.</p>}
       <h4>Proxy reward components</h4>
       <dl className="explanation-score-list">{Object.entries(trace.reward_components).map(([name, value]) =>
