@@ -52,8 +52,8 @@ function FinancialAnalysis({ analysis, user, profile }) {
         />
       </div>
 
-      <div className="mt-5 rounded-lg border border-slate-200 p-5">
-        <h3 className="text-sm font-medium text-slate-700">Educational health score</h3>
+      <details className="mt-5 rounded-lg border border-slate-200 p-5">
+        <summary className="cursor-pointer text-sm font-medium text-slate-700">Illustrative research score</summary>
         <p className="mt-1 text-3xl font-semibold">
           {analysis.health_score == null ? 'Unavailable' : `${analysis.health_score} / 100`}
         </p>
@@ -63,7 +63,7 @@ function FinancialAnalysis({ analysis, user, profile }) {
             : 'Fixed project heuristic: up to 30 points for savings rate, 30 for lower debt payments, and 40 for emergency coverage.'}
         </p>
         <p className="mt-2 text-xs text-slate-500">Full savings points at 20%; debt points fall to zero at 50% DTI; full emergency points at 6 months. These are illustrative thresholds, not validated financial advice.</p>
-      </div>
+      </details>
     </section>
   )
 }

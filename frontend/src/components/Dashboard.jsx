@@ -75,6 +75,10 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
   const priorities = advisorySession?.result.advice?.priority_actions ?? advisorySession?.result.priority_actions ?? []
 
   const advice = advisorySession?.result.advice
+  const summaryPriority = advice ? priorities.findIndex((action) => action.title === advice.summary.title) : -1
+  const otherPriorities = priorities.filter((_, index) => index !== summaryPriority)
+  const activeGoals = goals.filter((goal) => !goal.archived)
+  const reachedGoals = activeGoals.filter((goal) => Number(goal.saved_amount) >= Number(goal.target_amount)).length
 
 
 
@@ -82,9 +86,7 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
 
     <div className="space-y-8">
 
-      {display.latest === 'saved' && advice && <section className="rounded-xl bg-slate-900 p-5 text-white"><p className="text-xs uppercase text-slate-300">From your latest saved plan</p><h2 className="mt-2 text-xl font-semibold">{advice.summary.title}</h2><p className="mt-2 text-sm text-slate-200">{advice.summary.text}</p>{advisorySession.is_stale && <p className="mt-3 text-sm text-amber-200">{staleMessage(advisorySession)}</p>}<button onClick={onOpenAdvisor} className="mt-4 rounded-lg bg-white px-4 py-2 text-sm text-slate-900">View monthly plan</button></section>}
-
-      <section className="rounded-xl border border-slate-200 p-4"><h2 className="text-lg font-semibold">Goals at a glance</h2><p className="mt-2 text-sm text-slate-600">{goalsLoading ? 'Loading goals…' : goalsError ? 'Goals could not load. Open Goals to retry.' : `${goals.filter((g) => !g.archived).length} active goals · ${goals.filter((g) => !g.archived && Number(g.saved_amount) >= Number(g.target_amount)).length} targets reached`}</p><button onClick={onOpenGoals} className="mt-3 text-sm underline">Manage goals</button></section>
+      <section className="rounded-xl border border-slate-200 p-4"><h2 className="text-lg font-semibold">Goals at a glance</h2><p className="mt-2 text-sm text-slate-600">{goalsLoading ? 'Loading goals…' : goalsError ? 'Goals could not load. Open Goals to retry.' : `${activeGoals.length} active ${activeGoals.length === 1 ? 'goal' : 'goals'} · ${reachedGoals} targets reached`}</p><button onClick={onOpenGoals} className="mt-3 text-sm underline">Manage goals</button></section>
 
       <section aria-labelledby="dashboard-heading">
 
@@ -128,7 +130,7 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
 
         <h2 id="snapshot-heading" className="text-xl font-semibold">Financial snapshot</h2>
 
-        <p className="mt-1 text-sm text-slate-600">Calculated by the API from your current saved values.</p>
+        <p className="mt-1 text-sm text-slate-600">Calculated from your saved amounts.</p>
 
         {display.snapshot === 'ready' ? (
 
@@ -150,9 +152,10 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
 
             </dl>
 
-            <p className="mt-4 text-sm text-slate-600">Educational health score: <span className="font-semibold text-slate-900">{analysis.health_score == null ? 'Unavailable' : `${analysis.health_score} / 100`}</span></p>
-
-            <p className="mt-1 text-xs text-slate-500">The score is an illustrative project heuristic, not validated financial advice.</p>
+            <details className="mt-4 text-sm text-slate-600"><summary className="cursor-pointer font-medium">How these figures are calculated</summary>
+              <p className="mt-2">Savings, debt payments, and expenses are each divided by gross monthly income. Emergency coverage is the fund balance divided by monthly expenses.</p>
+              <p className="mt-2">Illustrative research score: <strong>{analysis.health_score == null ? 'Unavailable' : `${analysis.health_score} / 100`}</strong>. This project heuristic is not validated financial advice.</p>
+            </details>
 
           </>
 
@@ -184,19 +187,20 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
 
           <>
 
+            {advice && <><h3 className="mt-3 text-lg font-semibold">{advice.summary.title}</h3><p className="mt-1 text-sm text-slate-700">{advice.summary.text}</p></>}
             <p className="mt-2 text-sm text-slate-600">{new Date(advisorySession.created_at).toLocaleString()}</p>
 
             {advisorySession.is_stale && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{staleMessage(advisorySession)}</p>}
 
-            {priorities.length > 0 ? (
+            {otherPriorities.length > 0 ? (
 
-              <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-slate-800">
+              <><p className="mt-3 text-sm font-medium">Other findings</p><ul className="mt-1 list-inside list-disc space-y-1 text-sm text-slate-800">
 
-                {priorities.map((action) => <li key={action.code}>{action.title}</li>)}
+                {otherPriorities.map((action) => <li key={action.code}>{action.title}</li>)}
 
-              </ul>
+              </ul></>
 
-            ) : <p className="mt-3 text-sm text-slate-600">No priority finding from this run's rules.</p>}
+            ) : !advice && <p className="mt-3 text-sm text-slate-600">No priority finding from this run's rules.</p>}
 
           </>
 

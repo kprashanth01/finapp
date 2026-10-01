@@ -15,7 +15,7 @@ export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal, showEx
       <h3 className="mt-2 text-xl font-semibold">{summary.title}</h3><p className="mt-2 text-sm text-slate-200">{summary.text}</p>
       <button className="mt-4 rounded-lg bg-white px-4 py-2 text-sm font-medium text-slate-900" onClick={() => follow(summary.next_action)}>{summary.next_action.view === 'goals' ? 'Review goals' : 'Review profile'}</button>
     </section>
-    {showExplanation && <ExplanationTrail trace={result.explanation} />}
+    {showExplanation && result.explanation && <details className="rounded-xl border border-slate-200 p-4"><summary className="cursor-pointer font-medium">How this plan was decided</summary><ExplanationTrail trace={result.explanation} /></details>}
     <section aria-labelledby="monthly-plan-heading">
       <h3 id="monthly-plan-heading" className="text-lg font-semibold">Your monthly savings plan</h3>
       <p className="mt-1 text-sm text-slate-600">Based on {result.state.as_of_date}. These are proposed allocations, not payments or automatic balance changes. All amounts use your profile currency.</p>

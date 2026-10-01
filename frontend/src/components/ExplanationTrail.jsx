@@ -42,23 +42,20 @@ export default function ExplanationTrail({ trace }) {
   const first = trace.recommendations[0]
   const total = Object.values(trace.reward_components).reduce((sum, amount) => sum + amount, 0)
   return <section className="explanation-trail" aria-labelledby="explanation-heading">
-    <div className="explanation-heading"><div><p className="research-small-label">TRACEABLE RESULT</p>
-      <h3 id="explanation-heading">How this result was reached</h3></div><span>Action {trace.action}</span></div>
+    <div className="explanation-heading"><h3 id="explanation-heading">How this result was reached</h3></div>
     <div className="explanation-flow">
-      <div className="explanation-step"><small>1 · Saved state</small>
+      <div className="explanation-step"><small>1 · Current financial state</small>
         <p>These values were captured for this run. {first ? 'The metrics supporting the recommendation appear below.' : 'No complete recommendation was produced.'}</p></div>
-      <div className="explanation-step"><small>2 · Selection</small>
+      <div className="explanation-step"><small>2 · Agent analysis</small>
         <p>{trace.policy_explanation}</p>
         <p className="explanation-agent-line">Ran: {selected.map((item) => agentNames[item.agent_id] ?? item.agent_id).join(', ')}.</p></div>
-      <div className="explanation-step"><small>3 · Finding → recommendation</small>
-        {first ? <><strong>{first.title}</strong><RecommendationBreakdown recommendation={first} trace={trace} /></>
+      <div className="explanation-step"><small>3 · Recommendation</small>
+        {first ? <><strong>{first.title}</strong><p>{first.text}</p><details className="explanation-recommendation-details"><summary>Why this recommendation?</summary><RecommendationBreakdown recommendation={first} trace={trace} /></details></>
           : <p>No priority finding was returned by the selected agents.</p>}
         {trace.missing_agents.length > 0 && <p className="explanation-missing">A complete plan needs {trace.missing_agents.map((id) => agentNames[id] ?? id).join(', ')}.</p>}</div>
-      <div className="explanation-step"><small>4 · Proxy score</small>
-        <strong>{total.toFixed(2)} project points</strong>
-        <p>Points reflect selected checks and call costs under this project's rules, not a financial outcome.</p></div>
     </div>
     <details className="explanation-details"><summary>Explore every selection, finding, and limit</summary>
+      <p>Action {trace.action}. Reward: <strong>{total.toFixed(2)} project points</strong>. Points reflect selected checks and call costs under this project's rules, not a financial outcome.</p>
       <h4>Why each agent ran or was skipped</h4>
       <div className="explanation-selections">{trace.selections.map((item) => <div key={item.agent_id}>
         <strong>{agentNames[item.agent_id] ?? item.agent_id} · {item.selected ? 'ran' : 'skipped'}</strong>

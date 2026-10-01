@@ -30,7 +30,7 @@ export function OrchestrationResult({ result, userId, onOpenProfile = () => {}, 
         <h3>{result.summary.title}</h3><p>{result.summary.text}</p></div>
       <div className="orchestration-score"><strong>{result.total_reward.toFixed(2)}</strong><span>proxy points</span></div>
     </div>
-    <p className="orchestration-meta">Saved profile as of {result.as_of_date} · {result.policy_version} · Action catalogue {result.action_version}</p>
+    <details className="orchestration-meta"><summary>Run details</summary><p>Saved profile as of {result.as_of_date} · {result.policy_version} · Action catalogue {result.action_version}</p></details>
     <ExplanationTrail trace={result.explanation} />
     {result.explanation && userId != null && <ReasoningPanel key={`${result.state_fingerprint}:${result.mode}:${result.action}:${result.seed}`} userId={userId} liveResult={result} />}
     {!result.explanation && <div className="orchestration-selected"><h4>Agents that ran</h4>
@@ -70,10 +70,10 @@ export default function OrchestrationLab({ userId, onOpenProfile, onOpenGoal }) 
     finally { setRunning(false) }
   }
 
-  return <section className="orchestration-lab" aria-labelledby="orchestration-lab-heading">
-    <div><p className="research-small-label">LIVE POLICY SELECTION</p>
-      <h2 id="orchestration-lab-heading">Choose how agents are selected</h2>
-      <p>Run an experimental analysis on your current saved profile. The selection can differ from your saved monthly plan above. These runs are not saved in history.</p></div>
+  return <details className="orchestration-lab">
+    <summary>Compare agent selection methods (research)</summary>
+    <div><h2>Choose how agents are selected</h2>
+      <p>Run a method on your saved profile. The result can differ from your saved monthly plan. Experimental runs are not saved in history.</p></div>
     <form onSubmit={run} className="orchestration-controls">
       <label>Selection method<select value={mode} disabled={running} onChange={(event) => { setMode(event.target.value); setResult(null); setError('') }}>
         {modes.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -84,5 +84,5 @@ export default function OrchestrationLab({ userId, onOpenProfile, onOpenGoal }) 
     {mode === 'trained_rl' && <p className="orchestration-mode-note">Trained RL uses the committed DQN model. It may choose fewer agents, so a complete monthly plan is shown only when all required checks ran.</p>}
     {error && <p role="alert" className="research-error">{error}</p>}
     {result && <OrchestrationResult result={result} userId={userId} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} />}
-  </section>
+  </details>
 }

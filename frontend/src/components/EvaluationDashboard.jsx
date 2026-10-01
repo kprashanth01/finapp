@@ -91,7 +91,7 @@ export default function EvaluationDashboard({ userId }) {
   }
 
   return <section className="research-metrics" aria-labelledby="research-metrics-heading">
-    <p className="research-small-label">STORED EXPERIMENT · FILTERABLE RESULTS</p>
+    <p className="research-small-label">RECORDED EXPERIMENT</p>
     <h3 id="research-metrics-heading">Explore measured results</h3>
     <p>Filter the imported experiment by method, scenario, and metric. Every value below comes from a recorded research run.</p>
     {options && <div className="research-metrics-controls">

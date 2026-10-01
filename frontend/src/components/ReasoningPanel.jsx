@@ -36,7 +36,7 @@ export default function ReasoningPanel({ userId, sessionId, liveResult }) {
   const evidence = Object.fromEntries((explanation?.evidence ?? []).map((item) => [item.id, item]))
   return <section className="reasoning-panel" aria-label="Explanation of this run">
     <div className="reasoning-panel-head">
-      <div><p className="research-small-label">OPTIONAL NARRATIVE</p><h3>Explain this run</h3></div>
+      <div><h3>Explain this run</h3></div>
       <button type="button" className="primary-action" onClick={generate} disabled={loading}>{loading ? 'Generating…' : explanation ? 'Generate again' : 'Generate explanation'}</button>
     </div>
     <p>The financial amounts, agent findings and recommendation for this run are sent to OpenAI only if a model is configured and you press the button. Account name and email fields are excluded. The response is not saved to history.</p>

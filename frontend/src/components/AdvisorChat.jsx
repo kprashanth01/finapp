@@ -31,7 +31,6 @@ export default function AdvisorChat({ userId, sessionId, stale = false }) {
   }
 
   return <section className="advisor-chat" aria-labelledby="advisor-chat-heading">
-    <p className="research-small-label">OPTIONAL ADVISOR CHAT</p>
     <h3 id="advisor-chat-heading">Ask about this saved run</h3>
     <p>These answers describe the saved run shown above. A local AI model uses its recorded numbers, findings and decisions to answer your questions in natural language. If it is unavailable, you will see a saved-run answer instead. Messages are not saved to history.</p>
     {stale && <p className="advisor-chat-stale">Your profile has changed since this run. These answers still describe its earlier snapshot.</p>}
