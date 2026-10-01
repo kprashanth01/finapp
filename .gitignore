@@ -10,3 +10,4 @@ dist/
 *.log
 data/synthetic/*.jsonl
 data/synthetic/*.summary.json
+data/synthetic/variable-income-experiment-v1/
