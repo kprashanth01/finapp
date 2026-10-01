@@ -26,8 +26,14 @@ logger = logging.getLogger(__name__)
 
 
 def _recommendation(episode: DynamicEpisode, position: int, environment: DynamicAgentSelectionEnv,
-                    info: dict) -> dict:
+                    info: dict, *, method: str = "trained_rl") -> dict:
     """Use only the agents actually returned by the environment for advice."""
+    method_labels = {"trained_rl": ("rl", "the trained monthly DQN"),
+                     "rule_based": ("rule_based", "the rule baseline"),
+                     "random": ("random", "the seeded random baseline")}
+    if method not in method_labels:
+        raise ValueError("Unknown paired experiment method.")
+    decision_method, source_label = method_labels[method]
     selected = info["selected_agents"]
     results = info["agent_results"]
     if [result["agent_id"] for result in results] != selected:
@@ -52,11 +58,11 @@ def _recommendation(episode: DynamicEpisode, position: int, environment: Dynamic
             "coordinated_plan": None,
         }
     decision = OrchestratorDecision(
-        method="rl", rule_version=RULE_VERSION,
+        method=decision_method, rule_version=RULE_VERSION,
         selections=[AgentSelection(
             agent_id=agent_id, selected=agent_id in selected,
-            reason="Selected by the trained monthly DQN." if agent_id in selected else
-                   "Not selected by the trained monthly DQN.",
+            reason=f"Selected by {source_label}." if agent_id in selected else
+                   f"Not selected by {source_label}.",
         ) for agent_id in environment.registry.agent_ids],
     )
     advice = RecommendationEngine().build(
