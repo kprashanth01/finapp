@@ -43,6 +43,7 @@ class ShockConfig:
     income_loss_months: int = 2
     income_volatility_override: float | None = None
     event_types: tuple[EventType, ...] = EVENT_TYPES
+    forced_events: tuple[tuple[int, EventType], ...] = ()
 
     def __post_init__(self) -> None:
         if not isfinite(self.probability) or not 0 <= self.probability <= 1:
@@ -65,6 +66,10 @@ class ShockConfig:
         if not self.event_types or len(set(self.event_types)) != len(self.event_types) or \
                 any(event not in EVENT_TYPES for event in self.event_types):
             raise ValueError("event_types must contain distinct supported events")
+        if (any(isinstance(month, bool) or not isinstance(month, int) or not 1 <= month <= 120 or
+                event not in EVENT_TYPES for month, event in self.forced_events) or
+                len({month for month, _ in self.forced_events}) != len(self.forced_events)):
+            raise ValueError("forced_events need distinct supported months and events")
 
 
 @dataclass(frozen=True)
@@ -131,9 +136,12 @@ def generate_trajectory(profile: SyntheticProfile, *, months: int = DEFAULT_MONT
         raise ValueError("months must be between 1 and 120")
     if not 0 <= expense_volatility <= 1:
         raise ValueError("expense_volatility must be between 0 and 1")
+    if shock_config is not None and any(month > months for month, _ in shock_config.forced_events):
+        raise ValueError("forced_events cannot fall outside the generated months")
     validate_profile(profile)
     rng = _rng(profile, seed)
     event_rng = _event_rng(profile, seed) if shock_config is not None else None
+    forced_events = dict(shock_config.forced_events) if shock_config is not None else {}
     income_volatility = (shock_config.income_volatility_override
                          if shock_config is not None and shock_config.income_volatility_override is not None
                          else float(profile.income_volatility))
@@ -156,7 +164,14 @@ def generate_trajectory(profile: SyntheticProfile, *, months: int = DEFAULT_MONT
         event_income_delta = ZERO
         event_expense = ZERO
         if shock_config is not None:
-            if loss_months_remaining:
+            if month_index in forced_events:
+                event_type = forced_events[month_index]
+                if event_type == "debt_pressure" and not any(balance > 0 for balance in debt_balances):
+                    raise ValueError("A forced debt-pressure event requires outstanding debt")
+                event_started = True
+                loss_months_remaining = (shock_config.income_loss_months - 1
+                                         if event_type == "temporary_income_loss" else 0)
+            elif loss_months_remaining:
                 event_type = "temporary_income_loss"
                 loss_months_remaining -= 1
             elif event_rng.random() < shock_config.probability:
