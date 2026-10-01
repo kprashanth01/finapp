@@ -289,10 +289,14 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                   analysis={analysis}
                   advisorySession={advisorySession}
                   advisoryLoading={advisoryLoading}
+                  advisoryRunning={advisoryRunning}
                   advisoryError={advisoryError}
                   saving={saving}
+                  goalPending={goalsState.pending}
                   onRetryAdvisory={() => refreshAdvisory(user.id)}
-                  onOpenProfile={() => openProfile(null)}
+                  onRunAdvisory={handleRunAdvisory}
+                  onOpenProfile={openProfile}
+                  onOpenGoal={openGoal}
                   onOpenAdvisor={() => setActiveView('advisor')}
                 />
               )}
