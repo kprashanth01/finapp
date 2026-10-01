@@ -428,6 +428,18 @@ Run the read-only example from `backend/`:
 
 The JSON shows one action, its agent findings and priority actions, reward components, and next-month index at each step. The existing website has no new screen for this backend milestone. No new package, PostgreSQL connection, migration, API key, external model, or environment variable is required.
 
+### DQN training on monthly episodes (Issue 12)
+
+`backend/app/rl/dynamic_training.py` fits a separate 19-feature DQN on generated monthly episodes. It separates whole synthetic users into training, validation, and held-out test cohorts, selects the best checkpoint on validation proxy reward, and records the one-time test result and model checksum in a versioned artifact. The earlier one-step DQN remains the website's Research model. See [docs/dynamic-dqn-training.md](docs/dynamic-dqn-training.md) for the reproducible command, split design, and interpretation limits.
+
+Run the offline experiment from `backend/` after installing `requirements-rl.txt`:
+
+```powershell
+..\.venv\Scripts\python -m app.rl.dynamic_training --steps 12000 --validation-every 3000 --training-users 256 --validation-users 64 --test-users 64 --months 12
+```
+
+The CLI prints the saved artifact path, chosen step, and held-out test proxy metrics. This issue adds no new website screen and does not use saved account data. Its score does not measure financial improvement.
+
 ## API available now
 
 | Method | Path | Purpose |
