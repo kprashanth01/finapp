@@ -12,3 +12,4 @@ data/synthetic/*.jsonl
 data/synthetic/*.summary.json
 data/synthetic/variable-income-experiment-v1/
 data/synthetic/conflict-scenarios-v1/
+data/synthetic/monthly-ablations-v1/
