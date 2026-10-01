@@ -98,6 +98,12 @@ export async function explainSavedSession(userId, sessionId) {
   return (await api.post(`/users/${userId}/advisory-sessions/${sessionId}/reasoning`, {}, { timeout: 20000 })).data
 }
 
+export async function askSavedSession(userId, sessionId, question, contextTopic = null) {
+  return (await api.post(`/users/${userId}/advisory-sessions/${sessionId}/chat`, {
+    question, ...(contextTopic ? { context_topic: contextTopic } : {}),
+  })).data
+}
+
 export async function explainLiveRun(userId, result) {
   return (await api.post(`/users/${userId}/research/orchestration-reasoning`, {
     mode: result.mode, seed: result.seed ?? 42,

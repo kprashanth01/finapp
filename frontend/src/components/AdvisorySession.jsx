@@ -1,5 +1,6 @@
 import AdvisoryPlan from './AdvisoryPlan.jsx'
 import ReasoningPanel from './ReasoningPanel.jsx'
+import AdvisorChat from './AdvisorChat.jsx'
 import { staleMessage } from '../utils/format.js'
 const agentNames = { budget: 'Budget', debt: 'Debt', emergency: 'Emergency fund', goal: 'Goal planning', risk: 'Risk assessment', investment: 'Investment' }
 const capturedInputs = [
@@ -102,6 +103,7 @@ function AdvisorySession({ session, loading, running, saving, error, onRun, hist
           </div>
 
           </>}
+          {result.explanation && <AdvisorChat key={`chat-${session.id}`} userId={session.user_id} sessionId={session.id} stale={session.is_stale} />}
           {result.explanation && <ReasoningPanel key={session.id} userId={session.user_id} sessionId={session.id} />}
           <details className="rounded-lg border border-slate-200 p-4">
             <summary className="cursor-pointer text-sm font-medium">Research details: how agents were selected and what they found</summary>

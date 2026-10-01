@@ -9,6 +9,7 @@ from app.advisory.service import financial_state, run_advisory, planning_date
 from app.advisory.session_types import AdvisoryHistoryPage, AdvisorySessionRead, AdvisorySessionSummary, get_priority_actions
 from app.advisory.planning_types import AdvisoryResultV2
 from app.advisory.reasoning import ReasoningResponse, explain_run
+from app.advisory.chat import ChatAnswer, ChatQuestion, answer_saved_question
 from app.advisory.state import PlanningState
 from app.advisory.rules import RULE_VERSION
 from app.goal_api import load_active_goals
@@ -226,3 +227,17 @@ def explain_saved_advisory_session(user_id: int, session_id: int,
     if result is None or result.explanation is None:
         raise HTTPException(status_code=422, detail='This earlier session has no explanation trace. Run a new analysis.')
     return explain_run(result.explanation, result.advice.summary.model_dump(), result.agent_results)
+
+
+@router.post('/users/{user_id}/advisory-sessions/{session_id}/chat',
+             response_model=ChatAnswer, dependencies=[Depends(require_owner)])
+def chat_about_saved_advisory_session(user_id: int, session_id: int, payload: ChatQuestion,
+                                      session: Session = Depends(get_session)) -> ChatAnswer:
+    row = session.scalar(select(AnalysisSession).where(
+        AnalysisSession.user_id == user_id, AnalysisSession.id == session_id))
+    if row is None:
+        raise HTTPException(status_code=404, detail='Advisory session not found.')
+    if not row.result_payload.get('explanation'):
+        raise HTTPException(status_code=422, detail='This earlier session has no explanation trace. Run a new analysis.')
+    result = AdvisoryResultV2.model_validate(row.result_payload)
+    return answer_saved_question(result, session_id, payload)
