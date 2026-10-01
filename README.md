@@ -452,6 +452,12 @@ Set `ORCHESTRATOR_MODE=rule_based`, `random`, or `trained_rl` in the root `.env`
 
 This switch controls read-only experimental runs on saved snapshot profiles. Saved **Advisor** sessions remain complete rule-based plans; the new monthly DQN remains offline until its separate integration work.
 
+### Trained monthly DQN and existing agents (Issue 15)
+
+The offline monthly policy now has an end-to-end trace: synthetic financial state → 19-feature observation → saved DQN action → 63-subset action mapping → only the selected existing agents → their actual findings and gated recommendation → dynamic reward → JSONL log. A coordinated plan is built only when the selected agents cover the required checks. The generated next month remains independent of the selection. See [docs/dynamic-dqn-agent-integration.md](docs/dynamic-dqn-agent-integration.md) for the trace contract and a worked example.
+
+From `backend/`, run `..\.venv\Scripts\python -m app.rl.dynamic_integration --months 3` and inspect `..\data\synthetic\dynamic-dqn-agent-trace-v1.jsonl`. This synthetic-only path adds no website screen; the signed-in Advisor selector still uses the earlier snapshot DQN.
+
 ## API available now
 
 | Method | Path | Purpose |
