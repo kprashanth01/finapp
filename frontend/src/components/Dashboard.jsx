@@ -94,7 +94,8 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
       </div>}
     </section>
 
-    <ScenarioPreview key={JSON.stringify([user, profile, goals])} user={user} profile={profile} disabled={!canRun} />
+    <ScenarioPreview key={JSON.stringify([user, profile, goals])} user={user} profile={profile}
+      onOpenIncome={() => onOpenProfile('monthly_income')} disabled={!canRun} />
 
     <section aria-labelledby="picture-heading" className="border-t border-slate-200 pt-7">
       <h3 id="picture-heading" className="text-xl font-semibold">Your financial picture</h3>

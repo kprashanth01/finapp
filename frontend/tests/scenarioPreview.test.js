@@ -35,6 +35,22 @@ test('scenario form offers editable values and clearly separates a preview from 
   assert.match(html, /does not change your saved profile or plan/)
   assert.match(html, /name="monthly_income"[^>]*value="5000\.00"/)
   assert.match(html, /name="monthly_savings_contribution"[^>]*value="500\.00"/)
+  assert.match(html, /Saved gross monthly income: <strong>5,000\.00<\/strong>/)
+  assert.match(html, /Before tax, expected in this month/)
+})
+
+test('zero saved income explains the preset and shows the impossible savings assumption', () => {
+  const html = renderToStaticMarkup(createElement(ScenarioPreview, {
+    user: { ...user, monthly_income: '0.00' },
+    profile: { ...profile, monthly_savings_contribution: '1000.00' },
+    onOpenIncome() {},
+  }))
+  assert.match(html, /Saved gross monthly income: <strong>0\.00<\/strong>/)
+  assert.match(html, /20% preset needs a positive saved income/)
+  assert.match(html, /Update saved income/)
+  assert.match(html, /<button type="button" disabled=""[^>]*>Try 20% less income<\/button>/)
+  assert.match(html, /at most 0\.00 before tax/)
+  assert.match(html, /name="monthly_income"[^>]*value="0\.00"/)
 })
 
 test('comparison shows changed priority context, allocation, goal funding, and gross-cash limitation', () => {
