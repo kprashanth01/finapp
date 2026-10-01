@@ -53,3 +53,9 @@ class AnalysisRead(BaseModel):
     expense_to_income_percent: Decimal | None
     emergency_fund_months: Decimal | None
     health_score: int | None
+
+
+class ScenarioWrite(BaseModel):
+    monthly_income: Money
+    monthly_expenses: Money
+    monthly_savings_contribution: Money | None
