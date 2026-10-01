@@ -15,6 +15,17 @@ class BudgetOnlyPolicy:
         return 0, None
 
 
+def valid_sections():
+    return {
+        "summary": "Selected specialists reported liquidity pressure in this synthetic case.",
+        "key_findings": ["The selected Budget check reported a recorded concern."],
+        "priority_actions": ["Review the existing deterministic recommendation."],
+        "reasoning": ["The observed action selected the recorded specialists."],
+        "agent_contributions": ["Budget supplied a finding for this case."],
+        "limitations": ["The coordinated plan and conflicts were not assessed."],
+    }
+
+
 @pytest.fixture(scope="module")
 def case():
     episodes = build_dynamic_episode_splits(
@@ -37,9 +48,15 @@ def test_no_request_or_missing_key_uses_unchanged_deterministic_case(case, monke
     skipped = explain_case(case, "trained_rl")
     assert skipped["source"] == "deterministic"
     assert skipped["fallback_reason"] == "not_requested"
+    assert set(skipped["sections"]) == set(valid_sections())
+    assert skipped["sections"]["key_findings"]
+    assert skipped["sections"]["limitations"]
     assert skipped["narrative"].startswith(" ".join(case["methods"]["trained_rl"]["explanation"]))
     first_finding = case["methods"]["trained_rl"]["agent_outputs"][0]["findings"][0]
     assert first_finding["reason"] in skipped["narrative"]
+    priority = case["methods"]["trained_rl"]["priority_actions"]
+    if priority:
+        assert priority[0]["title"] in skipped["sections"]["priority_actions"][0]
     assert case["methods"]["trained_rl"]["recommendation"]["summary"]["text"] in skipped["narrative"]
     assert "feature causes are not available" in skipped["narrative"]
     assert "conflicts were not assessed" in skipped["narrative"]
@@ -57,7 +74,7 @@ def test_provider_receives_only_recorded_synthetic_evidence_and_cannot_change_fa
     from app.rl import dynamic_case_reasoning as reasoning
 
     captured = {}
-    narrative = "The selected specialists found liquidity pressure. The coordinated plan remains partial because required checks did not run."
+    sections = valid_sections()
 
     class Response:
         def __enter__(self):
@@ -68,7 +85,7 @@ def test_provider_receives_only_recorded_synthetic_evidence_and_cannot_change_fa
 
         def read(self, *_args):
             return json.dumps({"status": "completed", "output": [{"type": "message",
-                "content": [{"type": "output_text", "text": narrative}]}]}).encode()
+                "content": [{"type": "output_text", "text": json.dumps(sections)}]}]}).encode()
 
     def fake_urlopen(request, timeout):
         captured["url"] = request.full_url
@@ -80,17 +97,54 @@ def test_provider_receives_only_recorded_synthetic_evidence_and_cannot_change_fa
     monkeypatch.setattr(reasoning, "urlopen", fake_urlopen)
     answer = explain_case(case, "trained_rl", use_llm=True)
     assert answer["source"] == "llm"
-    assert answer["narrative"] == narrative
+    assert answer["sections"] == sections
     assert answer["fallback_reason"] is None
     assert answer["deterministic"]["action"] == case["methods"]["trained_rl"]["action"]
     assert answer["deterministic"]["agent_outputs"] == case["methods"]["trained_rl"]["agent_outputs"]
     assert captured["url"] == "https://api.openai.com/v1/responses"
     assert captured["body"]["store"] is False
+    assert captured["body"]["text"]["format"]["type"] == "json_schema"
+    assert captured["body"]["text"]["format"]["strict"] is True
     facts = json.loads(captured["body"]["input"][1]["content"])
     assert facts["selected_agents"] == case["methods"]["trained_rl"]["selected_agents"]
     assert facts["agent_findings"]
+    assert facts["priority_actions"] == [
+        {"agent_id": item["agent_id"], "title": item["title"], "reason": item["reason"]}
+        for item in case["methods"]["trained_rl"]["priority_actions"]
+    ]
     assert facts["conflicts_status"] == "not_assessed"
     assert "synthetic_id" not in facts and "user_state" not in facts and "email" not in str(facts)
+
+
+def test_safe_json_fence_is_accepted(case, monkeypatch):
+    from app.rl import dynamic_case_reasoning as reasoning
+
+    monkeypatch.setenv("OPENAI_API_KEY", "unit-test-key")
+    monkeypatch.setattr(reasoning, "_provider_request",
+                        lambda *_args: "```json\n" + json.dumps(valid_sections()) + "\n```")
+    answer = explain_case(case, "trained_rl", use_llm=True)
+    assert answer["source"] == "llm"
+    assert answer["sections"] == valid_sections()
+
+
+@pytest.mark.parametrize("altered", [
+    '{"summary": "unterminated',
+    "Here are your results: " + json.dumps(valid_sections()),
+    json.dumps({**valid_sections(), "extra": "unsupported"}),
+    json.dumps({**valid_sections(), "priority_actions": "not a list"}),
+    json.dumps({**valid_sections(), "agent_contributions": []}),
+    json.dumps(valid_sections())[:-1] + ', "summary": "Overwritten by a duplicate key."}',
+])
+def test_malformed_or_invalid_structure_falls_back(case, monkeypatch, altered):
+    from app.rl import dynamic_case_reasoning as reasoning
+
+    monkeypatch.setenv("OPENAI_API_KEY", "unit-test-key")
+    monkeypatch.setattr(reasoning, "_provider_request", lambda *_args: altered)
+    answer = explain_case(case, "trained_rl", use_llm=True)
+    assert answer["source"] == "deterministic"
+    assert answer["fallback_reason"] == "invalid_output"
+    assert set(answer["sections"]) == set(valid_sections())
+    assert answer["deterministic"]["action"] == case["methods"]["trained_rl"]["action"]
 
 
 @pytest.mark.parametrize("unsafe", [
@@ -104,11 +158,12 @@ def test_unsupported_provider_claims_fall_back(case, monkeypatch, unsafe):
     from app.rl import dynamic_case_reasoning as reasoning
 
     monkeypatch.setenv("OPENAI_API_KEY", "unit-test-key")
-    monkeypatch.setattr(reasoning, "_provider_request", lambda *_args: unsafe)
+    monkeypatch.setattr(reasoning, "_provider_request",
+                        lambda *_args: json.dumps({**valid_sections(), "reasoning": [unsafe]}))
     answer = explain_case(case, "trained_rl", use_llm=True)
     assert answer["source"] == "deterministic"
     assert answer["fallback_reason"] == "invalid_output"
-    assert unsafe not in answer["narrative"]
+    assert unsafe not in json.dumps(answer["sections"])
 
 
 def test_provider_failure_falls_back_and_unknown_method_is_rejected(case, monkeypatch):
