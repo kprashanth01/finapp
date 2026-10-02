@@ -19,6 +19,7 @@ from app.models import AnalysisSession, FinancialMonth, FinancialProfile, Loan, 
 from app.schemas import AnalysisRead, ProfileRead, ProfileWrite, ScenarioWrite, UserCreate, UserRead
 from app.services.financial_analysis import FinancialAnalysisService
 from app.services.financial_details import validate_detail_totals
+from app.services.event_scenario import EventScenarioRead, EventScenarioWrite, preview_event
 
 
 router = APIRouter()
@@ -180,6 +181,27 @@ def preview_advisory_scenario(
         raise HTTPException(status_code=422,
                             detail="Planned monthly savings cannot exceed gross income minus expenses in this scenario. Reduce the contribution or update the other amounts.")
     return preview_scenario(user, profile, load_active_goals(session, user_id), planning_date(), payload)
+
+
+@router.post("/users/{user_id}/event-scenario", response_model=EventScenarioRead,
+             dependencies=[Depends(require_owner)])
+def preview_event_scenario(
+    user_id: int, payload: EventScenarioWrite, session: Session = Depends(get_session)
+) -> EventScenarioRead:
+    user, profile = _saved_financial_data(user_id, session)
+    try:
+        return preview_event(
+            user, profile, payload,
+            expenses=session.scalars(select(RecurringExpense).where(RecurringExpense.user_id == user_id)).all(),
+            loans=session.scalars(select(Loan).where(Loan.user_id == user_id)).all(),
+            plans=session.scalars(select(PlannedExpense).where(PlannedExpense.user_id == user_id)).all(),
+            goals=load_active_goals(session, user_id),
+            months=session.scalars(select(FinancialMonth).where(FinancialMonth.user_id == user_id)
+                                   .order_by(FinancialMonth.period)).all(),
+            as_of_date=planning_date(),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.get("/users/{user_id}/advisory-sessions/latest", response_model=AdvisorySessionRead,

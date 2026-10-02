@@ -34,7 +34,7 @@ Follow [the complete local setup guide](docs/setup.md) for copyable **Windows Po
 2. In **Profile → User details**, enter gross monthly income. Save your financial profile, including monthly expenses and the amount you can actually save per month.
 3. On **Dashboard**, run an analysis. Read the priority, its supporting fact, and the proposed monthly allocation.
 4. Add a goal in **Goals**, then run a new analysis to see the tradeoff with your other priorities.
-5. Use **Months** to record different income or spending months, or try the Dashboard's one-month scenario preview. These previews do not edit the saved plan.
+5. Use **Months** to record different income or spending months, or try the Dashboard's one-month and specific-event previews. These previews do not edit the saved plan.
 
 Profile also has an optional detail section for income context, recurring expense categories, loans, and upcoming one-time costs. The saved plan currently uses the aggregate Profile values; these records describe them without adding to those totals.
 
