@@ -14,6 +14,10 @@ function planAmount(plan, key) {
   return plan.capacity == null ? 'Not calculated' : formatAmount(plan[key])
 }
 
+function cents(value) {
+  return value == null ? null : Math.round(Number(value) * 100)
+}
+
 export function ScenarioComparison({ preview }) {
   const { baseline, scenario } = preview
   const current = baseline.advice.monthly_plan
@@ -24,11 +28,53 @@ export function ScenarioComparison({ preview }) {
     current: allocation,
     changed: changed.goal_allocations.find((item) => item.requirement.goal.id === allocation.requirement.goal.id),
   }))
+  const savedPriority = firstPriority(baseline)
+  const changedPriority = firstPriority(scenario)
+  const savedHasPriority = baseline.advice.priority_actions.length > 0
+  const changedHasPriority = scenario.advice.priority_actions.length > 0
+  const priorityChanged = savedHasPriority !== changedHasPriority ||
+    (savedHasPriority && changedHasPriority && savedPriority !== changedPriority)
+  const priorityMessage = !savedHasPriority && !changedHasPriority
+    ? 'Neither plan flags an immediate priority.'
+    : !savedHasPriority
+      ? `The hypothetical plan flags ${changedPriority} as its first priority.`
+      : !changedHasPriority
+        ? `The saved plan prioritizes ${savedPriority}; the hypothetical plan flags no immediate priority.`
+        : savedPriority === changedPriority
+          ? `First priority stays ${changedPriority}.`
+          : `First priority changes from ${savedPriority} to ${changedPriority}.`
+  const shortfall = Math.max(0, -grossRemainder(scenario.state))
+  const savingsChange = current.capacity == null || changed.capacity == null ? null : cents(changed.capacity) - cents(current.capacity)
+  const reserveChange = current.emergency_allocation == null || changed.emergency_allocation == null
+    ? null : cents(changed.emergency_allocation) - cents(current.emergency_allocation)
+  const largestGoalChange = goals.map((goal) => ({ ...goal,
+    change: goal.current.funding_gap == null || goal.changed?.funding_gap == null
+      ? null : cents(goal.changed.funding_gap) - cents(goal.current.funding_gap),
+  })).filter((goal) => goal.change !== null && goal.change !== 0)
+    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))[0]
+  const sameAllocations = current.capacity != null && changed.capacity != null &&
+    [savingsChange, reserveChange, cents(changed.unassigned) - cents(current.unassigned)].every((change) => change === 0) &&
+    goals.length === changed.goal_allocations.length && goals.every((goal) => goal.changed &&
+      cents(goal.current.allocated_monthly) === cents(goal.changed.allocated_monthly) &&
+      cents(goal.current.funding_gap) === cents(goal.changed.funding_gap))
+  const nextStep = shortfall > 0
+    ? 'First review what you can reduce, delay, or cover this month before assigning new savings.'
+    : changed.capacity == null
+      ? 'Enter an amount you could actually set aside to see a funded allocation.'
+      : priorityChanged && changedHasPriority
+        ? 'Start with the changed first priority before funding lower priorities.'
+        : largestGoalChange?.change > 0
+          ? 'Review the goal date or contribution after higher priorities; the gap is not extra available cash.'
+          : savingsChange < 0
+            ? 'Check whether the lower planned savings is realistic and review any delayed reserve or goal funding.'
+            : largestGoalChange?.change < 0
+              ? 'Check that the entered savings amount is realistic before counting on the smaller goal gap.'
+            : 'Use the detailed comparison to review the proposed allocation before changing saved inputs.'
   const rows = [
     ['Gross monthly income', formatAmount(baseline.state.monthly_income), formatAmount(scenario.state.monthly_income)],
     ['Monthly expenses', formatAmount(baseline.state.monthly_expenses), formatAmount(scenario.state.monthly_expenses)],
     ['Gross income less expenses', formatAmount(grossRemainder(baseline.state)), formatAmount(grossRemainder(scenario.state))],
-    ['First priority', firstPriority(baseline), firstPriority(scenario)],
+    ['Plan focus', savedPriority, changedPriority],
     ['Emergency expense coverage', baseline.state.emergency_fund_months == null ? 'Unavailable' : `${baseline.state.emergency_fund_months} months`,
       scenario.state.emergency_fund_months == null ? 'Unavailable' : `${scenario.state.emergency_fund_months} months`],
     ['Planned monthly savings', planAmount(current, 'capacity'), planAmount(changed, 'capacity')],
@@ -43,16 +89,31 @@ export function ScenarioComparison({ preview }) {
   ]
 
   return <div className="mt-5 space-y-3" aria-live="polite">
-    <h4 className="font-semibold">How the monthly plan changes</h4>
-    <div className="overflow-x-auto rounded-xl border border-slate-200">
+    <section className="rounded-xl border border-slate-200 bg-slate-50 p-4" aria-label="Scenario decision summary">
+      <h4 className="font-semibold">What this means this month</h4>
+      <p className="mt-2 text-sm">{priorityMessage}</p>
+      {scenario.advice.priority_actions[0]?.reason && <p className="mt-1 text-sm text-slate-700">Why: {scenario.advice.priority_actions[0].reason}</p>}
+      <ul className="mt-3 space-y-1 text-sm text-slate-700">
+        {shortfall > 0 && <li className="font-medium text-amber-900">Expenses exceed gross income by {formatAmount(shortfall)}.</li>}
+        {changed.capacity == null && <li>Savings allocation is not calculated because no planned savings amount was entered.</li>}
+        {savingsChange !== null && savingsChange !== 0 && <li>Planned savings {savingsChange < 0 ? 'falls' : 'rises'} by {formatAmount(Math.abs(savingsChange) / 100)}.</li>}
+        {reserveChange !== null && reserveChange !== 0 && <li>Emergency reserve allocation {reserveChange < 0 ? 'falls' : 'rises'} by {formatAmount(Math.abs(reserveChange) / 100)}.</li>}
+        {largestGoalChange && <li>{largestGoalChange.name} monthly gap {largestGoalChange.change > 0 ? 'grows' : 'shrinks'} by {formatAmount(Math.abs(largestGoalChange.change) / 100)}. Other goal changes remain in the comparison below.</li>}
+        {!priorityChanged && sameAllocations && <li>{savedHasPriority
+          ? 'The first priority and planned allocations stay the same under these inputs.'
+          : 'Planned allocations stay the same under these inputs.'}</li>}
+      </ul>
+      <p className="mt-3 text-sm"><span className="font-semibold">What to do:</span> {nextStep}</p>
+      <p className="mt-2 text-xs text-slate-600">This is a hypothetical plan using the entered savings amount, not a forecast or a change to your saved profile.</p>
+    </section>
+    <details className="rounded-xl border border-slate-200 p-4"><summary className="cursor-pointer font-medium">Detailed comparison</summary>
+    <div className="mt-3 overflow-x-auto rounded-xl border border-slate-200">
       <table className="w-full min-w-[35rem] border-collapse text-left text-sm">
         <thead className="bg-slate-50"><tr><th scope="col" className="p-3">Financial check</th><th scope="col" className="p-3">Current saved inputs</th><th scope="col" className="p-3">Hypothetical month</th></tr></thead>
         <tbody>{rows.map(([label, before, after], index) => <tr key={`${label}-${index}`} className="border-t border-slate-200"><th scope="row" className="p-3 font-medium">{label}</th><td className="p-3">{before}</td><td className="p-3">{after}</td></tr>)}</tbody>
       </table>
     </div>
-    {grossRemainder(scenario.state) < 0 && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
-      In this hypothetical month, expenses exceed gross income by {formatAmount(-grossRemainder(scenario.state))}. Review spending or income before relying on a savings allocation.
-    </p>}
+    </details>
     {changed.hold_reason && <p className="rounded-lg bg-amber-50 p-3 text-sm text-amber-900">Scenario plan: {changed.hold_reason}</p>}
     <p className="text-xs text-slate-600">Gross income less expenses is an upper bound, not take-home pay or confirmed savings. Allocations assume you can actually make the entered monthly savings contribution. No money is moved and this preview is not a forecast.</p>
   </div>

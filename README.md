@@ -174,6 +174,8 @@ New saved runs include each selected agent's finding, supporting figures, why it
 
 **Dashboard → What if my income or expenses change?** previews one hypothetical month without editing the saved profile or creating a saved advisory session. Enter gross monthly income, total monthly expenses, and the amount you plan to save in that month, or use **Try 20% less income** as a starting point. The comparison recalculates priorities, reserve coverage, goal funding, and the coordinated monthly allocation using the same rule-based planner and current saved balances, debt payments, and goals. It rejects expenses below required recorded debt payments and a planned savings contribution above gross income minus expenses. This gross remainder is only an upper bound: taxes, timing, and unrecorded costs may reduce spendable cash. A preview is not a forecast and does not move money. Save real changes in Profile and run a new plan when they occur.
 
+The scenario result leads with **What this means this month**: the first priority, any cash shortfall, changes to planned savings and reserve funding, the largest change to a goal's monthly gap, and a suggested next step. Open **Detailed comparison** for every calculated amount. A blank savings contribution produces no funded allocation; the result does not treat it as zero.
+
 The coordinator allocates **only the recorded monthly savings contribution**, once:
 
 1. Cover the emergency reserve gap up to the available budget. Three months means the reserve should cover three months of expenses; it is not a deadline.
