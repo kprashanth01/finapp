@@ -25,6 +25,7 @@ The frontend does not decide how to allocate a saved monthly contribution. It co
 | `frontend/src/Workspace.jsx` | Loads the signed-in account, routes between views, coordinates saves and analysis runs. |
 | `frontend/src/components/Dashboard.jsx` and `ScenarioPreview.jsx` | Current priority and hypothetical one-month comparison. |
 | `frontend/src/components/FinancialProfileForm.jsx` and `UserForm.jsx` | Profile fields and user details. |
+| `frontend/src/components/FinancialDetails.jsx` | Optional income context, recurring expenses, loans, and upcoming one-time costs; entries describe the Profile totals. |
 | `frontend/src/components/Goals.jsx` | Goal list, editing, and archive controls. |
 | `frontend/src/components/AccountMonths.jsx`, `MonthlyPlanningSummary.jsx`, and `RecordedMonthPlan.jsx` | Recorded month entry, cash-flow interpretation, and read-only month plan preview. |
 | `frontend/src/components/AdvisoryPlan.jsx`, `AdvisorySession.jsx`, and `AdvisoryHistory.jsx` | Coordinated plan, evidence, and saved runs. |
@@ -42,6 +43,7 @@ The frontend uses Vite and Tailwind CSS. `frontend/package.json` lists the avail
 | `backend/app/main.py` | FastAPI app, health endpoint, CORS and mutation checks, router registration. |
 | `backend/app/auth_api.py` and `auth_core.py` | Account creation, login, session and password handling. |
 | `backend/app/api.py` and `goal_api.py` | Financial profile, analysis, advisory, and goal endpoints. |
+| `backend/app/financial_details_api.py`, `financial_detail_schemas.py`, and `services/financial_details.py` | Account-owned optional detail snapshot, validation, and reconciliation with aggregate totals. |
 | `backend/app/models.py` | SQLAlchemy tables for accounts and saved financial data. |
 | `backend/app/database.py` | Database engine and root `.env` loading. |
 | `backend/app/services/financial_analysis.py` | Deterministic financial ratios and snapshot metrics. |

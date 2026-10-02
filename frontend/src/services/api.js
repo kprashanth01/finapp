@@ -67,6 +67,14 @@ export async function saveFinancialProfile(userId, profile) {
   return response.data
 }
 
+export async function getFinancialDetails(userId) {
+  return (await api.get(`/users/${userId}/financial-details`)).data
+}
+
+export async function saveFinancialDetails(userId, details) {
+  return (await api.put(`/users/${userId}/financial-details`, details)).data
+}
+
 export async function getLatestAdvisorySession(userId) {
   const response = await api.get(`/users/${userId}/advisory-sessions/latest`)
   return response.data

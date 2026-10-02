@@ -11,6 +11,10 @@ FinApp helps you organize the financial information you enter and examine a poss
 5. **Add a goal**, such as a laptop with a target amount and date. Run analysis again after changing a goal or financial input. Existing saved plans remain historical snapshots.
 6. **Try a change.** Dashboard's scenario form previews one changed month without updating saved details. **Months** lets you save actual month-by-month figures and preview a plan from one recorded month.
 
+After saving a Profile, open **Optional financial details** if you want to describe your income pattern, recurring expense categories, individual loans, or dated one-time costs. These entries are optional. The saved Advisor plan still uses the aggregate Profile values; the detail does not increase those totals. Use **Months** to record income you actually received, rather than treating an expected or guaranteed amount as observed history.
+Leave an optional individual loan balance, loan payment, or amount reserved for an upcoming cost blank when you do not know it; blank means unknown, while zero means none.
+Keep a cost already tracked as a Goal in Goals instead of also adding it as an upcoming one-time expense.
+
 ## What the fields mean
 
 | Field | Enter this | Do not confuse it with |
@@ -23,6 +27,10 @@ FinApp helps you organize the financial information you enter and examine a poss
 | **Outstanding debt balance** | Amount still owed. | This month's payment. |
 | **Monthly debt payments** | Amount paid toward debt each month, already included in monthly expenses. | The full outstanding balance. |
 | **Goal earmarked amount** | Money already set aside for that specific goal. | New monthly savings or emergency money to count twice. |
+| **Guaranteed monthly income** | The part of your current gross monthly estimate that is actually assured, if known. | The lowest month observed or a promise of future earnings. |
+| **Recurring expense detail** | A monthly cost already included in Profile's monthly expenses, excluding loan payments. | An extra cost to add on top of the Profile total. |
+| **Loan detail** | A balance and payment already included in Profile's debt totals. | Additional debt or an additional monthly expense. |
+| **Upcoming one-time expense** | A dated cost and any money reserved for it. | A recurring monthly bill or an automatic change to the current plan. |
 
 If a monthly savings contribution is blank, the app can show findings but cannot produce a funded allocation. Zero means you know there is no new amount to allocate. Treat money left after entered spending as a ceiling: tax, payment timing, and costs you did not enter can reduce what is actually available.
 
