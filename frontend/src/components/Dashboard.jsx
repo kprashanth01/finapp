@@ -5,6 +5,7 @@ import FinancialPicture from './FinancialPicture.jsx'
 import EventScenario from './EventScenario.jsx'
 import UserRecommendations from './UserRecommendations.jsx'
 import { MonthlySnapshot, UpcomingOverview } from './AdviceOverview.jsx'
+import CurrentChat from './CurrentChat.jsx'
 
 const balanceItems = [
   ['Gross monthly income', 'monthly_income', 'user'],
@@ -60,6 +61,8 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
     <UserRecommendations userId={user.id} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenMonths={onOpenMonths} />
 
     <UpcomingOverview picture={analysis?.picture} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenGoals={onOpenGoals} />
+
+    <CurrentChat userId={user.id} />
 
     <section aria-labelledby="decision-heading" className="rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-6">
       <h3 id="decision-heading" className="text-xl font-semibold">Saved monthly allocation plan</h3>
