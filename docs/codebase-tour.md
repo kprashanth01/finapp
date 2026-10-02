@@ -25,6 +25,7 @@ The frontend does not decide how to allocate a saved monthly contribution. It co
 | --- | --- |
 | `frontend/src/Workspace.jsx` | Loads the signed-in account, routes between views, coordinates saves and analysis runs. |
 | `frontend/src/components/Dashboard.jsx`, `AdviceOverview.jsx`, and `UserRecommendations.jsx` | Dashboard layout, monthly snapshot, upcoming obligations and goals, and ranked current actions. |
+| `frontend/src/components/CurrentChat.jsx` | Current-picture questions, answers, and expandable supporting evidence. |
 | `frontend/src/components/ScenarioPreview.jsx` and `EventScenario.jsx` | Optional what-if previews for a hypothetical month or specific change. |
 | `frontend/src/components/FinancialProfileForm.jsx` and `UserForm.jsx` | Profile fields and user details. |
 | `frontend/src/components/FinancialDetails.jsx` | Optional income context, recurring expenses, loans, and upcoming one-time costs; entries describe the Profile totals. |
@@ -49,6 +50,7 @@ The frontend uses Vite and Tailwind CSS. `frontend/package.json` lists the avail
 | `backend/app/models.py` | SQLAlchemy tables for accounts and saved financial data. |
 | `backend/app/database.py` | Database engine and root `.env` loading. |
 | `backend/app/services/financial_analysis.py` and `financial_picture.py` | Deterministic ratios and sourced financial facts. |
+| `backend/app/services/user_recommendations.py` and `current_chat.py` | Ranked current actions and a read-only conversation grounded in those actions and the current picture. |
 | `backend/app/advisory/agents.py`, `goal_agent.py`, `risk_agent.py`, `investment_agent.py` | Six specialist checks that use the picture in saved runs and return structured findings. |
 | `backend/app/advisory/state.py`, `registry.py`, `orchestrator.py`, `recommendations.py` | Planning state, available agents, selection, and coordinated actions. |
 | `backend/app/advisory/service.py`, `scenario.py`, `month_plan.py` | Saved analysis and read-only scenario/month previews. |

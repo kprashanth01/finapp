@@ -21,6 +21,7 @@ from app.services.financial_analysis import FinancialAnalysisService
 from app.services.financial_details import validate_detail_totals
 from app.services.event_scenario import EventScenarioRead, EventScenarioWrite, preview_event
 from app.services.user_recommendations import UserRecommendationsRead, recommend
+from app.services.current_chat import CurrentChatAnswer, CurrentChatQuestion, answer_current_question
 
 
 router = APIRouter()
@@ -122,6 +123,16 @@ def get_user_recommendations(user_id: int, session: Session = Depends(get_sessio
     analysis = get_financial_analysis(user_id, session)
     profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
     return recommend(analysis.picture, profile)
+
+
+@router.post('/users/{user_id}/current-chat', response_model=CurrentChatAnswer,
+             dependencies=[Depends(require_owner)])
+def chat_about_current_finances(user_id: int, payload: CurrentChatQuestion,
+                                session: Session = Depends(get_session)) -> CurrentChatAnswer:
+    analysis = get_financial_analysis(user_id, session)
+    profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
+    decisions = recommend(analysis.picture, profile)
+    return answer_current_question(analysis.picture, decisions, profile, payload)
 
 
 def _saved_financial_data(user_id: int, session: Session) -> tuple[User, FinancialProfile]:

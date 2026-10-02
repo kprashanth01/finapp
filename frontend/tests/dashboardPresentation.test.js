@@ -127,6 +127,14 @@ test('dashboard presents the monthly shortfall, reserve, due costs, and goals be
   assert.ok(html.indexOf('Upcoming obligations') < html.indexOf('Saved monthly allocation plan'))
 })
 
+test('dashboard offers a conversation about current finances without requiring a saved run', () => {
+  const html = render(null, { ...analysis, picture: examplePicture() })
+  assert.match(html, /Ask about your current finances/)
+  assert.match(html, /What should I prioritize\?/)
+  assert.match(html, /Can I afford an upcoming expense\?/)
+  assert.ok(html.indexOf('Ask about your current finances') < html.indexOf('Saved monthly allocation plan'))
+})
+
 test('current recommendation shows the ranked action, calculation source, and assumptions', () => {
   const item = {
     priority: 1, code: 'planned_cost_1', urgency: 'urgent', area: 'upcoming_cost',
