@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.advisory.service import financial_state, planning_date
+from app.advisory.month_plan import MonthPlanPreview, MonthPlanWrite, preview_month_plan
 from app.advisory.planning_types import ExplanationTrace
 from app.advisory.reasoning import ReasoningResponse, explain_run
 from app.auth_dependencies import require_owner
@@ -170,6 +171,35 @@ def get_financial_month_advice(user_id: int, period: str,
         return evaluate_account_month(history, selected, focus=focus)
     except (OSError, ValueError, ImportError) as error:
         raise HTTPException(status_code=503, detail=f"Monthly advice unavailable: {error}") from error
+
+
+@router.post("/users/{user_id}/financial-months/{period}/plan-preview", response_model=MonthPlanPreview,
+             dependencies=[Depends(require_owner)])
+def preview_financial_month_plan(user_id: int, period: str, payload: MonthPlanWrite,
+                                 session: Session = Depends(get_session)) -> MonthPlanPreview:
+    try:
+        parsed_period = date.fromisoformat(period)
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail="Use a YYYY-MM-01 month.") from error
+    if parsed_period.day != 1:
+        raise HTTPException(status_code=422, detail="Use a YYYY-MM-01 month.")
+    profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
+    if profile is None:
+        raise HTTPException(status_code=404, detail="Financial profile not found.")
+    month = session.scalar(select(FinancialMonth).where(FinancialMonth.user_id == user_id,
+                                                      FinancialMonth.period == parsed_period))
+    if month is None:
+        raise HTTPException(status_code=404, detail="Financial month not found.")
+    remainder = max(0, month.monthly_income - month.monthly_expenses)
+    if payload.monthly_savings_contribution is not None and payload.monthly_savings_contribution > remainder:
+        raise HTTPException(status_code=422, detail="Planned monthly savings cannot exceed this recorded month's income minus expenses. Reduce the amount or leave it blank.")
+    if payload.monthly_savings_contribution is not None and payload.monthly_savings_contribution > 0:
+        if month.paid_emi < month.scheduled_emi:
+            raise HTTPException(status_code=422, detail="This recorded month has a missed loan payment. Review it before assigning new savings.")
+        if month.unfunded_expenses > 0:
+            raise HTTPException(status_code=422, detail="This recorded month has unfunded bills. Review them before assigning new savings.")
+    return preview_month_plan(month, profile, load_active_goals(session, user_id), planning_date(),
+                              payload.monthly_savings_contribution)
 
 
 @router.post("/users/{user_id}/financial-months/{period}/ask", dependencies=[Depends(require_owner)])

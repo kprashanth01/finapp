@@ -1,5 +1,13 @@
 const cents = (value) => Math.round(Number(value ?? 0) * 100)
 
+export const monthSavingsLimit = (month) => Math.max(0, cents(month.monthly_income) - cents(month.monthly_expenses))
+
+export function unpaidObligations(month) {
+  if (cents(month.paid_emi) < cents(month.scheduled_emi)) return 'loan'
+  if (cents(month.unfunded_expenses) > 0) return 'bills'
+  return null
+}
+
 export function summarizeMonths(months, profile) {
   if (!months.length) return null
   const recent = [...months].sort((a, b) => a.period.localeCompare(b.period)).slice(-12)
