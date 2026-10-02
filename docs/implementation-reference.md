@@ -199,7 +199,7 @@ Every run stores immutable inputs, goal snapshots, one UTC planning date, agent 
 
 Earlier v1 sessions retain their original three-agent payload and six captured financial amounts. They are labeled as an earlier format, with no newly reconstructed historical goals or risk fields. History loads newest first in pages of ten. Expand **Why this plan** for the allocation policy and **Research details** for agents, evidence, and version information.
 
-The saved Advisor plan uses the rule-based orchestrator and structured agent facts. The separate experimental selector in Advisor can run the committed DQN or seeded random policy on your current profile; these runs do not enter saved history.
+The saved Advisor plan uses the rule-based orchestrator and structured agent facts. **Compare planning approaches** runs the rule selector and committed DQN on one current saved planning state, including optional financial details. It shows the first flagged priority and checks run; a partial model selection has no complete plan, and missing model dependencies leave the standard result available. A complete plan with no flagged priority says so. The comparison is read-only. The separate research selector in Advisor can also run the committed DQN or seeded random policy with score details; those runs do not enter saved history.
 
 ### Research comparison and RL foundation
 
@@ -520,6 +520,7 @@ From `backend/`, run `..\.venv\Scripts\python -m app.rl.dynamic_integration --mo
 | PUT | `/users/{id}/goals/{goal_id}` | Update a goal, preserving archive state |
 | PATCH | `/users/{id}/goals/{goal_id}` | Archive/restore with `{ "archived": true/false }` |
 | POST | `/users/{id}/advisory-sessions` | Run and save a rule-based advisory session |
+| GET | `/users/{id}/advice-approaches` | Compare rule and trained selectors on one current owned state without saving a run; model unavailability and missing checks are explicit |
 | POST | `/users/{id}/advisory-scenario` | Compare current saved inputs with one read-only hypothetical month; JSON `monthly_income`, `monthly_expenses`, `monthly_savings_contribution` |
 | POST | `/users/{id}/advisory-sessions/{session_id}/reasoning` | Explain an owned captured run; provider is called only on this request |
 | POST | `/users/{id}/research/orchestration-run` | Run `rule_based`, seeded `random`, or trained `rl` selection on the owner's saved profile without persistence; JSON `{ "mode": "rl", "seed": 42 }` |

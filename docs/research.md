@@ -2,15 +2,16 @@
 
 FinApp's everyday planning flow uses deterministic financial checks and a rule-based coordinator. The Research area asks a narrower question: **can a learned policy choose a useful set of financial agents when a situation changes?** It does not measure whether following a recommendation improved anyone's actual finances.
 
-## Keep the three paths distinct
+## Keep the product and research paths distinct
 
 | Path | Input | Output | Where it appears |
 | --- | --- | --- | --- |
 | **Saved rule-based plan** | Your saved profile and goals | Complete coordinated plan and reasons, saved to your account | Dashboard and Advisor |
-| **Experimental selection on an account** | Your saved profile or entered monthly record | Agents selected by a rule, seeded random draw, or trained DQN; findings and a plan only if all required checks ran | Advisor's experimental section and Research |
+| **Product comparison on an account** | One current saved profile and its details | Standard and trained selectors side by side; first step only when required checks ran | Advisor → Compare planning approaches |
+| **Detailed experimental selection** | Your saved profile or entered monthly record | Agents selected by a rule, seeded random draw, or trained DQN; findings and a plan only if all required checks ran | Advisor's research section and Research |
 | **Offline synthetic evaluation** | Generated profiles and month sequences, not account data | Proxy rewards, coverage, traces, model comparisons | Research reports and files under `data/` and `backend/app/rl/` |
 
-The six agents remain the financial checks in each path. Agent selection and financial allocation are different operations: a DQN action selects agents to run; it does not transfer savings or cause the next synthetic month to improve. When an experimental selection misses a required check, the app reports a partial result rather than presenting a complete plan.
+The six agents remain the financial checks in each path. Agent selection and financial allocation are different operations: a DQN action selects agents to run; it does not transfer savings or cause the next synthetic month to improve. When an experimental selection misses a required check, the app reports a partial result rather than presenting a complete plan. Advisor's product comparison reads the same current snapshot for both methods and does not update the saved rule-based session.
 
 ## Two model generations
 

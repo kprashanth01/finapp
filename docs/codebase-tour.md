@@ -52,6 +52,7 @@ The frontend uses Vite and Tailwind CSS. `frontend/package.json` lists the avail
 | `backend/app/services/financial_analysis.py` and `financial_picture.py` | Deterministic ratios and sourced financial facts. |
 | `backend/app/services/user_recommendations.py` and `current_chat.py` | Ranked current actions and a read-only conversation grounded in those actions and the current picture. |
 | `backend/app/services/conversational_scenarios.py` and `event_scenario.py` | Parse supported what-if questions conservatively and calculate temporary before/after event facts. |
+| `backend/app/services/advice_approaches.py` | Project two selector runs on one current saved state into an account-facing comparison, withholding a model plan when checks are missing. |
 | `backend/app/advisory/agents.py`, `goal_agent.py`, `risk_agent.py`, `investment_agent.py` | Six specialist checks that use the picture in saved runs and return structured findings. |
 | `backend/app/advisory/state.py`, `registry.py`, `orchestrator.py`, `recommendations.py` | Planning state, available agents, selection, and coordinated actions. |
 | `backend/app/advisory/service.py`, `scenario.py`, `month_plan.py` | Saved analysis and read-only scenario/month previews. |
