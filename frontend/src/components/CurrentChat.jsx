@@ -1,11 +1,41 @@
 import { useRef, useState } from 'react'
 import { askCurrentChat, explainApiError } from '../services/api.js'
+import { EventComparison } from './EventScenario.jsx'
 
 const prompts = [
   'What should I prioritize?',
   'Why should I save before investing?',
   'Can I afford an upcoming expense?',
+  'What if my income falls?',
+  'What if I get extra money?',
+  'What if I stop a subscription?',
 ]
+
+export function CurrentChatReply({ item }) {
+  const { response } = item
+  const sourceLabel = response.topic === 'scenario' ? 'Calculated what-if preview'
+    : response.topic === 'scenario_input' ? 'More detail needed'
+      : response.source === 'llm' ? 'Local AI explanation' : 'Current financial picture'
+  return <li className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <p className="text-sm font-medium">You: {item.question}</p>
+    <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{sourceLabel} · {response.as_of_date}</p>
+    <p className="mt-2 text-sm text-slate-800">{response.answer}</p>
+    {response.scenario && <div className="mt-4">
+      <h4 className="font-semibold">Temporary scenario</h4>
+      <div className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
+        <p className="rounded-lg bg-white p-3"><span className="font-medium">Saved first action:</span> {response.before_priority}</p>
+        <p className="rounded-lg bg-white p-3"><span className="font-medium">With this event:</span> {response.after_priority}</p>
+      </div>
+      <EventComparison result={response.scenario} />
+    </div>}
+    {response.fallback_reason && <p className="mt-2 text-xs text-slate-600">{response.fallback_reason === 'not_configured'
+      ? 'The local AI model is unavailable, so this answer uses the current app calculations and ranked actions.'
+      : 'The local AI response could not be verified, so this answer uses the current app calculations and ranked actions.'}</p>}
+    {response.evidence.length > 0 && <details className="mt-3 text-sm"><summary className="cursor-pointer font-medium">See saved facts and actions used</summary>
+      <ul className="mt-2 list-disc space-y-2 pl-5">{response.evidence.map((fact) => <li key={fact.id}><span className="font-medium">{fact.label}:</span> {fact.detail}</li>)}</ul>
+    </details>}
+  </li>
+}
 
 export default function CurrentChat({ userId }) {
   const [question, setQuestion] = useState('')
@@ -31,23 +61,13 @@ export default function CurrentChat({ userId }) {
 
   return <section aria-labelledby="current-chat-heading" className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
     <h3 id="current-chat-heading" className="text-xl font-semibold">Ask about your current finances</h3>
-    <p className="mt-1 text-sm text-slate-600">Ask about your saved picture and ranked actions. The local AI model explains recorded facts when available; otherwise you get a current, rule-based answer. Questions and answers are not saved.</p>
+    <p className="mt-1 text-sm text-slate-600">Ask about your saved picture or a possible change. Supported what-if questions use temporary calculations. The local AI model explains recorded facts when available; otherwise you get a rule-based answer. Questions and answers are not saved.</p>
     <div className="mt-4 flex flex-wrap gap-2" aria-label="Suggested questions">
       {prompts.map((prompt) => <button key={prompt} type="button" disabled={asking} onClick={() => ask(prompt)}
         className="rounded-full border border-slate-300 px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50">{prompt}</button>)}
     </div>
     {messages.length > 0 && <ol className="mt-5 space-y-4" aria-label="Questions and answers" aria-live="polite">
-      {messages.map((item, index) => <li key={index} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-sm font-medium">You: {item.question}</p>
-        <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-500">{item.response.source === 'llm' ? 'Local AI explanation' : 'Current financial picture'} · {item.response.as_of_date}</p>
-        <p className="mt-2 text-sm text-slate-800">{item.response.answer}</p>
-        {item.response.fallback_reason && <p className="mt-2 text-xs text-slate-600">{item.response.fallback_reason === 'not_configured'
-          ? 'The local AI model is unavailable, so this answer uses the current app calculations and ranked actions.'
-          : 'The local AI response could not be verified, so this answer uses the current app calculations and ranked actions.'}</p>}
-        {item.response.evidence.length > 0 && <details className="mt-3 text-sm"><summary className="cursor-pointer font-medium">See saved facts and actions used</summary>
-          <ul className="mt-2 list-disc space-y-2 pl-5">{item.response.evidence.map((fact) => <li key={fact.id}><span className="font-medium">{fact.label}:</span> {fact.detail}</li>)}</ul>
-        </details>}
-      </li>)}
+      {messages.map((item, index) => <CurrentChatReply key={index} item={item} />)}
     </ol>}
     <form className="mt-5" onSubmit={(event) => { event.preventDefault(); ask(question) }}>
       <label htmlFor="current-chat-question" className="text-sm font-medium">Your question</label>

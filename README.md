@@ -32,7 +32,7 @@ Follow [the complete local setup guide](docs/setup.md) for copyable **Windows Po
 
 1. Create an account with practice details.
 2. In **Profile → User details**, enter gross monthly income. Save your financial profile, including monthly expenses and the amount you can actually save per month.
-3. On **Dashboard**, read the monthly snapshot, the first three ranked actions, and upcoming obligations and goals. Use **Ask about your current finances** to ask about the saved facts and actions without creating a plan. Run an analysis for the separate saved monthly allocation plan.
+3. On **Dashboard**, read the monthly snapshot, the first three ranked actions, and upcoming obligations and goals. Use **Ask about your current finances** for questions about saved facts or a temporary income, extra-cash, or subscription change. Run an analysis for the separate saved monthly allocation plan.
 4. Add a goal in **Goals**, then return to Dashboard to see the current recommendation update. Run a new analysis to refresh the saved allocation plan.
 5. Use **Months** to record different income or spending months, or open Dashboard's **Explore what-if changes** for one-month and specific-event previews. These previews do not edit the saved plan.
 

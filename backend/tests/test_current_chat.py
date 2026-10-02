@@ -39,13 +39,14 @@ def test_current_chat_uses_current_recommendations_without_a_saved_run(client):
     assert any('9000.00' in item['detail'] for item in changed['evidence'] if item['id'] == 'reserve:balance')
 
 
-def test_current_chat_marks_unsimulated_amounts_and_requires_an_owned_profile(client):
+def test_current_chat_previews_new_cash_and_requires_an_owned_profile(client):
     user, _ = create_profile(client)
     path = f"/users/{user['id']}/current-chat"
     extra = client.post(path, json={'question': 'I got 10000 extra. What should I do?'}).json()
-    assert extra['topic'] == 'extra_money'
-    assert 'not' in extra['answer'].lower() or 'need' in extra['answer'].lower()
-    assert '10000' not in extra['answer']
+    assert extra['topic'] == 'scenario'
+    assert extra['scenario']['event']['kind'] == 'one_time_income'
+    assert extra['scenario']['one_time_cash_inflow'] == '10000.00'
+    assert 'not automatically assigned' in extra['answer'].lower()
     affordable = client.post(path, json={'question': 'Can I afford a trip?'}).json()
     assert affordable['topic'] == 'affordability'
     assert 'cost' in affordable['answer'].lower()

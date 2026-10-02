@@ -132,6 +132,7 @@ test('dashboard offers a conversation about current finances without requiring a
   assert.match(html, /Ask about your current finances/)
   assert.match(html, /What should I prioritize\?/)
   assert.match(html, /Can I afford an upcoming expense\?/)
+  assert.match(html, /What if my income falls\?/)
   assert.ok(html.indexOf('Ask about your current finances') < html.indexOf('Saved monthly allocation plan'))
 })
 

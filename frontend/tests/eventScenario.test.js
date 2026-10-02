@@ -42,6 +42,20 @@ test('one-time event comparison keeps recurring expenses separate and names cash
   assert.match(html, /Not a forecast/)
 })
 
+test('one-time extra income is shown separately from recurring monthly income', () => {
+  const html = renderToStaticMarkup(createElement(EventComparison, { result: {
+    event: { kind: 'one_time_income', amount: '1500' },
+    before: picture('3000', '0'), after: picture('3000', '0'),
+    one_time_cash_need: '0', one_time_cash_inflow: '1500',
+    illustrative_current_month_cash_after_event: '3500',
+    loan_effect: null, goal_effect: null, limitations: ['One-time, not recurring.'],
+  } }))
+  assert.match(html, /One-time extra cash received/)
+  assert.match(html, /1,500\.00/)
+  assert.match(html, /Illustrative gross cash after this month/)
+  assert.match(html, /Recurring monthly expenses/)
+})
+
 test('event payload sends only fields relevant to the chosen change', () => {
   const values = { kind: 'subscription_reduction', amount: '60', expense_id: '4',
     loan_id: '8', goal_id: '9', due_date: '2027-01-01', reserved_amount: '20', name: 'Other' }

@@ -14,7 +14,7 @@ from app.services.financial_picture import Fact, FinancialPicture, build_financi
 
 
 EventKind = Literal[
-    "income_increase", "income_decrease", "unexpected_expense", "upcoming_expense",
+    "income_increase", "income_decrease", "one_time_income", "unexpected_expense", "upcoming_expense",
     "subscription_reduction", "additional_loan_payment", "additional_savings",
     "goal_contribution_change",
 ]
@@ -79,6 +79,7 @@ class EventScenarioRead(BaseModel):
     before: FinancialPicture
     after: FinancialPicture
     one_time_cash_need: Decimal
+    one_time_cash_inflow: Decimal = Decimal("0")
     illustrative_current_month_cash_after_event: Decimal | None
     loan_effect: LoanEffect | None = None
     goal_effect: GoalEffect | None = None
@@ -144,6 +145,7 @@ def preview_event(
     changed_profile = _profile_copy(profile)
     changed_expenses, changed_plans = list(expenses), list(plans)
     one_time_need = Decimal("0")
+    one_time_inflow = Decimal("0")
     cash_this_month = False
     loan_effect = goal_effect = None
     limitations = [
@@ -161,6 +163,12 @@ def preview_event(
             changed_profile.guaranteed_monthly_income = None
             limitations.append("The lower hypothetical income overrides the saved guaranteed portion for this preview.")
         limitations.append("Recorded income history is unchanged; this event changes only the current estimate.")
+        limitations.append("The planning date and upcoming obligation dates are not moved to a future month.")
+
+    elif event.kind == "one_time_income":
+        one_time_inflow = event.amount
+        cash_this_month = True
+        limitations.append("This extra cash is one-time; it does not raise the recurring monthly income estimate or allocate the money.")
 
     elif event.kind == "subscription_reduction":
         selected = next((row for row in expenses if row.id == event.expense_id), None)
@@ -229,11 +237,12 @@ def preview_event(
                                     loans=loans, plans=changed_plans, goals=goals,
                                     months=months, as_of_date=as_of_date)
     after = _mark_hypothetical(before, after, event.kind)
-    illustrative = after.spending.gross_cash_flow.value - one_time_need if cash_this_month else None
+    illustrative = after.spending.gross_cash_flow.value + one_time_inflow - one_time_need if cash_this_month else None
     if cash_this_month:
         limitations.append("Current-month cash after the one-time amount uses gross-income arithmetic; check actual take-home cash and due dates.")
     return EventScenarioRead(
         event=event, before=before, after=after, one_time_cash_need=one_time_need,
+        one_time_cash_inflow=one_time_inflow,
         illustrative_current_month_cash_after_event=illustrative,
         loan_effect=loan_effect, goal_effect=goal_effect, limitations=limitations,
     )

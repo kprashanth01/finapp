@@ -14,12 +14,13 @@ from app.advisory.chat import ChatEvidence, ChatTurn
 from app.advisory.chat_model import (ChatDraft, DEFAULT_MODEL, OLLAMA_URL,
                                      _model_available, _validated_draft)
 from app.models import FinancialProfile
+from app.services.event_scenario import EventScenarioRead
 from app.services.financial_picture import FinancialPicture, Obligation
 from app.services.user_recommendations import UserRecommendation, UserRecommendationsRead
 
 
 Topic = Literal['priorities', 'why', 'extra_money', 'income_drop', 'affordability',
-                'state', 'unsupported']
+                'state', 'unsupported', 'scenario', 'scenario_input']
 _BRACKET_CITATION = re.compile(r'\[\d+\]')
 
 
@@ -38,6 +39,45 @@ class CurrentChatAnswer(BaseModel):
     topic: Topic
     answer: str
     evidence: list[ChatEvidence]
+    scenario: EventScenarioRead | None = None
+    before_priority: str | None = None
+    after_priority: str | None = None
+
+
+def scenario_input_answer(as_of_date: date, need: str) -> CurrentChatAnswer:
+    return CurrentChatAnswer(as_of_date=as_of_date, topic='scenario_input', answer=need,
+                             evidence=[])
+
+
+def scenario_answer(result: EventScenarioRead, before: UserRecommendationsRead,
+                    after: UserRecommendationsRead) -> CurrentChatAnswer:
+    before_action = before.recommendations[0].action
+    after_action = after.recommendations[0].action
+    old_cash = result.before.spending.gross_cash_flow.value
+    new_cash = result.after.spending.gross_cash_flow.value
+    if result.event.kind == 'one_time_income':
+        answer = (f'Preview only, not saved: the one-time extra {_value(result.one_time_cash_inflow)} '
+                  f'gives illustrative gross cash of {_value(result.illustrative_current_month_cash_after_event)} '
+                  f'this month. Recurring monthly income and the first ranked action remain unchanged: '
+                  f'{after_action}. The extra cash is not automatically assigned.')
+    else:
+        answer = (f'Preview only, not saved: gross monthly cash flow changes from {_value(old_cash)} to '
+                  f'{_value(new_cash)}. ')
+        answer += (f'The first ranked action changes from “{before_action}” to “{after_action}”.'
+                   if before_action != after_action else f'The first ranked action remains “{after_action}”.')
+        answer += ' Gross figures are before tax and unrecorded costs.'
+    evidence = [ChatEvidence(id='scenario:before_cash', label='Saved gross monthly cash flow', detail=_value(old_cash)),
+                ChatEvidence(id='scenario:after_cash', label='Preview gross monthly cash flow', detail=_value(new_cash)),
+                ChatEvidence(id='scenario:before_priority', label='Saved first action', detail=before_action),
+                ChatEvidence(id='scenario:after_priority', label='Preview first action', detail=after_action)]
+    if result.event.kind == 'one_time_income':
+        evidence.append(ChatEvidence(id='scenario:one_time_inflow', label='One-time extra cash',
+                                     detail=_value(result.one_time_cash_inflow)))
+        evidence.append(ChatEvidence(id='scenario:illustrative_cash', label='Illustrative gross cash this month',
+                                     detail=_value(result.illustrative_current_month_cash_after_event)))
+    return CurrentChatAnswer(as_of_date=result.before.as_of_date, topic='scenario', answer=answer,
+                             evidence=evidence, scenario=result,
+                             before_priority=before_action, after_priority=after_action)
 
 
 def _topic(question: str) -> Topic:
