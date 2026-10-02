@@ -51,9 +51,9 @@ function UserForm({ user, onSave, saving, disabled }) {
           <input className={inputClass} name="occupation" value={fields.occupation} onChange={update} maxLength="100" />
         </label>
         <label className={labelClass}>
-          Gross monthly income (before tax)
+          Current gross monthly income estimate (before tax)
           <input className={inputClass} name="monthly_income" type="number" min="0" step="0.01" value={fields.monthly_income} onChange={update} required />
-          <span className="mt-1 block text-xs font-normal text-slate-500">Used for income-based ratios.</span>
+          <span className="mt-1 block text-xs font-normal text-slate-500">Used for income-based ratios. Record income actually received in Months.</span>
         </label>
       </fieldset>
       <button type="submit" disabled={saving || disabled} className="rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50">

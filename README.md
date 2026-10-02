@@ -9,7 +9,7 @@ FinApp is a local web application for exploring everyday financial decisions. En
 | In the app | What it helps you answer |
 | --- | --- |
 | **Dashboard** | What is my current priority, and what might I do this month? |
-| **Profile** | What income, expenses, balances, payments, and risk preferences is the plan using? |
+| **Profile** | What income, expenses, balances, payments, and risk preferences is the plan using? Optional detail records describe recurring costs, individual loans, and upcoming one-time expenses. |
 | **Months** | How did cash flow change across months? What if a lower-income month recurs? |
 | **Goals** | Can my current monthly allocation support a target and date? |
 | **Advisor** | How are emergency savings, debt, goals, and investment readiness coordinated? Why? |
@@ -35,6 +35,8 @@ Follow [the complete local setup guide](docs/setup.md) for copyable **Windows Po
 3. On **Dashboard**, run an analysis. Read the priority, its supporting fact, and the proposed monthly allocation.
 4. Add a goal in **Goals**, then run a new analysis to see the tradeoff with your other priorities.
 5. Use **Months** to record different income or spending months, or try the Dashboard's one-month scenario preview. These previews do not edit the saved plan.
+
+Profile also has an optional detail section for income context, recurring expense categories, loans, and upcoming one-time costs. The saved plan currently uses the aggregate Profile values; these records describe them without adding to those totals.
 
 See [Using FinApp](docs/using-finapp.md) for a plain-language field guide and a worked example.
 

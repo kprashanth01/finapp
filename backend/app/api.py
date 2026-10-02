@@ -15,9 +15,10 @@ from app.advisory.chat_model import answer_with_local_model
 from app.advisory.state import PlanningState
 from app.advisory.rules import RULE_VERSION
 from app.goal_api import load_active_goals
-from app.models import AnalysisSession, FinancialProfile, User
+from app.models import AnalysisSession, FinancialProfile, Loan, RecurringExpense, User
 from app.schemas import AnalysisRead, ProfileRead, ProfileWrite, ScenarioWrite, UserCreate, UserRead
 from app.services.financial_analysis import FinancialAnalysisService
+from app.services.financial_details import validate_detail_totals
 
 
 router = APIRouter()
@@ -39,6 +40,11 @@ def update_user(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found.")
 
+    profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id).with_for_update())
+    if (profile is not None and profile.guaranteed_monthly_income is not None
+            and profile.guaranteed_monthly_income > payload.monthly_income):
+        raise HTTPException(status_code=422, detail="Guaranteed income cannot exceed the current gross monthly income estimate.")
+
     for field, value in payload.model_dump().items():
         setattr(user, field, value)
     try:
@@ -57,13 +63,23 @@ def save_profile(
     if session.get(User, user_id) is None:
         raise HTTPException(status_code=404, detail="User not found.")
 
-    profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
+    profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id).with_for_update())
     if profile is None:
         profile = FinancialProfile(user_id=user_id, **payload.model_dump())
         session.add(profile)
     else:
         for field, value in payload.model_dump().items():
             setattr(profile, field, value)
+
+    try:
+        validate_detail_totals(
+            session.get(User, user_id), profile,
+            session.scalars(select(RecurringExpense).where(RecurringExpense.user_id == user_id)).all(),
+            session.scalars(select(Loan).where(Loan.user_id == user_id)).all(),
+        )
+    except ValueError as error:
+        session.rollback()
+        raise HTTPException(status_code=422, detail=str(error)) from error
 
     session.commit()
     session.refresh(profile)

@@ -11,6 +11,7 @@ import AppShell from './components/AppShell.jsx'
 import Research from './components/Research.jsx'
 import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
+import FinancialDetails from './components/FinancialDetails.jsx'
 import AccountMonths from './components/AccountMonths.jsx'
 import UserForm from './components/UserForm.jsx'
 import { canStartRun, canStartSave, hasIncomeChanged, hasProfileFinancialChanges, markSessionStale } from './services/advisoryFreshness.js'
@@ -314,10 +315,12 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                 <>
                   {!profile && <p className="mb-5 rounded-lg bg-blue-50 p-4 text-sm text-slate-800">Start by entering your gross monthly income in User details, then save your financial profile below. You can add goals afterward.</p>}
                   <details open={!profile} className="mb-8 rounded-lg border border-slate-200 p-4">
-                    <summary className="cursor-pointer text-sm font-medium">Gross monthly income (before tax): {formatAmount(user.monthly_income)} · Edit user details</summary>
+                    <summary className="cursor-pointer text-sm font-medium">Current gross monthly income estimate: {formatAmount(user.monthly_income)} · Edit user details</summary>
                     <div className="mt-5"><UserForm user={user} onSave={handleSaveUser} saving={saving} disabled={advisoryRunning || advisoryLoading} /></div>
                   </details>
                   <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} disabled={advisoryRunning || advisoryLoading} />
+                  {profile && <FinancialDetails key={user.id} userId={user.id} user={user} profile={profile}
+                    onOpenMonths={() => setActiveView('months')} />}
                   {profile && (saving
                     ? <p role="status" className="mt-8 text-sm text-slate-600">Updating financial snapshot…</p>
                     : <FinancialAnalysis analysis={analysis} user={user} profile={profile} />)}

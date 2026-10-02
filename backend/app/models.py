@@ -34,6 +34,9 @@ class User(Base):
     goals: Mapped[list["FinancialGoal"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     auth_sessions: Mapped[list["AuthSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     financial_months: Mapped[list["FinancialMonth"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    recurring_expenses: Mapped[list["RecurringExpense"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    loans: Mapped[list["Loan"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    planned_expenses: Mapped[list["PlannedExpense"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 Index("uq_users_email_lower", func.lower(User.email), unique=True)
@@ -90,6 +93,14 @@ class FinancialProfile(Base):
             "investment_horizon_years IS NULL OR investment_horizon_years BETWEEN 0 AND 80",
             name="ck_profiles_horizon",
         ),
+        CheckConstraint(
+            "income_pattern IS NULL OR income_pattern IN ('stable', 'variable', 'mixed')",
+            name="ck_profiles_income_pattern",
+        ),
+        CheckConstraint(
+            "guaranteed_monthly_income IS NULL OR guaranteed_monthly_income >= 0",
+            name="ck_profiles_guaranteed_income",
+        ),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -103,9 +114,68 @@ class FinancialProfile(Base):
     risk_tolerance: Mapped[str] = mapped_column(String(20))
     financial_goal: Mapped[str | None] = mapped_column(String(200))
     investment_horizon_years: Mapped[int | None]
+    income_pattern: Mapped[str | None] = mapped_column(String(20))
+    guaranteed_monthly_income: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="profile")
+
+
+class RecurringExpense(Base):
+    __tablename__ = "recurring_expenses"
+    __table_args__ = (
+        CheckConstraint("monthly_amount > 0", name="ck_recurring_expense_amount"),
+        CheckConstraint("category IN ('essential_fixed', 'essential_variable', 'discretionary')", name="ck_recurring_expense_category"),
+        Index("ix_recurring_expenses_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
+    monthly_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    category: Mapped[str] = mapped_column(String(20))
+    user: Mapped[User] = relationship(back_populates="recurring_expenses")
+
+
+class Loan(Base):
+    __tablename__ = "loans"
+    __table_args__ = (
+        CheckConstraint("(remaining_balance IS NULL OR remaining_balance >= 0) AND (monthly_payment IS NULL OR monthly_payment >= 0)", name="ck_loans_amounts"),
+        CheckConstraint("annual_interest_rate_percent IS NULL OR annual_interest_rate_percent >= 0", name="ck_loans_apr"),
+        CheckConstraint("new_annual_interest_rate_percent IS NULL OR new_annual_interest_rate_percent >= 0", name="ck_loans_new_apr"),
+        CheckConstraint("payment_day IS NULL OR payment_day BETWEEN 1 AND 31", name="ck_loans_payment_day"),
+        CheckConstraint("(rate_change_date IS NULL) = (new_annual_interest_rate_percent IS NULL)", name="ck_loans_rate_change_pair"),
+        Index("ix_loans_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
+    loan_type: Mapped[str | None] = mapped_column(String(40))
+    remaining_balance: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    monthly_payment: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    annual_interest_rate_percent: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    payment_day: Mapped[int | None]
+    rate_change_date: Mapped[date | None] = mapped_column(Date)
+    new_annual_interest_rate_percent: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    user: Mapped[User] = relationship(back_populates="loans")
+
+
+class PlannedExpense(Base):
+    __tablename__ = "planned_expenses"
+    __table_args__ = (
+        CheckConstraint("estimated_amount > 0 AND (amount_reserved IS NULL OR (amount_reserved >= 0 AND amount_reserved <= estimated_amount))", name="ck_planned_expense_amounts"),
+        Index("ix_planned_expenses_user_due", "user_id", "due_date"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
+    estimated_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    amount_reserved: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    due_date: Mapped[date] = mapped_column(Date)
+    is_essential: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    user: Mapped[User] = relationship(back_populates="planned_expenses")
 
 
 class FinancialMonth(Base):
