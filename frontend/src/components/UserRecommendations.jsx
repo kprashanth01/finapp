@@ -27,19 +27,21 @@ function RecommendationCard({ item, onOpenProfile, onOpenGoal, onOpenMonths, pri
     else if (item.target_view === 'months') onOpenMonths?.()
     else onOpenProfile?.()
   }
+  const calculations = item.supporting_calculations.length > 0 && <dl className="mt-3 grid gap-2 sm:grid-cols-2">
+    {item.supporting_calculations.map((calc) => <div key={calc.label} className="rounded-lg bg-slate-50 p-3">
+      <dt className="text-xs text-slate-600">{calc.label}</dt>
+      <dd className="mt-1 text-sm font-semibold">{calculationText(calc)}</dd>
+      <p className="mt-1 text-xs text-slate-500">Source: {sourceText(calc.source)}</p>
+    </div>)}
+  </dl>
   return <article className={primary ? 'rounded-xl border border-teal-200 bg-white p-5 shadow-sm' : 'rounded-lg border border-slate-200 bg-white p-4'}>
     <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Priority {item.priority} · {item.urgency} · {item.area.replace('_', ' ')}</p>
     <h4 className="mt-2 text-lg font-semibold text-slate-900">{item.action}</h4>
     <p className="mt-2 text-sm text-slate-700">{item.reason}</p>
-    {item.supporting_calculations.length > 0 && <dl className="mt-3 grid gap-2 sm:grid-cols-2">
-      {item.supporting_calculations.map((calc) => <div key={calc.label} className="rounded-lg bg-slate-50 p-3">
-        <dt className="text-xs text-slate-600">{calc.label}</dt>
-        <dd className="mt-1 text-sm font-semibold">{calculationText(calc)}</dd>
-        <p className="mt-1 text-xs text-slate-500">Source: {sourceText(calc.source)}</p>
-      </div>)}
-    </dl>}
+    {primary && calculations}
     <details className="mt-3 text-xs text-slate-600">
       <summary className="cursor-pointer font-medium">Why this priority and what it assumes</summary>
+      {!primary && calculations}
       <ul className="mt-2 list-disc space-y-1 pl-5">
         {item.priority_factors.map((factor) => <li key={factor}>{factor}</li>)}
         {item.assumptions.map((assumption) => <li key={assumption}>{assumption}</li>)}
@@ -52,16 +54,23 @@ function RecommendationCard({ item, onOpenProfile, onOpenGoal, onOpenMonths, pri
 }
 
 export function RecommendationContent({ data, onOpenProfile, onOpenGoal, onOpenMonths }) {
-  const [first, ...others] = data.recommendations
+  const [first, ...rest] = data.recommendations
+  const visible = rest.slice(0, 2)
+  const others = rest.slice(2)
   return <div className="mt-4 space-y-4">
-    <p className="text-sm text-slate-600">Calculated from saved information as of {data.as_of_date}. The order responds to due dates, shortfalls, income uncertainty, and your goal priorities.</p>
+    <p className="text-sm text-slate-600">Based on saved information as of {data.as_of_date}. Start with the first action, then review the others alongside it.</p>
     {first && <RecommendationCard item={first} primary onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenMonths={onOpenMonths} />}
+    {visible.length > 0 && <div className="grid gap-3 lg:grid-cols-2">{visible.map((item) => <RecommendationCard key={item.code} item={item}
+      onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenMonths={onOpenMonths} />)}</div>}
     {others.length > 0 && <details className="rounded-xl border border-slate-200 bg-white p-4">
       <summary className="cursor-pointer font-semibold">{others.length} more {others.length === 1 ? 'action' : 'actions'} to review</summary>
       <div className="mt-4 space-y-3">{others.map((item) => <RecommendationCard key={item.code} item={item}
         onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenMonths={onOpenMonths} />)}</div>
     </details>}
-    <p className="text-xs text-slate-600">{data.limitations.join(' ')}</p>
+    {data.limitations.length > 0 && <details className="text-xs text-slate-600">
+      <summary className="cursor-pointer font-medium">Limits of these suggestions</summary>
+      <ul className="mt-2 list-disc space-y-1 pl-5">{data.limitations.map((limit) => <li key={limit}>{limit}</li>)}</ul>
+    </details>}
   </div>
 }
 

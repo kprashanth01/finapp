@@ -24,7 +24,8 @@ The frontend does not decide how to allocate a saved monthly contribution. It co
 | Path | Responsibility |
 | --- | --- |
 | `frontend/src/Workspace.jsx` | Loads the signed-in account, routes between views, coordinates saves and analysis runs. |
-| `frontend/src/components/Dashboard.jsx` and `ScenarioPreview.jsx` | Current priority and hypothetical one-month comparison. |
+| `frontend/src/components/Dashboard.jsx`, `AdviceOverview.jsx`, and `UserRecommendations.jsx` | Dashboard layout, monthly snapshot, upcoming obligations and goals, and ranked current actions. |
+| `frontend/src/components/ScenarioPreview.jsx` and `EventScenario.jsx` | Optional what-if previews for a hypothetical month or specific change. |
 | `frontend/src/components/FinancialProfileForm.jsx` and `UserForm.jsx` | Profile fields and user details. |
 | `frontend/src/components/FinancialDetails.jsx` | Optional income context, recurring expenses, loans, and upcoming one-time costs; entries describe the Profile totals. |
 | `frontend/src/components/Goals.jsx` | Goal list, editing, and archive controls. |

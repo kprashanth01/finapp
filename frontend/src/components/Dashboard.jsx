@@ -4,6 +4,7 @@ import ScenarioPreview from './ScenarioPreview.jsx'
 import FinancialPicture from './FinancialPicture.jsx'
 import EventScenario from './EventScenario.jsx'
 import UserRecommendations from './UserRecommendations.jsx'
+import { MonthlySnapshot, UpcomingOverview } from './AdviceOverview.jsx'
 
 const balanceItems = [
   ['Gross monthly income', 'monthly_income', 'user'],
@@ -38,8 +39,6 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
   </section>
 
   const decision = display.latest === 'saved' ? getDashboardDecision(advisorySession) : null
-  const activeGoals = goals.filter((goal) => !goal.archived)
-  const reachedGoals = activeGoals.filter((goal) => Number(goal.saved_amount) >= Number(goal.target_amount)).length
   const canRun = !saving && !goalPending && !advisoryLoading && !advisoryRunning && !goalsLoading && !goalsError
 
   function follow(action) {
@@ -52,11 +51,15 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
   return <div className="space-y-8">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h2 id="dashboard-heading" className="text-2xl font-semibold">{user.name}'s financial plan</h2>
-        <p className="mt-1 text-sm text-slate-600">Your saved profile and the latest monthly plan, in your profile currency.</p></div>
+        <p className="mt-1 text-sm text-slate-600">Current guidance from your saved information, in your profile currency.</p></div>
       <button type="button" onClick={() => onOpenProfile()} className="text-sm font-medium text-slate-700 underline underline-offset-4">Edit profile</button>
     </div>
 
+    <MonthlySnapshot picture={analysis?.picture} />
+
     <UserRecommendations userId={user.id} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenMonths={onOpenMonths} />
+
+    <UpcomingOverview picture={analysis?.picture} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenGoals={onOpenGoals} />
 
     <section aria-labelledby="decision-heading" className="rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-6">
       <h3 id="decision-heading" className="text-xl font-semibold">Saved monthly allocation plan</h3>
@@ -86,7 +89,7 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
           {decision.plan.capacity == null ? <p className="mt-2 text-sm text-slate-700">Add the amount you plan to save each month before an allocation can be calculated. Gross income minus expenses is not treated as available savings. <button type="button" onClick={() => onOpenProfile('monthly_savings_contribution')} className="font-medium underline">Add monthly savings contribution</button></p> : <>
             <p className="mt-1 text-sm text-slate-600">Proposed use of your recorded monthly savings contribution. No money is moved or balance changed.</p>
             <dl className="mt-3 divide-y divide-slate-200 rounded-xl border border-slate-200 bg-white px-4 text-sm">
-              <div className="flex justify-between gap-3 py-3 font-semibold"><dt>Available for this plan</dt><dd>{formatAmount(decision.plan.capacity)}</dd></div>
+              <div className="flex justify-between gap-3 py-3 font-semibold"><dt>Entered monthly savings budget</dt><dd>{formatAmount(decision.plan.capacity)}</dd></div>
               <div className="flex justify-between gap-3 py-3"><dt>Emergency reserve</dt><dd>{formatAmount(decision.plan.emergency_allocation)}</dd></div>
               {decision.plan.goal_allocations.map((item) => <div key={item.requirement.goal.id} className="flex justify-between gap-3 py-3"><dt className="break-words">{item.requirement.goal.name}</dt><dd>{formatAmount(item.allocated_monthly)}</dd></div>)}
               <div className="flex justify-between gap-3 py-3"><dt>Unassigned for review</dt><dd>{formatAmount(decision.plan.unassigned)}</dd></div>
@@ -99,33 +102,37 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
       </div>}
     </section>
 
-    <ScenarioPreview key={JSON.stringify([user, profile, goals])} user={user} profile={profile}
-      onOpenIncome={() => onOpenProfile('monthly_income')} disabled={!canRun} />
+    <details className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <summary className="cursor-pointer text-lg font-semibold">Explore what-if changes</summary>
+      <div className="mt-5 space-y-7">
+        <ScenarioPreview key={JSON.stringify([user, profile, goals])} user={user} profile={profile}
+          onOpenIncome={() => onOpenProfile('monthly_income')} disabled={!canRun} />
+        <EventScenario key={user.id} user={user} goals={goals} disabled={!canRun} />
+      </div>
+    </details>
 
-    <EventScenario key={user.id} user={user} goals={goals} disabled={!canRun} />
+    <details className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+      <summary className="cursor-pointer text-lg font-semibold">Explore saved numbers and calculations</summary>
+      <div className="mt-5 space-y-6">
+        <section aria-labelledby="picture-heading" className="border-t border-slate-200 pt-7">
+          <h3 id="picture-heading" className="text-xl font-semibold">Your financial picture</h3>
+          <p className="mt-1 text-sm text-slate-600">These are recorded amounts and calculated facts. Monthly savings contribution is the budget used by the plan.</p>
+          <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border border-slate-200 p-4"><dt className="text-sm text-slate-600">Monthly savings contribution</dt><dd className="mt-1 text-xl font-semibold">{formatAmount(profile.monthly_savings_contribution)}</dd></div>
+            <div className="rounded-xl border border-slate-200 p-4"><dt className="text-sm text-slate-600">Emergency expense coverage</dt><dd className="mt-1 text-xl font-semibold">{analysis?.emergency_fund_months == null ? 'Unavailable' : `${analysis.emergency_fund_months} months`}</dd></div>
+            <div className="rounded-xl border border-slate-200 p-4"><dt className="text-sm text-slate-600">Debt payment share of gross income</dt><dd className="mt-1 text-xl font-semibold">{analysis?.debt_to_income_percent == null ? 'Unavailable' : `${analysis.debt_to_income_percent}%`}</dd></div>
+          </dl>
+          <details className="mt-4 rounded-xl border border-slate-200 p-4"><summary className="cursor-pointer font-medium">All saved amounts and calculated ratios</summary>
+            <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{balanceItems.map(([label, key, source]) => <div key={key} className="rounded-lg bg-slate-50 p-3"><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 font-semibold">{formatAmount(source === 'user' ? user[key] : profile[key])}</dd></div>)}</dl>
+            {display.snapshot === 'ready' ? <dl className="mt-4 grid gap-3 sm:grid-cols-2">{ratioItems.map(([label, key, unit]) => <div key={key} className="rounded-lg bg-slate-50 p-3"><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 font-semibold">{analysis[key] == null ? 'Unavailable' : `${analysis[key]}${unit}`}</dd></div>)}</dl> : <p className="mt-4 text-sm text-slate-600">Calculated ratios could not load. Reload this page to try again.</p>}
+            <p className="mt-4 text-sm text-slate-600">Risk tolerance: <span className="font-medium capitalize text-slate-900">{profile.risk_tolerance}</span>. Ratios using income use gross income, which does not show spendable cash.</p>
+            {display.snapshot === 'ready' && <p className="mt-2 text-xs text-slate-500">Illustrative project health score: {analysis.health_score == null ? 'Unavailable' : `${analysis.health_score} / 100`}. This heuristic is not validated financial advice.</p>}
+          </details>
+        </section>
 
-    <section aria-labelledby="picture-heading" className="border-t border-slate-200 pt-7">
-      <h3 id="picture-heading" className="text-xl font-semibold">Your financial picture</h3>
-      <p className="mt-1 text-sm text-slate-600">These are recorded amounts and calculated facts. Monthly savings contribution is the budget used by the plan.</p>
-      <dl className="mt-4 grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-slate-200 p-4"><dt className="text-sm text-slate-600">Monthly savings contribution</dt><dd className="mt-1 text-xl font-semibold">{formatAmount(profile.monthly_savings_contribution)}</dd></div>
-        <div className="rounded-xl border border-slate-200 p-4"><dt className="text-sm text-slate-600">Emergency expense coverage</dt><dd className="mt-1 text-xl font-semibold">{analysis?.emergency_fund_months == null ? 'Unavailable' : `${analysis.emergency_fund_months} months`}</dd></div>
-        <div className="rounded-xl border border-slate-200 p-4"><dt className="text-sm text-slate-600">Debt payment share of gross income</dt><dd className="mt-1 text-xl font-semibold">{analysis?.debt_to_income_percent == null ? 'Unavailable' : `${analysis.debt_to_income_percent}%`}</dd></div>
-      </dl>
-      <details className="mt-4 rounded-xl border border-slate-200 p-4"><summary className="cursor-pointer font-medium">All saved amounts and calculated ratios</summary>
-        <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{balanceItems.map(([label, key, source]) => <div key={key} className="rounded-lg bg-slate-50 p-3"><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 font-semibold">{formatAmount(source === 'user' ? user[key] : profile[key])}</dd></div>)}</dl>
-        {display.snapshot === 'ready' ? <dl className="mt-4 grid gap-3 sm:grid-cols-2">{ratioItems.map(([label, key, unit]) => <div key={key} className="rounded-lg bg-slate-50 p-3"><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 font-semibold">{analysis[key] == null ? 'Unavailable' : `${analysis[key]}${unit}`}</dd></div>)}</dl> : <p className="mt-4 text-sm text-slate-600">Calculated ratios could not load. Reload this page to try again.</p>}
-        <p className="mt-4 text-sm text-slate-600">Risk tolerance: <span className="font-medium capitalize text-slate-900">{profile.risk_tolerance}</span>. Ratios using income use gross income, which does not show spendable cash.</p>
-        {display.snapshot === 'ready' && <p className="mt-2 text-xs text-slate-500">Illustrative project health score: {analysis.health_score == null ? 'Unavailable' : `${analysis.health_score} / 100`}. This heuristic is not validated financial advice.</p>}
-      </details>
-    </section>
-
-    <FinancialPicture picture={analysis?.picture} />
-
-    <section aria-labelledby="goals-heading" className="border-t border-slate-200 pt-7"><h3 id="goals-heading" className="text-lg font-semibold">Goals at a glance</h3>
-      <p className="mt-2 text-sm text-slate-600">{goalsLoading ? 'Loading goals…' : goalsError ? 'Goals could not load. Open Goals to retry.' : `${activeGoals.length} active ${activeGoals.length === 1 ? 'goal' : 'goals'} · ${reachedGoals} targets reached`}</p>
-      <button type="button" onClick={onOpenGoals} className="mt-3 text-sm underline">Manage goals</button>
-    </section>
+        <FinancialPicture picture={analysis?.picture} />
+      </div>
+    </details>
   </div>
 }
 

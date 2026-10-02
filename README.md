@@ -8,7 +8,7 @@ FinApp is a local web application for exploring everyday financial decisions. En
 
 | In the app | What it helps you answer |
 | --- | --- |
-| **Dashboard** | What is my current priority, what does my current financial picture show, and what might I do this month? |
+| **Dashboard** | Is my month in gross shortfall or surplus, what needs attention first, and which obligations and goals are coming up? |
 | **Profile** | What income, expenses, balances, payments, and risk preferences is the plan using? Optional detail records describe recurring costs, individual loans, and upcoming one-time expenses. |
 | **Months** | How did cash flow change across months? What if a lower-income month recurs? |
 | **Goals** | Can my current monthly allocation support a target and date? |
@@ -32,9 +32,9 @@ Follow [the complete local setup guide](docs/setup.md) for copyable **Windows Po
 
 1. Create an account with practice details.
 2. In **Profile → User details**, enter gross monthly income. Save your financial profile, including monthly expenses and the amount you can actually save per month.
-3. On **Dashboard**, read the current recommendation, its supporting numbers, and its assumptions. Run an analysis to create the separate saved monthly allocation plan.
+3. On **Dashboard**, read the monthly snapshot, the first three ranked actions, and upcoming obligations and goals. Expand an action for its calculations and assumptions. Run an analysis to create the separate saved monthly allocation plan.
 4. Add a goal in **Goals**, then return to Dashboard to see the current recommendation update. Run a new analysis to refresh the saved allocation plan.
-5. Use **Months** to record different income or spending months, or try the Dashboard's one-month and specific-event previews. These previews do not edit the saved plan.
+5. Use **Months** to record different income or spending months, or open Dashboard's **Explore what-if changes** for one-month and specific-event previews. These previews do not edit the saved plan.
 
 Profile also has an optional detail section for income context, recurring expense categories, loans, and upcoming one-time costs. Dashboard's current recommendation and new saved Advisor agent findings use those details and recorded months when available. The saved allocation amounts still use the aggregate Profile values; details do not add to those totals. Editing detail marks an older saved plan stale until you run a new one.
 
