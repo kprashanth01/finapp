@@ -44,6 +44,7 @@ test('monthly guidance names a review action and labels the low-income compariso
   assert.match(html, /Review planned savings in Profile/)
   assert.match(html, /If the lowest recorded income recurred/)
   assert.match(html, /400\.00 short of those essential obligations/)
+  assert.match(html, /worksheet below/)
   assert.match(html, /not a forecast/)
   assert.doesNotMatch(html, /DQN|reward|proxy score/)
 })
