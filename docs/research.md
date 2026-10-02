@@ -48,7 +48,8 @@ Neither model is required to create an account or run the saved rule-based plan.
 
 | Interest | Read |
 | --- | --- |
-| The original rule/random/DQN evaluation, cohort, and metric definitions | [Paired monthly experiment](paired-monthly-experiment.md), [Research metrics](research-metrics.md) |
+| The website's snapshot DQN vs rule evaluation, reward, and metric meanings | [Snapshot selector evaluation](snapshot-selector-evaluation.md) |
+| The separate monthly rule/random/DQN evaluation, cohort, and metric definitions | [Paired monthly experiment](paired-monthly-experiment.md), [Research metrics](research-metrics.md) |
 | How a particular synthetic case was handled | [Monthly case analysis](monthly-case-analysis.md), [Recommendation explainability](recommendation-explainability.md) |
 | Variable-income shocks and competing priorities | [Variable-income experiments](variable-income-experiments.md), [Conflict scenarios](conflict-scenarios.md) |
 | What happens when observations or agents are removed | [Ablation experiments](ablation-experiments.md) |

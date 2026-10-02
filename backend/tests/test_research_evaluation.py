@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from app.rl.evaluation import evaluate_cohort, read_evaluation_report
+from app.rl.evaluation import _paired_summary, evaluate_cohort, read_evaluation_report
 from app.rl.scenarios import generate_scenarios
 
 
@@ -57,6 +57,50 @@ def test_evaluation_requires_distinct_random_seeds():
     with pytest.raises(ValueError, match='distinct'):
         evaluate_cohort(generate_scenarios(2, seed=1), FixedModel(),
                         scenario_seed=1, random_seeds=(7, 7))
+
+
+def test_paired_summary_uses_matching_cases_and_signed_differences():
+    rule = [
+        {'fingerprint': 'a', 'action': 1, 'reward': 4.0, 'agent_calls': 2,
+         'full_plan': True, 'segments': ['low_reserve']},
+        {'fingerprint': 'b', 'action': 2, 'reward': 2.0, 'agent_calls': 3,
+         'full_plan': True, 'segments': ['unfinished_goal']},
+    ]
+    rl = [
+        {'fingerprint': 'a', 'action': 1, 'reward': 3.0, 'agent_calls': 1,
+         'full_plan': False, 'segments': ['low_reserve']},
+        {'fingerprint': 'b', 'action': 3, 'reward': 3.0, 'agent_calls': 4,
+         'full_plan': True, 'segments': ['unfinished_goal']},
+    ]
+    paired = _paired_summary(rule, rl)
+    assert paired['mean_reward_delta'] == 0
+    assert paired['mean_agent_call_delta'] == 0
+    assert paired['same_selection_count'] == 1
+    assert paired['rl_higher_score_count'] == 1
+    assert paired['rl_lower_score_count'] == 1
+    assert paired['rl_partial_plan_count'] == 1
+    assert paired['segments']['low_reserve']['mean_reward_delta'] == -1
+    assert paired['segments']['unfinished_goal']['mean_reward_delta'] == 1
+    with pytest.raises(ValueError, match='matching'):
+        _paired_summary(rule, rl[::-1])
+    with pytest.raises(ValueError, match='matching'):
+        _paired_summary(rule, rl[:1])
+    with pytest.raises(ValueError, match='matching'):
+        _paired_summary(rule, [dict(rl[0], segments=['unfinished_goal']), rl[1]])
+
+
+def test_evaluation_report_rejects_invalid_paired_deltas(tmp_path):
+    from app.rl.dqn_artifact import DEFAULT_ARTIFACT_DIR, verified_metadata
+
+    report = evaluate_cohort(generate_scenarios(8, seed=8105), FixedModel(),
+                             scenario_seed=8105, random_seeds=(7,))
+    report['model_sha256'] = verified_metadata(DEFAULT_ARTIFACT_DIR)['artifact_sha256']
+    path = tmp_path / 'evaluation_report.json'
+    path.write_text(json.dumps(report), encoding='utf-8')
+    assert read_evaluation_report(path)['status'] == 'available'
+    report['paired_rl_vs_rule']['mean_reward_delta'] = 99
+    path.write_text(json.dumps(report), encoding='utf-8')
+    assert read_evaluation_report(path)['status'] == 'unavailable'
 
 
 def test_committed_report_reproduces_measured_selection_metrics():
