@@ -141,7 +141,8 @@ def test_analysis_uses_monthly_flows_instead_of_balances(client):
 
     response = client.get(f"/users/{user_id}/financial-analysis")
     assert response.status_code == 200
-    assert response.json() == {
+    assert response.json()["picture"]["schema_version"] == "financial-picture-v1"
+    assert {key: value for key, value in response.json().items() if key != "picture"} == {
         "savings_rate_percent": "10.00",
         "debt_to_income_percent": "10.00",
         "expense_to_income_percent": "60.00",
@@ -169,7 +170,8 @@ def test_existing_profile_without_monthly_flows_has_partial_analysis(client):
 
     response = client.get(f"/users/{user_id}/financial-analysis")
     assert response.status_code == 200
-    assert response.json() == {
+    assert response.json()["picture"]["spending"]["debt_to_income_percent"]["value"] is None
+    assert {key: value for key, value in response.json().items() if key != "picture"} == {
         "savings_rate_percent": None,
         "debt_to_income_percent": None,
         "expense_to_income_percent": "60.00",
@@ -199,7 +201,8 @@ def test_zero_income_and_expenses_leave_undefined_ratios_unavailable(client):
 
     response = client.get(f"/users/{user_id}/financial-analysis")
     assert response.status_code == 200
-    assert response.json() == {
+    assert response.json()["picture"]["income"]["variability_percent"]["value"] is None
+    assert {key: value for key, value in response.json().items() if key != "picture"} == {
         "savings_rate_percent": None,
         "debt_to_income_percent": None,
         "expense_to_income_percent": None,

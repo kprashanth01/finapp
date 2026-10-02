@@ -1,6 +1,7 @@
 import { formatAmount, staleMessage } from '../utils/format.js'
 import { getDashboardDecision, getDashboardDisplayState } from '../services/dashboardState.js'
 import ScenarioPreview from './ScenarioPreview.jsx'
+import FinancialPicture from './FinancialPicture.jsx'
 
 const balanceItems = [
   ['Gross monthly income', 'monthly_income', 'user'],
@@ -112,6 +113,8 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
         {display.snapshot === 'ready' && <p className="mt-2 text-xs text-slate-500">Illustrative project health score: {analysis.health_score == null ? 'Unavailable' : `${analysis.health_score} / 100`}. This heuristic is not validated financial advice.</p>}
       </details>
     </section>
+
+    <FinancialPicture picture={analysis?.picture} />
 
     <section aria-labelledby="goals-heading" className="border-t border-slate-200 pt-7"><h3 id="goals-heading" className="text-lg font-semibold">Goals at a glance</h3>
       <p className="mt-2 text-sm text-slate-600">{goalsLoading ? 'Loading goals…' : goalsError ? 'Goals could not load. Open Goals to retry.' : `${activeGoals.length} active ${activeGoals.length === 1 ? 'goal' : 'goals'} · ${reachedGoals} targets reached`}</p>
