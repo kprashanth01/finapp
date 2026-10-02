@@ -2,6 +2,20 @@ const cents = (value) => Math.round(Number(value ?? 0) * 100)
 
 export const monthSavingsLimit = (month) => Math.max(0, cents(month.monthly_income) - cents(month.monthly_expenses))
 
+const worksheetCents = (value) => {
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return null
+  const amount = cents(value)
+  return Number.isSafeInteger(amount) ? amount : null
+}
+
+export function estimateMonthContribution(month, unrecordedCosts, heldCash) {
+  const costs = worksheetCents(unrecordedCosts)
+  const held = worksheetCents(heldCash)
+  if (costs == null || held == null) return null
+  const remaining = monthSavingsLimit(month) - costs - held
+  return { possibleCents: Math.max(0, remaining), overByCents: Math.max(0, -remaining) }
+}
+
 export function unpaidObligations(month) {
   if (cents(month.paid_emi) < cents(month.scheduled_emi)) return 'loan'
   if (cents(month.unfunded_expenses) > 0) return 'bills'
