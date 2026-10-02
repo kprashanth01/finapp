@@ -31,8 +31,46 @@ function startingMonth(user, profile, period = todayMonth()) {
   }
 }
 
+export function startingPlanningMonth(period = todayMonth()) {
+  return { period, monthly_income: '', monthly_expenses: '', fixed_expenses: '', other_expenses: '',
+    scheduled_emi: '', paid_emi: '', paid_emi_edited: false, savings: '', emergency_fund: '',
+    outstanding_debt: '', unfunded_expenses: '', risk_tolerance: '', investment_horizon_years: '' }
+}
+
+export function profileMonthDraft(user, profile, period = todayMonth()) {
+  return { ...startingPlanningMonth(period), monthly_income: String(user?.monthly_income ?? ''),
+    monthly_expenses: String(profile?.monthly_expenses ?? ''),
+    scheduled_emi: String(profile?.monthly_debt_payments ?? '0'),
+    savings: String(profile?.savings ?? ''), emergency_fund: String(profile?.emergency_fund ?? ''),
+    outstanding_debt: String(profile?.existing_debt ?? ''), risk_tolerance: profile?.risk_tolerance ?? '',
+    investment_horizon_years: profile?.investment_horizon_years == null ? '' : String(profile.investment_horizon_years) }
+}
+
+const cents = (value) => Math.round(Number(value || 0) * 100)
+
+export function planningMonthTotals(draft) {
+  const total = cents(draft.monthly_expenses)
+  const other = Math.max(0, total - cents(draft.fixed_expenses) - cents(draft.scheduled_emi))
+  return { monthly_expenses: (total / 100).toFixed(2), other_expenses: (other / 100).toFixed(2),
+    net_cash_flow: ((cents(draft.monthly_income) - total) / 100).toFixed(2) }
+}
+
+export function planningMonthErrors(draft) {
+  const errors = []
+  if (draft.monthly_expenses !== '' && draft.fixed_expenses !== '' && draft.scheduled_emi !== '' &&
+      cents(draft.fixed_expenses) + cents(draft.scheduled_emi) > cents(draft.monthly_expenses)) {
+    errors.push('Essential bills and loan payment due cannot exceed total spending. Check the amounts before saving.')
+  }
+  if (draft.paid_emi !== '' && draft.scheduled_emi !== '' && cents(draft.paid_emi) > cents(draft.scheduled_emi)) {
+    errors.push('The loan payment actually paid cannot exceed the amount due.')
+  }
+  if (draft.emergency_fund !== '' && draft.savings !== '' && cents(draft.emergency_fund) > cents(draft.savings)) {
+    errors.push('The emergency reserve must be included in total accessible savings.')
+  }
+  return errors
+}
+
 export function monthTotals(draft) {
-  const cents = (value) => Math.round(Number(value || 0) * 100)
   const expenses = cents(draft.fixed_expenses) + cents(draft.other_expenses) + cents(draft.scheduled_emi)
   return { monthly_expenses: (expenses / 100).toFixed(2),
     net_cash_flow: ((cents(draft.monthly_income) - expenses) / 100).toFixed(2) }
@@ -49,7 +87,7 @@ const fieldHelp = {
   fixed_expenses: 'Bills you need to pay even if you spend less elsewhere, such as rent and utilities. Do not include the loan payment.',
   other_expenses: 'All other spending you expect this month. This and essential bills and the loan payment add up to total planned spending.',
   scheduled_emi: 'The loan payment due this month. It is included in total planned spending.',
-  paid_emi: 'What you actually paid toward that scheduled loan payment. Change the copied amount if you paid less.',
+  paid_emi: 'What you actually paid toward that scheduled loan payment. Enter 0 if no payment was made.',
   outstanding_debt: 'The remaining balance of all loans you still owe at the end of this month. This is not the monthly payment.',
   savings: 'Cash you can access, including the emergency reserve entered below.',
   emergency_fund: 'The part of your accessible savings you have set aside for surprises.',
@@ -65,7 +103,7 @@ export function formMonth(row) {
   const other = Math.max(0, Number(row.monthly_expenses) - Number(row.fixed_expenses) - Number(row.scheduled_emi))
   const { monthly_income, fixed_expenses, scheduled_emi, paid_emi, savings, emergency_fund,
     outstanding_debt, unfunded_expenses, risk_tolerance, investment_horizon_years } = row
-  return { period: row.period.slice(0, 7), monthly_income, fixed_expenses,
+  return { period: row.period.slice(0, 7), monthly_income, monthly_expenses: row.monthly_expenses, fixed_expenses,
     other_expenses: other.toFixed(2), scheduled_emi, paid_emi, savings, emergency_fund,
     outstanding_debt, unfunded_expenses, risk_tolerance, investment_horizon_years,
     paid_emi_edited: Number(paid_emi) !== Number(scheduled_emi) }
@@ -114,7 +152,7 @@ export function AccountAdvice({ advice }) {
 export default function AccountMonths({ userId, user, profile, mode = 'research', onOpenProfile, onOpenGoal }) {
   const planning = mode === 'planning'
   const [months, setMonths] = useState([])
-  const [draft, setDraft] = useState(() => startingMonth(user, profile))
+  const [draft, setDraft] = useState(() => planning ? startingPlanningMonth() : startingMonth(user, profile))
   const [selected, setSelected] = useState('')
   const [focus, setFocus] = useState('all')
   const [advice, setAdvice] = useState(null)
@@ -134,12 +172,16 @@ export default function AccountMonths({ userId, user, profile, mode = 'research'
     return () => { active = false }
   }, [userId])
 
-  const edit = (event) => setDraft((current) => updateMonthDraft(current, event.target.name, event.target.value))
-  const totals = monthTotals(draft)
+  const edit = (event) => setDraft((current) => planning
+    ? { ...current, [event.target.name]: event.target.value }
+    : updateMonthDraft(current, event.target.name, event.target.value))
+  const totals = planning ? planningMonthTotals(draft) : monthTotals(draft)
+  const entryErrors = planning ? planningMonthErrors(draft) : []
 
   async function save(event) {
     event.preventDefault()
     if (busy) return
+    if (entryErrors.length) { setError(entryErrors.join(' ')); return }
     setBusy(true); setError(''); setMessage('')
     try {
       const { other_expenses, paid_emi_edited, ...values } = draft
@@ -187,7 +229,8 @@ export default function AccountMonths({ userId, user, profile, mode = 'research'
     <MoneyInput label="Emergency reserve" name="emergency_fund" value={draft.emergency_fund} onChange={edit} />
     <MoneyInput label="Loan balance still owed" name="outstanding_debt" value={draft.outstanding_debt} onChange={edit} />
     <MoneyInput label="Expenses you could not fund" name="unfunded_expenses" value={draft.unfunded_expenses} onChange={edit} hint="Enter 0 if none." />
-    <label>Risk preference<select name="risk_tolerance" value={draft.risk_tolerance} onChange={edit}>
+    <label>Risk preference<select name="risk_tolerance" required value={draft.risk_tolerance} onChange={edit}>
+      {planning && <option value="" disabled>Choose risk preference</option>}
       <option value="conservative">Conservative</option><option value="moderate">Moderate</option><option value="aggressive">Aggressive</option>
     </select></label>
     <label>Investment horizon, years<input name="investment_horizon_years" type="number" min="0" max="80" required value={draft.investment_horizon_years} onChange={edit} /></label>
@@ -197,29 +240,39 @@ export default function AccountMonths({ userId, user, profile, mode = 'research'
     <p className="research-small-label">YOUR ENTERED FINANCIAL HISTORY</p>
     <h3 id="account-months-heading">{planning ? 'Plan for changing income' : 'Build your own month-by-month situation'}</h3>
     <p>Enter an ordinary month first, then enter a later month with changed income or expenses. These are your account's records, separate from the current Profile snapshot. You can correct a month at any time.</p>
-    {planning && <p>The first form starts with amounts from your current Profile. Check them for the month you chose. Other planned spending starts with all non-debt expenses; move any essential bills you enter out of that amount so they are counted once. Review the copied balances under Additional month details before saving.</p>}
+    {planning && <><p>New months start empty. Enter the amounts for the selected month, including bills due even if they were not paid. You can choose to bring current Profile figures into the form, then correct them for this month.</p>
+      <button type="button" className="account-month-copy" disabled={busy} onClick={() => {
+        setDraft(profileMonthDraft(user, profile, draft.period)); setError('')
+        setMessage('Current Profile figures copied into this form. Enter essential bills and the amount actually paid, then review every balance before saving.')
+      }}>Use current Profile as a starting point</button></>}
     {planning && !loading && months.length > 0 && <MonthlyPlanningSummary months={months} profile={profile}
       onOpenProfile={() => onOpenProfile?.('monthly_savings_contribution')} />}
     <form onSubmit={save} className="account-month-form">
       <div className="account-month-fields">
         <label>Month<input name="period" type="month" max={todayMonth()} required value={draft.period} onChange={edit} /></label>
         <MoneyInput label="Income received" name="monthly_income" value={draft.monthly_income} onChange={edit} />
+        {planning && <MoneyInput label="Total monthly spending (including bills and loan)" name="monthly_expenses" value={draft.monthly_expenses} onChange={edit}
+          hint="Include the loan payment due, even if it was not paid. Record unpaid amounts below." />}
         <MoneyInput label="Essential bills (excluding loan)" name="fixed_expenses" value={draft.fixed_expenses} onChange={edit} />
-        <MoneyInput label="Other planned spending" name="other_expenses" value={draft.other_expenses} onChange={edit} />
+        {!planning && <MoneyInput label="Other planned spending" name="other_expenses" value={draft.other_expenses} onChange={edit} />}
         <MoneyInput label="Loan payment due this month" name="scheduled_emi" value={draft.scheduled_emi} onChange={edit} />
         {!planning && additionalFields}
       </div>
-      {planning && <details className="account-month-extra"><summary>Additional month details</summary>
-        <p>Confirm balances and the payment actually made if they differ from the values copied from your current Profile.</p>
+      {planning && <section className="account-month-extra" aria-labelledby="month-balances-heading"><h4 id="month-balances-heading">Balances and payments for this month</h4>
+        <p>Enter what you actually paid and the balances for this month. Enter 0 where none applies; a blank amount cannot be saved.</p>
         <div className="account-month-fields">{additionalFields}</div>
-      </details>}
-      <div className="account-month-calculated"><span>Total planned spending <small>(calculated from the three spending fields)</small><strong>{amount(totals.monthly_expenses)}</strong></span>
+      </section>}
+      {entryErrors.length > 0 && <p role="alert" className="research-error">{entryErrors.join(' ')}</p>}
+      <div className="account-month-calculated">{planning
+        ? <span>Other spending (calculated) <small>(total spending minus essential bills and loan due)</small><strong>{amount(totals.other_expenses)}</strong></span>
+        : <span>Total planned spending <small>(calculated from the three spending fields)</small><strong>{amount(totals.monthly_expenses)}</strong></span>}
         <span>{Number(totals.net_cash_flow) < 0 ? 'Planned shortfall' : 'Money left after planned spending'} <small>(calculated)</small><strong>{amount(Math.abs(Number(totals.net_cash_flow)))}</strong></span></div>
-      <div className="account-month-buttons"><button type="submit" className="primary-action" disabled={busy}>Save this month</button>
+      <div className="account-month-buttons"><button type="submit" className="primary-action" disabled={busy || entryErrors.length > 0}>Save this month</button>
         <button type="button" disabled={busy || !months.length || months.at(-1).period.slice(0, 7) >= todayMonth()} onClick={() => {
-          setDraft({ ...formMonth(months.at(-1)), period: nextMonth(months.at(-1).period), paid_emi: months.at(-1).scheduled_emi,
-            paid_emi_edited: false, unfunded_expenses: '0' })
-          setMessage('Copied the previous month. Update income, spending and balances before saving this new month.')
+          setDraft({ ...formMonth(months.at(-1)), period: nextMonth(months.at(-1).period),
+            paid_emi: planning ? '' : months.at(-1).scheduled_emi,
+            paid_emi_edited: false, unfunded_expenses: planning ? '' : '0' })
+          setMessage('Copied the previous month. Update income, spending and balances before saving this new month. Enter the payment actually made and any unfunded bills.')
         }}>Start next month</button></div>
     </form>
     {loading ? <p role="status">Loading your recorded months…</p> : months.length ? <>
