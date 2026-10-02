@@ -10,6 +10,7 @@ frontend/src/Workspace.jsx
   → backend/app/main.py and route modules
   → backend/app/models.py / PostgreSQL
   → backend/app/services/financial_analysis.py
+  → backend/app/services/financial_picture.py
   → backend/app/advisory/state.py
   → six agents through backend/app/advisory/registry.py
   → backend/app/advisory/orchestrator.py
@@ -46,8 +47,8 @@ The frontend uses Vite and Tailwind CSS. `frontend/package.json` lists the avail
 | `backend/app/financial_details_api.py`, `financial_detail_schemas.py`, and `services/financial_details.py` | Account-owned optional detail snapshot, validation, and reconciliation with aggregate totals. |
 | `backend/app/models.py` | SQLAlchemy tables for accounts and saved financial data. |
 | `backend/app/database.py` | Database engine and root `.env` loading. |
-| `backend/app/services/financial_analysis.py` | Deterministic financial ratios and snapshot metrics. |
-| `backend/app/advisory/agents.py`, `goal_agent.py`, `risk_agent.py`, `investment_agent.py` | The six specialist financial checks. |
+| `backend/app/services/financial_analysis.py` and `financial_picture.py` | Deterministic ratios and sourced financial facts. |
+| `backend/app/advisory/agents.py`, `goal_agent.py`, `risk_agent.py`, `investment_agent.py` | Six specialist checks that use the picture in saved runs and return structured findings. |
 | `backend/app/advisory/state.py`, `registry.py`, `orchestrator.py`, `recommendations.py` | Planning state, available agents, selection, and coordinated actions. |
 | `backend/app/advisory/service.py`, `scenario.py`, `month_plan.py` | Saved analysis and read-only scenario/month previews. |
 | `backend/app/advisory/explain.py`, `reasoning.py`, `chat.py` | Structured evidence, optional narrative wording, and saved-run questions. |

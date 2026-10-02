@@ -41,14 +41,17 @@ class RecommendationEngine:
             return [EvidenceRef(agent_id=agent_id, finding_code=code or result.findings[0].code)]
 
         capacity = by_id['budget'].facts.capacity
+        cash_shortfall = by_id['budget'].facts.cash_shortfall
         gap = by_id['emergency'].facts.gap
         debt = by_id.get('debt')
         hold = None
-        if gap is None:
+        if cash_shortfall > 0:
+            hold = 'Review the current gross cash shortfall before assigning new savings.'
+        elif gap is None:
             hold = 'Add positive monthly expenses before assigning savings; reserve needs are unknown.'
         elif debt and debt.facts.review_required:
             hold = 'Review debt payments before assigning the remaining savings budget.'
-        emergency = None if capacity is None else min(capacity, gap) if gap is not None else Decimal(0)
+        emergency = None if capacity is None else Decimal(0) if cash_shortfall > 0 else min(capacity, gap) if gap is not None else Decimal(0)
         remaining = None if capacity is None else capacity - emergency
         requirements = by_id['goal'].facts.requirements if 'goal' in by_id else []
         allocations = []
@@ -74,7 +77,10 @@ class RecommendationEngine:
             actions.append(PlanAction(code=code,title=title,reason=reason,source_refs=source_refs,
                 limitations=list(limitations), next_action=NextAction(view=view,field=field,goal_id=goal_id)))
 
-        for agent_id,field in [('emergency','emergency_fund'),('debt','monthly_debt_payments'),('budget','monthly_expenses')]:
+        action_order = ([('budget','monthly_expenses'),('debt','monthly_debt_payments'),('emergency','emergency_fund')]
+                        if cash_shortfall > 0 else
+                        [('emergency','emergency_fund'),('debt','monthly_debt_payments'),('budget','monthly_expenses')])
+        for agent_id,field in action_order:
             if agent_id not in by_id:
                 continue
             for finding in by_id[agent_id].findings:
@@ -103,7 +109,8 @@ class RecommendationEngine:
             action('income_required','Review monthly income','Positive income is required for ratio and readiness checks.',refs('investment'),field='monthly_income')
         summary = PlanSummary(
             title=actions[0].title if actions else 'Your monthly plan is ready',
-            text=('Allocate the recorded savings budget once: reserve first, then goals in priority order.' if capacity is not None else
+            text=('Review the cash shortfall before assigning new savings.' if cash_shortfall > 0 else
+                  'Allocate the recorded savings budget once: reserve first, then goals in priority order.' if capacity is not None else
                   'Add your monthly savings contribution to see a funded plan.'),
             next_action=actions[0].next_action if actions else NextAction(view='goals'))
         return CoordinatedAdvice(summary=summary,

@@ -30,7 +30,7 @@ function GoalTradeoff({ allocation, asOfDate, onOpenProfile }) {
     <p className="mt-2"><span className="font-medium">Keep the current goal allocation:</span> {timeline
       ? `at ${formatAmount(allocation.allocated_monthly)} per month, the remaining target would take about ${timeline.months} months from ${asOfDate}${timeline.date ? ` (around ${timeline.date})` : ''}.`
       : Number(allocation.allocated_monthly) === 0 ? 'No completion date can be estimated from a zero monthly allocation.' : 'Timing cannot be estimated from this saved plan.'}</p>
-    <p className="mt-2 text-xs text-slate-600">Hypothetical timing assumes this same allocation every month, 30-day months, and no growth. The plan funds the emergency reserve and earlier goals first; debt review can hold goal funding. This gap belongs to this goal, not to an extra pool of money.</p>
+    <p className="mt-2 text-xs text-slate-600">Hypothetical timing assumes this same allocation every month, 30-day months, and no growth. A cash shortfall or debt review can hold goal funding; otherwise the plan considers the emergency reserve and earlier goals first. This gap belongs to this goal, not to an extra pool of money.</p>
     <button onClick={() => onOpenProfile('monthly_savings_contribution')} className="mt-3 font-medium underline">Review monthly savings contribution</button>
   </div>
 }
@@ -56,12 +56,12 @@ export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal, showEx
       <p className="mt-1 text-sm text-slate-600">Based on {result.state.as_of_date}. These are proposed allocations, not payments or automatic balance changes. All amounts use your profile currency.</p>
       <dl className="mt-4 divide-y divide-slate-200 rounded-xl border border-slate-200 px-4 text-sm">
         <div className="flex flex-wrap justify-between gap-2 py-3 font-semibold"><dt>Monthly savings budget</dt><dd>{formatAmount(plan.capacity)}</dd></div>
-        <div className="flex flex-wrap justify-between gap-2 py-3"><dt>Emergency reserve first</dt><dd>{formatAmount(plan.emergency_allocation)}</dd></div>
+        <div className="flex flex-wrap justify-between gap-2 py-3"><dt>Emergency reserve allocation</dt><dd>{formatAmount(plan.emergency_allocation)}</dd></div>
         {plan.goal_allocations.map((a) => <div key={a.requirement.goal.id} className="flex flex-wrap justify-between gap-2 py-3"><dt className="break-words">{a.requirement.goal.name}</dt><dd>{formatAmount(a.allocated_monthly)}</dd></div>)}
         <div className="flex flex-wrap justify-between gap-2 py-3 font-medium"><dt>Unassigned savings</dt><dd>{formatAmount(plan.unassigned)}</dd></div>
       </dl>
       {plan.hold_reason && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">{plan.hold_reason}</p>}
-      <p className="mt-2 text-xs text-slate-500">Reserve target: three months of expenses, not a three-month deadline. Remaining capacity goes to goals by priority, then date.</p>
+      <p className="mt-2 text-xs text-slate-500">Reserve target: three months of expenses, not a three-month deadline. A gross cash shortfall pauses allocations; otherwise remaining capacity goes to goals by priority, then date.</p>
     </section>
     <section><h3 className="text-lg font-semibold">Can your goals fit?</h3>
       {plan.goal_allocations.length === 0 ? <p className="mt-2 text-sm text-slate-600">No active goals were included in this run. <button onClick={() => onOpenGoal(null)} className="underline">Add a goal</button></p> :
@@ -96,7 +96,7 @@ export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal, showEx
       </li>)}</ul>
     </section>}
     <details className="rounded-xl border border-slate-200 p-4"><summary className="cursor-pointer font-medium">Why this plan and what to update</summary>
-      <p className="mt-3 text-sm text-slate-600">One savings budget is used once. Emergency needs come first; high or unknown debt burden holds the remainder for review. Future goals then receive up to their monthly requirement.</p>
+      <p className="mt-3 text-sm text-slate-600">One savings budget is used once. A gross cash shortfall holds it for review. Otherwise the emergency reserve is considered first; high or unknown debt burden can hold the remainder. Future goals then receive up to their monthly requirement.</p>
       <p className="mt-2 text-sm text-slate-600">Goal requirement = remaining target ÷ rounded-up 30-day months, rounded up to cents. No growth is assumed.</p>
       <ul className="mt-4 space-y-4">{actions.map((action) => <li key={action.code}><h4 className="font-medium">{action.title}</h4><p className="mt-1 text-sm text-slate-600">{action.reason}</p><button onClick={() => follow(action.next_action)} className="mt-1 text-sm underline">{action.next_action.view === 'goals' ? 'Update goal' : 'Update profile'}</button></li>)}</ul>
     </details>

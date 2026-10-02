@@ -134,6 +134,17 @@ def _saved_financial_data(user_id: int, session: Session) -> tuple[User, Financi
     return user, profile
 
 
+def _advisory_context(user_id: int, session: Session) -> dict:
+    """Load the same owned detail used by the current financial picture."""
+    return dict(
+        expenses=session.scalars(select(RecurringExpense).where(RecurringExpense.user_id == user_id)).all(),
+        loans=session.scalars(select(Loan).where(Loan.user_id == user_id)).all(),
+        plans=session.scalars(select(PlannedExpense).where(PlannedExpense.user_id == user_id)).all(),
+        months=session.scalars(select(FinancialMonth).where(FinancialMonth.user_id == user_id)
+                               .order_by(FinancialMonth.period)).all(),
+    )
+
+
 def _session_read(row: AnalysisSession, current_state: PlanningState) -> AdvisorySessionRead:
     reasons = []
     stored = row.result_payload['state']
@@ -163,7 +174,8 @@ def create_advisory_session(
     user_id: int, session: Session = Depends(get_session)
 ) -> AdvisorySessionRead:
     user, profile = _saved_financial_data(user_id, session)
-    result = run_advisory(user, profile, load_active_goals(session, user_id), planning_date())
+    result = run_advisory(user, profile, load_active_goals(session, user_id), planning_date(),
+                          **_advisory_context(user_id, session))
     row = AnalysisSession(
         user_id=user_id,
         method=result.decision.method,
@@ -227,7 +239,8 @@ def get_latest_advisory_session(
     )
     if row is None:
         raise HTTPException(status_code=404, detail="No advisory session has been run yet.")
-    return _session_read(row, financial_state(user, profile, load_active_goals(session, user_id), planning_date()))
+    return _session_read(row, financial_state(user, profile, load_active_goals(session, user_id), planning_date(),
+                                              **_advisory_context(user_id, session)))
 
 
 @router.get("/users/{user_id}/advisory-sessions", response_model=AdvisoryHistoryPage,
@@ -251,7 +264,8 @@ def list_advisory_sessions(
     rows = session.scalars(query.order_by(AnalysisSession.id.desc()).limit(limit + 1)).all()
     page_rows = rows[:limit]
     next_before_id = page_rows[-1].id if len(rows) > limit else None
-    fingerprint = financial_state(user, profile, load_active_goals(session, user_id), planning_date()) if page_rows else ""
+    fingerprint = (financial_state(user, profile, load_active_goals(session, user_id), planning_date(),
+                                   **_advisory_context(user_id, session)) if page_rows else "")
     items = []
     for row in page_rows:
         saved = _session_read(row, fingerprint)
@@ -285,7 +299,8 @@ def get_advisory_session(
     )
     if row is None:
         raise HTTPException(status_code=404, detail="Advisory session not found.")
-    return _session_read(row, financial_state(user, profile, load_active_goals(session, user_id), planning_date()))
+    return _session_read(row, financial_state(user, profile, load_active_goals(session, user_id), planning_date(),
+                                              **_advisory_context(user_id, session)))
 
 
 @router.post('/users/{user_id}/advisory-sessions/{session_id}/reasoning',

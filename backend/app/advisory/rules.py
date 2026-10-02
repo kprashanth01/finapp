@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-RULE_VERSION = "rule-based-v2"
+RULE_VERSION = "rule-based-v3"
 HIGH_EXPENSE_PERCENT = Decimal("80")
 HIGH_DTI_PERCENT = Decimal("20")
 EMERGENCY_TARGET_MONTHS = Decimal("3")

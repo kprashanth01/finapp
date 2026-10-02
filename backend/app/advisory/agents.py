@@ -22,6 +22,9 @@ class BudgetAgent:
     def analyze(self, state: FinancialState) -> AgentResult:
         if isinstance(state, DynamicPlanningState):
             return self._analyze_dynamic(state)
+        picture = getattr(state, "picture", None)
+        cash_shortfall = (max(Decimal(0), -picture.spending.gross_cash_flow.value)
+                          if picture is not None else Decimal(0))
         expense_ratio = state.expense_to_income_percent
         savings_rate = state.savings_rate_percent
         limitations = ["Ratios use gross income; they do not show spendable cash."]
@@ -29,37 +32,54 @@ class BudgetAgent:
             limitations.append("Expense ratio needs positive gross income.")
         if savings_rate is None:
             limitations.append("Savings rate needs a monthly contribution and positive gross income.")
-        priority = (
+        ratio_high = (
             state.monthly_income > 0
             and state.monthly_expenses / state.monthly_income * 100 >= HIGH_EXPENSE_PERCENT
         )
+        priority = ratio_high and cash_shortfall == 0
         finding = Finding(
-            code="expense_ratio_high" if priority else "budget_ratios",
-            title="Review monthly expenses" if priority else "Budget ratios",
+            code="expense_ratio_high" if ratio_high else "budget_ratios",
+            title="Review monthly expenses" if ratio_high else "Budget ratios",
             reason=(
                 f"Expenses are at least {HIGH_EXPENSE_PERCENT}% of gross income under this illustrative rule."
-                if priority else "These ratios describe the saved monthly amounts; no budget priority was triggered."
+                if ratio_high else "These ratios describe the saved monthly amounts; no budget priority was triggered."
             ),
             priority=priority,
             evidence=[
-                Evidence(label="Expense-to-income ratio", value=expense_ratio, unit="%"),
-                Evidence(label="Savings rate", value=savings_rate, unit="%"),
+                Evidence(label="Expense-to-income ratio", value=expense_ratio, unit="%",
+                         source="profile.monthly_expenses_divided_by_gross_income" if picture else None),
+                Evidence(label="Savings rate", value=savings_rate, unit="%",
+                         source=picture.spending.savings_rate_percent.source if picture else None),
             ],
             limitations=limitations,
             impact=("Gross income is needed to judge recorded expense pressure." if expense_ratio is None else
                     "Without a recorded savings contribution, the plan cannot allocate a monthly savings budget." if savings_rate is None else
-                    "A high share of gross income going to expenses may leave less room for savings and unexpected costs." if priority else
+                    "A high share of gross income going to expenses may leave less room for savings and unexpected costs." if ratio_high else
                     "This project check found no high expense ratio, but gross-income ratios do not show take-home cash."),
             suggested_action=("Enter positive gross monthly income and review expenses." if expense_ratio is None else
                               "Enter your planned monthly savings contribution before relying on an allocation." if savings_rate is None else
-                              "Review your largest expenses against take-home pay and update your planned savings contribution." if priority else
+                              "Review your largest expenses against take-home pay and update your planned savings contribution." if ratio_high else
                               "Keep expenses and your planned savings contribution current; compare the plan with take-home pay."),
         )
+        findings = [finding]
+        if cash_shortfall > 0:
+            findings.insert(0, Finding(
+                code="gross_cash_shortfall", title="Review the current cash shortfall",
+                reason="Entered monthly expenses exceed the current gross income estimate; pause new savings allocations until required costs are checked.",
+                priority=True,
+                evidence=[Evidence(label="Gross monthly cash flow", value=picture.spending.gross_cash_flow.value,
+                                   unit="currency", source=picture.spending.gross_cash_flow.source),
+                          Evidence(label="Monthly expenses", value=picture.spending.monthly_total.value,
+                                   unit="currency", source=picture.spending.monthly_total.source)],
+                limitations=["Gross income is before tax and does not show payment timing."],
+                impact="Required monthly costs exceed the entered gross income estimate.",
+                suggested_action="Review take-home income, required payments, and expenses before assigning new savings.",
+            ))
         return PlanningAgentResult(
-            facts=BudgetFacts(capacity=state.monthly_savings_contribution),
+            facts=BudgetFacts(capacity=state.monthly_savings_contribution, cash_shortfall=cash_shortfall),
             agent_id=self.agent_id,
             status="limited" if expense_ratio is None or savings_rate is None else "ok",
-            findings=[finding],
+            findings=findings,
             limitations=limitations,
         )
 
@@ -102,7 +122,8 @@ class DebtAgent:
     def analyze(self, state: FinancialState) -> AgentResult:
         if isinstance(state, DynamicPlanningState):
             return self._analyze_dynamic(state)
-        dti = state.debt_to_income_percent
+        picture = getattr(state, "picture", None)
+        dti = picture.spending.debt_to_income_percent.value if picture else state.debt_to_income_percent
         limitations = []
         if dti is None:
             limitations.append("DTI needs a monthly debt payment and positive gross income.")
@@ -120,7 +141,8 @@ class DebtAgent:
             ),
             priority=priority,
             evidence=[
-                Evidence(label="Debt-to-income ratio", value=dti, unit="%"),
+                Evidence(label="Debt-to-income ratio", value=dti, unit="%",
+                         source=picture.spending.debt_to_income_percent.source if picture else None),
                 Evidence(label="Outstanding debt", value=state.existing_debt, unit="currency"),
             ],
             limitations=limitations,
@@ -131,11 +153,33 @@ class DebtAgent:
                               "Keep required payments current and review loan terms before assigning remaining savings." if priority else
                               "Keep required payments current and check loan terms before deciding on extra repayment."),
         )
+        findings = [finding]
+        if picture:
+            for loan in picture.obligations:
+                if loan.kind != "loan_payment" or loan.rate_change_date is None:
+                    continue
+                days = (loan.rate_change_date - picture.as_of_date).days
+                if not 0 <= days <= 90:
+                    continue
+                findings.append(Finding(
+                    code=f"loan_rate_change_{loan.id}", title=f"Review {loan.name} rate change",
+                    reason=f"The saved rate for {loan.name} changes on {loan.rate_change_date.isoformat()}; confirm the lender's payment and terms.",
+                    priority=False,
+                    evidence=[Evidence(label="Current annual rate", value=loan.annual_interest_rate_percent,
+                                       unit="%", source="saved_loan_detail.annual_interest_rate_percent"),
+                              Evidence(label="New annual rate", value=loan.new_annual_interest_rate_percent,
+                                       unit="%", source="saved_loan_detail.new_annual_interest_rate_percent"),
+                              Evidence(label="Monthly payment", value=loan.amount, unit="currency",
+                                       source="saved_loan_detail.monthly_payment")],
+                    limitations=["The entered rate change does not recalculate the payment; the payment is already in aggregate expenses."],
+                    impact="A changed rate may alter future payments or the cost of debt.",
+                    suggested_action="Check the lender notice and update the payment amount if it changes.",
+                ))
         return PlanningAgentResult(
             facts=DebtFacts(review_required=priority or dti is None, reason_code='high_debt' if priority else 'unknown_debt' if dti is None else None),
             agent_id=self.agent_id,
             status="limited" if dti is None else "ok",
-            findings=[finding],
+            findings=findings,
             limitations=limitations,
         )
 
@@ -189,8 +233,9 @@ class EmergencyAgent:
     def analyze(self, state: FinancialState) -> AgentResult:
         if isinstance(state, DynamicPlanningState):
             return self._analyze_dynamic(state)
-        coverage = state.emergency_fund_months
-        gap = (
+        picture = getattr(state, "picture", None)
+        coverage = picture.reserve.total_expense_coverage_months.value if picture else state.emergency_fund_months
+        gap = (picture.reserve.funding_gap.value if state.monthly_expenses > 0 else None) if picture else (
             max(Decimal("0"), EMERGENCY_TARGET_MONTHS * state.monthly_expenses - state.emergency_fund)
             if state.monthly_expenses > 0 else None
         )
@@ -210,8 +255,10 @@ class EmergencyAgent:
             ),
             priority=priority,
             evidence=[
-                Evidence(label="Emergency fund coverage", value=coverage, unit="months"),
-                Evidence(label="Gap to illustrative target", value=gap, unit="currency"),
+                Evidence(label="Emergency fund coverage", value=coverage, unit="months",
+                         source=picture.reserve.total_expense_coverage_months.source if picture else None),
+                Evidence(label="Gap to illustrative target", value=gap, unit="currency",
+                         source=picture.reserve.funding_gap.source if picture else None),
             ],
             limitations=limitations,
             impact=("Without positive monthly expenses, reserve coverage and the target gap cannot be calculated." if coverage is None else

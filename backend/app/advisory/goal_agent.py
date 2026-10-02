@@ -11,8 +11,11 @@ class GoalPlanningAgent:
 
     def analyze(self, state: PlanningState) -> PlanningAgentResult:
         requirements, findings = [], []
+        picture = getattr(state, 'picture', None)
+        gaps = {item.id: item for item in picture.goals} if picture else {}
         for goal in sorted(state.goals, key=lambda g: (GOAL_PRIORITY_ORDER[g.priority], g.target_date, g.id)):
-            remaining = max(Decimal(0), goal.target_amount - goal.saved_amount)
+            remaining = (gaps[goal.id].remaining_amount if goal.id in gaps else
+                         max(Decimal(0), goal.target_amount - goal.saved_amount))
             days = (goal.target_date - state.as_of_date).days
             status = 'completed' if remaining == 0 else 'overdue' if days <= 0 else 'future'
             months = (days + PLANNING_MONTH_DAYS - 1) // PLANNING_MONTH_DAYS if status == 'future' else None
@@ -23,8 +26,10 @@ class GoalPlanningAgent:
                       'Revise this overdue target date.' if status == 'overdue' else
                       f'Remaining balance spread over approximately {months} months.')
             priority = status == 'overdue'
-            evidence = [Evidence(label='Remaining target', value=remaining, unit='currency'),
-                        Evidence(label='Required each month', value=required, unit='currency')]
+            evidence = [Evidence(label='Remaining target', value=remaining, unit='currency',
+                                 source='saved_goal.target_minus_saved' if goal.id in gaps else None),
+                        Evidence(label='Required each month', value=required, unit='currency',
+                                 source='remaining_goal_target_and_date' if goal.id in gaps else None)]
             limitations = ['Uses 30-day months, no interest or investment growth.']
             if isinstance(state, DynamicPlanningState):
                 evidence.append(Evidence(label='Current surplus', value=state.current_surplus, unit='currency'))

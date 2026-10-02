@@ -146,7 +146,7 @@ def build_financial_picture(
     conservative = min(income, *(row.monthly_income for row in recent_three)) if consecutive else None
     income_facts = IncomeFacts(
         expected_monthly=_fact(income, "user.current_income_estimate", "Current gross monthly estimate; not take-home pay."),
-        guaranteed_monthly=_fact(profile.guaranteed_monthly_income, "profile.guaranteed_income",
+        guaranteed_monthly=_fact(getattr(profile, "guaranteed_monthly_income", None), "profile.guaranteed_income",
                                  "Only the amount you identified as assured; blank means unknown."),
         observed_average=_fact(_money(average) if average is not None else None, "recorded_months.last_12",
                                "Mean of recorded gross monthly income; not a guarantee."),

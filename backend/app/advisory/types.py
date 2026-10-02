@@ -11,6 +11,14 @@ class Evidence(BaseModel):
     label: str
     value: Decimal | None
     unit: str
+    source: str | None = None
+
+    @model_serializer(mode="wrap")
+    def serialize(self, handler):
+        payload = handler(self)
+        if payload.get("source") is None:
+            payload.pop("source", None)
+        return payload
 
 
 class Finding(BaseModel):
