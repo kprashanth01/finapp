@@ -5,6 +5,7 @@ import { formatAmount } from '../utils/format.js'
 const choices = [
   ['income_decrease', 'Income decrease'],
   ['income_increase', 'Income increase'],
+  ['one_time_income', 'One-time extra income'],
   ['unexpected_expense', 'Unexpected expense'],
   ['upcoming_expense', 'Upcoming expense'],
   ['subscription_reduction', 'Subscription reduction'],
@@ -49,6 +50,7 @@ export function EventComparison({ result }) {
       <h4 className="font-semibold">What changes in this preview</h4>
       <p className="mt-1 text-sm text-slate-700">One event is applied to your saved financial picture. No saved value or plan is changed.</p>
       {Number(result.one_time_cash_need) > 0 && <p className="mt-2 text-sm">One-time cash needed beyond the entered reserved amount: <strong>{formatAmount(result.one_time_cash_need)}</strong>.</p>}
+      {Number(result.one_time_cash_inflow) > 0 && <p className="mt-2 text-sm">One-time extra cash received: <strong>{formatAmount(result.one_time_cash_inflow)}</strong>. Recurring monthly income stays the same.</p>}
       {result.illustrative_current_month_cash_after_event != null &&
         <p className="mt-1 text-sm">Illustrative gross cash after this month's one-time amount: <strong>{formatAmount(result.illustrative_current_month_cash_after_event)}</strong>.</p>}
       {result.event.kind === 'upcoming_expense' && <p className="mt-1 text-sm">The new cost is due {result.event.due_date}; it is not added to recurring monthly expenses.{result.event.is_essential ? ' You marked it essential.' : ''}</p>}

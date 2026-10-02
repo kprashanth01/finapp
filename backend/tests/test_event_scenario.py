@@ -79,6 +79,18 @@ def test_one_time_expense_is_separate_from_monthly_spending(client):
     assert preview(client, user_id, kind="upcoming_expense", amount="900", due_date="2020-01-01").status_code == 422
 
 
+def test_one_time_extra_income_changes_only_this_months_illustrative_cash(client):
+    user_id, _ = account(client)
+    result = preview(client, user_id, kind="one_time_income", amount="1500")
+    assert result.status_code == 200, result.text
+    data = result.json()
+    assert data["before"]["income"]["expected_monthly"]["value"] == "5000.00"
+    assert data["after"]["income"]["expected_monthly"]["value"] == "5000.00"
+    assert data["one_time_cash_inflow"] == "1500.00"
+    assert data["illustrative_current_month_cash_after_event"] == "3500.00"
+    assert client.get(f"/users/{user_id}").json()["monthly_income"] == "5000.00"
+
+
 def test_subscription_reduction_uses_owned_discretionary_item(client):
     user_id, _ = account(client)
     details = client.put(f"/users/{user_id}/financial-details", json={

@@ -21,7 +21,9 @@ from app.services.financial_analysis import FinancialAnalysisService
 from app.services.financial_details import validate_detail_totals
 from app.services.event_scenario import EventScenarioRead, EventScenarioWrite, preview_event
 from app.services.user_recommendations import UserRecommendationsRead, recommend
-from app.services.current_chat import CurrentChatAnswer, CurrentChatQuestion, answer_current_question
+from app.services.current_chat import (CurrentChatAnswer, CurrentChatQuestion, answer_current_question,
+                                       scenario_answer, scenario_input_answer)
+from app.services.conversational_scenarios import parse_scenario
 
 
 router = APIRouter()
@@ -132,6 +134,19 @@ def chat_about_current_finances(user_id: int, payload: CurrentChatQuestion,
     analysis = get_financial_analysis(user_id, session)
     profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
     decisions = recommend(analysis.picture, profile)
+    context = _advisory_context(user_id, session)
+    parsed = parse_scenario(payload.question, payload.history, analysis.picture.income.expected_monthly.value,
+                            context['expenses'])
+    if parsed.recognized:
+        if parsed.need:
+            return scenario_input_answer(analysis.picture.as_of_date, parsed.need)
+        try:
+            preview = preview_event(session.get(User, user_id), profile, parsed.event,
+                                    goals=load_active_goals(session, user_id),
+                                    as_of_date=analysis.picture.as_of_date, **context)
+        except ValueError as error:
+            return scenario_input_answer(analysis.picture.as_of_date, str(error))
+        return scenario_answer(preview, decisions, recommend(preview.after, profile))
     return answer_current_question(analysis.picture, decisions, profile, payload)
 
 
