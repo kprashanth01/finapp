@@ -105,6 +105,10 @@ export async function previewEventScenario(userId, event) {
   return (await api.post(`/users/${userId}/event-scenario`, event)).data
 }
 
+export async function getUserRecommendations(userId) {
+  return (await api.get(`/users/${userId}/recommendations`)).data
+}
+
 export async function compareResearchPolicies(userId, seed = 42) {
   const response = await api.post(`/users/${userId}/research/comparison`, { seed })
   return response.data

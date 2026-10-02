@@ -7,13 +7,13 @@ FinApp helps you organize the financial information you enter and examine a poss
 1. **Create an account.** A fresh database has no example user or prefilled financial history.
 2. **Enter gross monthly income** under **Profile → User details**. This is income before tax, used for the app's ratios.
 3. **Save your financial profile.** Include monthly expenses, balances, loan information, the amount you can actually set aside each month, risk preference, and investment horizon where known.
-4. **Run analysis on Dashboard.** Read the first priority, the fact behind it, and the proposed use of your monthly savings. Open **Advisor** for the full plan and agent findings.
-5. **Add a goal**, such as a laptop with a target amount and date. Run analysis again after changing a goal or financial input. Existing saved plans remain historical snapshots.
+4. **Open Dashboard.** Read the current recommendation, its supporting numbers, and its assumptions. Run analysis for the separate saved monthly allocation plan. Open **Advisor** for that plan and its agent findings.
+5. **Add a goal**, such as a laptop with a target amount and date. Dashboard's current recommendation uses the new goal when you return. Run analysis again to update the saved allocation plan; older plans remain historical snapshots.
 6. **Try a change.** Dashboard's scenario form previews one changed month without updating saved details. **Try a specific financial change** previews an income change, one-time cost, recurring discretionary cost reduction, extra loan payment, emergency savings deposit, or a changed goal savings budget. **Months** lets you save actual month-by-month figures and preview a plan from one recorded month.
 
-After saving a Profile, open **Optional financial details** if you want to describe your income pattern, recurring expense categories, individual loans, or dated one-time costs. These entries are optional. The saved Advisor plan still uses the aggregate Profile values; the detail does not increase those totals. Use **Months** to record income you actually received, rather than treating an expected or guaranteed amount as observed history.
+After saving a Profile, open **Optional financial details** if you want to describe your income pattern, recurring expense categories, individual loans, or dated one-time costs. These entries are optional. The current Dashboard recommendation uses them when available. The saved Advisor allocation plan still uses the aggregate Profile values; the detail does not increase those totals. Use **Months** to record income you actually received, rather than treating an expected or guaranteed amount as observed history.
 Dashboard's **Deeper financial analysis**, below the saved plan and financial picture, uses those saved entries to calculate gross cash flow, an emergency reserve gap, and a breakdown of income history, spending, goals, and upcoming costs. Each figure names its source. A blank figure means the necessary input is unknown; a partial category shows only the amount entered so far. The possible surplus is an upper bound from gross income before tax and unrecorded costs. The conservative income reference appears only after three consecutive recent recorded months and is a stress check, not a guaranteed future income.
-The picture is read-only and does not change the saved Advisor recommendation. Refreshing or editing these entries does not rewrite an older saved plan.
+The picture and current recommendation are read-only and do not change the saved Advisor allocation. Refreshing or editing these entries does not rewrite an older saved plan.
 Leave an optional individual loan balance, loan payment, or amount reserved for an upcoming cost blank when you do not know it; blank means unknown, while zero means none.
 Keep a cost already tracked as a Goal in Goals instead of also adding it as an upcoming one-time expense.
 
@@ -38,7 +38,9 @@ If a monthly savings contribution is blank, the app can show findings but cannot
 
 ## Reading a recommendation
 
-The main plan follows this path:
+Dashboard's **What should I do this month?** section ranks current actions from saved cash flow, dated costs, loan changes, recorded income, emergency reserve, and goal dates and priorities. It shows the reason, supporting calculations and their source, and assumptions for each action. Open the remaining actions to see the full list. The order can change after saved details change; no transfer or payment is made. Missing detail stays unknown, and the current gross surplus is only a ceiling before tax and unrecorded costs.
+
+The separate saved monthly allocation plan follows this path:
 
 ```text
 Your entered facts → financial checks → priority → proposed monthly action → reasons and limits

@@ -20,6 +20,7 @@ from app.schemas import AnalysisRead, ProfileRead, ProfileWrite, ScenarioWrite, 
 from app.services.financial_analysis import FinancialAnalysisService
 from app.services.financial_details import validate_detail_totals
 from app.services.event_scenario import EventScenarioRead, EventScenarioWrite, preview_event
+from app.services.user_recommendations import UserRecommendationsRead, recommend
 
 
 router = APIRouter()
@@ -113,6 +114,14 @@ def get_financial_analysis(user_id: int, session: Session = Depends(get_session)
                                .order_by(FinancialMonth.period)).all(),
         as_of_date=planning_date(),
     )
+
+
+@router.get("/users/{user_id}/recommendations", response_model=UserRecommendationsRead,
+            dependencies=[Depends(require_owner)])
+def get_user_recommendations(user_id: int, session: Session = Depends(get_session)) -> UserRecommendationsRead:
+    analysis = get_financial_analysis(user_id, session)
+    profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
+    return recommend(analysis.picture, profile)
 
 
 def _saved_financial_data(user_id: int, session: Session) -> tuple[User, FinancialProfile]:

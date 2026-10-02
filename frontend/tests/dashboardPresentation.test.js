@@ -6,9 +6,11 @@ import { createServer } from 'vite'
 
 let server
 let Dashboard
+let RecommendationContent
 before(async () => {
   server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
   Dashboard = (await server.ssrLoadModule('/src/components/Dashboard.jsx')).default
+  RecommendationContent = (await server.ssrLoadModule('/src/components/UserRecommendations.jsx')).RecommendationContent
 })
 after(async () => { await server?.close() })
 
@@ -68,4 +70,31 @@ test('dashboard offers a separate read-only event preview for real-life changes'
   assert.match(html, /Extra loan payment/)
   assert.match(html, /Change goal contribution/)
   assert.match(html, /does not change saved information/)
+})
+
+test('dashboard separates current recommendations from the saved monthly allocation', () => {
+  const html = render(savedSession(false))
+  assert.match(html, /user-recommendations-heading/)
+  assert.match(html, /Saved monthly allocation plan/)
+  assert.ok(html.indexOf('What should I do this month?') < html.indexOf('Saved monthly allocation plan'))
+})
+
+test('current recommendation shows the ranked action, calculation source, and assumptions', () => {
+  const item = {
+    priority: 1, code: 'planned_cost_1', urgency: 'urgent', area: 'upcoming_cost',
+    action: 'Review payment for Insurance', reason: 'Insurance is overdue with 700.00 not marked as reserved.',
+    supporting_calculations: [{ label: 'Amount not marked reserved', value: '700.00', unit: 'currency', source: 'saved_planned_expense' }],
+    priority_factors: ['Marked essential', 'Overdue'], assumptions: ['Reserved means entered as set aside, not verified cash.'],
+    target_view: 'profile', target_id: null,
+  }
+  const html = renderToStaticMarkup(createElement(RecommendationContent, {
+    data: { as_of_date: '2026-10-03', recommendations: [item], limitations: ['Gross income is before tax.'] },
+  }))
+  assert.match(html, /Priority 1 · urgent · upcoming cost/)
+  assert.match(html, /Review payment for Insurance/)
+  assert.match(html, /Amount not marked reserved/)
+  assert.match(html, /Source: Profile upcoming costs/)
+  assert.match(html, /Marked essential/)
+  assert.match(html, /not verified cash/)
+  assert.match(html, /Gross income is before tax/)
 })
