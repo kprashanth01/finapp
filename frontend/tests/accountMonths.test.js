@@ -10,6 +10,10 @@ let AccountAdvice
 let updateMonthDraft
 let monthTotals
 let formMonth
+let startingPlanningMonth
+let profileMonthDraft
+let planningMonthTotals
+let planningMonthErrors
 before(async () => {
   server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' })
   const module = await server.ssrLoadModule('/src/components/AccountMonths.jsx')
@@ -18,6 +22,10 @@ before(async () => {
   updateMonthDraft = module.updateMonthDraft
   monthTotals = module.monthTotals
   formMonth = module.formMonth
+  startingPlanningMonth = module.startingPlanningMonth
+  profileMonthDraft = module.profileMonthDraft
+  planningMonthTotals = module.planningMonthTotals
+  planningMonthErrors = module.planningMonthErrors
 })
 after(async () => { await server?.close() })
 
@@ -56,9 +64,55 @@ test('editing a saved month derives spending parts without sending its read-only
     savings: '5000.00', emergency_fund: '0.00', outstanding_debt: '100000.00', unfunded_expenses: '0.00',
     risk_tolerance: 'conservative', investment_horizon_years: 15 })
   assert.equal(draft.other_expenses, '48499.99')
+  assert.equal(draft.monthly_expenses, '70000.00')
   assert.equal(monthTotals(draft).monthly_expenses, '70000.00')
   assert.equal('id' in draft, false)
   assert.equal(formMonth({ ...draft, period: '2026-06-01', monthly_expenses: '70000.00', paid_emi: '2500.00' }).paid_emi_edited, true)
+})
+
+test('a new planning month starts without copied financial amounts and offers an explicit profile draft', () => {
+  const user = { monthly_income: '5000.00' }
+  const profile = { monthly_expenses: '3000.00', monthly_debt_payments: '200.00',
+    savings: '8000.00', emergency_fund: '3000.00', existing_debt: '1000.00',
+    risk_tolerance: 'moderate', investment_horizon_years: 5 }
+  const blank = startingPlanningMonth()
+  for (const field of ['monthly_income', 'monthly_expenses', 'fixed_expenses', 'scheduled_emi',
+    'paid_emi', 'savings', 'emergency_fund', 'outstanding_debt']) assert.equal(blank[field], '')
+  const copied = profileMonthDraft(user, profile, '2026-09')
+  assert.equal(copied.monthly_income, '5000.00')
+  assert.equal(copied.monthly_expenses, '3000.00')
+  assert.equal(copied.fixed_expenses, '')
+  assert.equal(copied.scheduled_emi, '200.00')
+  assert.equal(copied.other_expenses, '')
+  assert.equal(copied.paid_emi, '')
+  assert.equal(copied.unfunded_expenses, '')
+  assert.equal(planningMonthTotals({ ...copied, fixed_expenses: '1600.00' }).other_expenses, '1200.00')
+})
+
+test('planning totals use the entered total once and catch inconsistent obligations', () => {
+  const draft = { monthly_income: '3500.00', monthly_expenses: '3000.00', fixed_expenses: '1600.00',
+    scheduled_emi: '300.00', paid_emi: '300.00', savings: '5000.00', emergency_fund: '2000.00' }
+  assert.deepEqual(planningMonthTotals(draft), { monthly_expenses: '3000.00',
+    other_expenses: '1100.00', net_cash_flow: '500.00' })
+  assert.deepEqual(planningMonthErrors(draft), [])
+  assert.match(planningMonthErrors({ ...draft, fixed_expenses: '2800.00' }).join(' '), /exceed total spending/)
+  assert.match(planningMonthErrors({ ...draft, paid_emi: '400.00' }).join(' '), /actually paid/)
+  assert.match(planningMonthErrors({ ...draft, emergency_fund: '6000.00' }).join(' '), /emergency reserve/)
+})
+
+test('primary Months form shows total spending and the balance review without silently prefilled amounts', () => {
+  const html = renderToStaticMarkup(createElement(AccountMonths, { mode: 'planning', userId: 1,
+    user: { monthly_income: '5000.00' }, profile: { monthly_expenses: '3000.00',
+      monthly_debt_payments: '200.00', savings: '8000.00', emergency_fund: '3000.00',
+      existing_debt: '1000.00', risk_tolerance: 'moderate', investment_horizon_years: 5 },
+  }))
+  assert.match(html, /Use current Profile as a starting point/)
+  assert.match(html, /Total monthly spending \(including bills and loan\)/)
+  assert.match(html, /Other spending \(calculated\)/)
+  assert.match(html, /Balances and payments for this month/)
+  assert.match(html, /Choose risk preference/)
+  assert.doesNotMatch(html, /name="monthly_income"[^>]+value="5000\.00"/)
+  assert.doesNotMatch(html, /name="other_expenses"/)
 })
 
 test('zero-income result names the DQN miss and exposes the rule and requested specialist', () => {

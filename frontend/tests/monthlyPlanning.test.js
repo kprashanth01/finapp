@@ -77,6 +77,7 @@ test('monthly records are available from primary navigation without research adv
   }))
   assert.match(record, /Plan for changing income/)
   assert.match(record, /Save this month/)
-  assert.match(record, /Additional month details/)
+  assert.match(record, /Balances and payments for this month/)
+  assert.doesNotMatch(record, /Additional month details/)
   assert.doesNotMatch(record, /DQN|trained selector|proxy score/)
 })
