@@ -157,6 +157,8 @@ Use **Goals** to create a measurable target: a name, target amount, amount alrea
 
 Click **Run analysis with saved goals** or run from **Advisor**. The result shows the next step, a monthly savings plan, goal funding gaps, and investment readiness. It uses saved inputs; proposed allocations do not transfer money or change balances. Editing a profile or goal does not automatically run analysis.
 
+For an underfunded goal, **Advisor → Can your goals fit?** now shows two choices: the additional monthly amount that goal would need to keep its deadline, and an approximate completion month if its current allocation repeated. A zero allocation has no projected completion date. These are alternatives to consider, not extra available cash or a forecast; the estimate uses 30-day months from that saved run, with no growth or change to reserve, debt, or other goal priorities. Review the goal or the monthly savings contribution, then run a new plan after saving a change.
+
 ### Six independent agents, one shared budget
 
 | Agent | When selected | Output |
