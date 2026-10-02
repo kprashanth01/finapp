@@ -58,6 +58,69 @@ def test_saved_plan_retains_agent_guidance_for_later_visits(client):
     assert all(finding['impact'] and finding['suggested_action'] for finding in findings)
 
 
+def test_saved_agents_use_sourced_financial_picture_and_hold_savings_in_shortfall(client):
+    user, profile = create_profile(client)
+    user_id = user['id']
+    profile['emergency_fund'] = '9000.00'
+    assert client.put(f'/users/{user_id}/financial-profile', json=profile).status_code == 200
+    assert client.put(f'/users/{user_id}', json={
+        'name': user['name'], 'email': user['email'], 'monthly_income': '2500.00',
+    }).status_code == 200
+    due = (date.today() + timedelta(days=10)).isoformat()
+    changed_rate = (date.today() + timedelta(days=15)).isoformat()
+    details = {
+        'income_pattern': 'variable', 'guaranteed_monthly_income': '1000.00',
+        'recurring_expenses': [{'name': 'Rent', 'monthly_amount': '1000.00', 'category': 'essential_fixed'}],
+        'loans': [{'name': 'Car loan', 'remaining_balance': '1000.00', 'monthly_payment': '200.00',
+                   'annual_interest_rate_percent': '8.00', 'rate_change_date': changed_rate,
+                   'new_annual_interest_rate_percent': '12.00'}],
+        'planned_expenses': [{'name': 'Insurance', 'estimated_amount': '700.00',
+                              'amount_reserved': '100.00', 'due_date': due, 'is_essential': True}],
+    }
+    saved = client.put(f'/users/{user_id}/financial-details', json=details)
+    assert saved.status_code == 200, saved.text
+    goal = client.post(f'/users/{user_id}/goals', json={
+        'name': 'Laptop', 'target_amount': '1000.00', 'saved_amount': '100.00',
+        'target_date': due, 'priority': 'high',
+    })
+    assert goal.status_code == 201, goal.text
+
+    response = client.post(f'/users/{user_id}/advisory-sessions')
+    assert response.status_code == 201, response.text
+    result = response.json()['result']
+    agents = {item['agent_id']: item for item in result['agent_results']}
+    assert set(agents) == {'budget', 'debt', 'emergency', 'goal', 'risk', 'investment'}
+    assert any(f['code'] == 'gross_cash_shortfall' for f in agents['budget']['findings'])
+    ratio = next(f for f in agents['budget']['findings'] if f['code'] in ('budget_ratios', 'expense_ratio_high'))
+    assert 'no budget priority' not in ratio['reason'].lower()
+    assert 'no high expense ratio' not in ratio['impact'].lower()
+    assert any(e.get('source') == 'current_income_estimate_minus_profile_expenses'
+               for f in agents['budget']['findings'] for e in f['evidence'])
+    assert any(f['code'].startswith('loan_rate_change_') for f in agents['debt']['findings'])
+    assert any(e.get('source') == 'profile_emergency_fund_divided_by_total_expenses'
+               for f in agents['emergency']['findings'] for e in f['evidence'])
+    assert any(e.get('source') == 'saved_goal.target_minus_saved'
+               for f in agents['goal']['findings'] for e in f['evidence'])
+    assert any(e.get('source') == 'profile.guaranteed_income'
+               for f in agents['risk']['findings'] for e in f['evidence'])
+    assert 'gross_shortfall' in agents['investment']['facts']['factor_codes']
+    plan = result['advice']['monthly_plan']
+    assert plan['capacity'] == '500.00'
+    assert plan['emergency_allocation'] == '0'
+    assert plan['unassigned'] == '500.00'
+    assert 'shortfall' in plan['hold_reason'].lower()
+
+    details['planned_expenses'][0]['estimated_amount'] = '800.00'
+    details['planned_expenses'][0]['id'] = saved.json()['planned_expenses'][0]['id']
+    details['loans'][0]['id'] = saved.json()['loans'][0]['id']
+    details['recurring_expenses'][0]['id'] = saved.json()['recurring_expenses'][0]['id']
+    assert client.put(f'/users/{user_id}/financial-details', json=details).status_code == 200
+    latest = client.get(f'/users/{user_id}/advisory-sessions/latest')
+    assert latest.status_code == 200
+    assert latest.json()['is_stale'] is True
+    assert 'inputs' in latest.json()['stale_reasons']
+
+
 def test_scenario_preview_compares_current_and_changed_plan_without_saving(client):
     user, _ = create_profile(client)
     path = f"/users/{user['id']}/advisory-scenario"

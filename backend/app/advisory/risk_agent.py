@@ -28,6 +28,7 @@ class RiskAssessmentAgent:
     def analyze(self, state: PlanningState) -> PlanningAgentResult:
         if isinstance(state, DynamicPlanningState):
             return self._analyze_dynamic(state)
+        picture = getattr(state, 'picture', None)
         category = risk_category(state)
         factors = []
         if state.investment_horizon_years is None:
@@ -46,22 +47,48 @@ class RiskAssessmentAgent:
             factors.append('unknown_debt')
         elif state.monthly_income > 0 and (state.monthly_debt_payments or 0) * 100 / state.monthly_income >= HIGH_DTI_PERCENT:
             factors.append('high_debt')
+        guaranteed = picture.income.guaranteed_monthly.value if picture else None
+        essentials = picture.spending.known_essential.value if picture else None
+        if guaranteed is not None and essentials is not None and guaranteed < essentials:
+            factors.append('guaranteed_income_gap')
         reason = ('Add an investment horizon to assess the stated preference.' if category is None else
                   f'Your {state.risk_tolerance} preference is capped at {category} for the saved horizon.'
                   if category != state.risk_tolerance else
                   f'Your {state.risk_tolerance} preference and saved horizon map to an illustrative {category} category.')
+        evidence = [Evidence(label='Investment horizon', value=(Decimal(state.investment_horizon_years)
+                             if state.investment_horizon_years is not None else None), unit='years')]
+        if picture:
+            evidence.extend([
+                Evidence(label='Guaranteed monthly income', value=guaranteed, unit='currency',
+                         source=picture.income.guaranteed_monthly.source),
+                Evidence(label='Known essential spending floor', value=essentials, unit='currency',
+                         source=picture.spending.known_essential.source),
+            ])
+        findings = [Finding(code='risk_capacity', title='Risk preference and horizon',reason=reason,priority=False,
+                            evidence=evidence,
+                            limitations=['Illustrative category; financial readiness is checked separately.'],
+                            impact=('A preference alone cannot indicate how long the money can stay invested.' if category is None else
+                                    'A shorter horizon can limit the time available to recover from investment losses.' if category != state.risk_tolerance else
+                                    'The preference and horizon align under this simple rule, but this is not a suitability assessment.'),
+                            suggested_action=('Enter the intended investment horizon before using this category.' if category is None else
+                                              'Review your time horizon and risk preference before considering an investment.' if category != state.risk_tolerance else
+                                              'Use this category only alongside the reserve, debt, goal, and investment-readiness checks.'))]
+        if 'guaranteed_income_gap' in factors:
+            findings.append(Finding(
+                code='guaranteed_income_gap', title='Review the reliable income floor',
+                reason='The entered guaranteed income is below even the known essential monthly spending floor.',
+                priority=True,
+                evidence=[Evidence(label='Guaranteed monthly income', value=guaranteed, unit='currency',
+                                   source=picture.income.guaranteed_monthly.source),
+                          Evidence(label='Known essential spending floor', value=essentials, unit='currency',
+                                   source=picture.spending.known_essential.source)],
+                limitations=['Essential spending may be incomplete; this is a lower bound, not a full budget.'],
+                impact='If only the guaranteed income arrives, required costs may need another source of cash.',
+                suggested_action='Review essential bills and the cash available for a lower-income month.',
+            ))
         return PlanningAgentResult(agent_id=self.agent_id, status='limited' if category is None else 'ok',
             facts=RiskFacts(category=category,factor_codes=factors),
-            findings=[Finding(code='risk_capacity', title='Risk preference and horizon',reason=reason,priority=False,
-                              evidence=[Evidence(label='Investment horizon', value=(Decimal(state.investment_horizon_years)
-                                        if state.investment_horizon_years is not None else None), unit='years')],
-                              limitations=['Illustrative category; financial readiness is checked separately.'],
-                              impact=('A preference alone cannot indicate how long the money can stay invested.' if category is None else
-                                      'A shorter horizon can limit the time available to recover from investment losses.' if category != state.risk_tolerance else
-                                      'The preference and horizon align under this simple rule, but this is not a suitability assessment.'),
-                              suggested_action=('Enter the intended investment horizon before using this category.' if category is None else
-                                                'Review your time horizon and risk preference before considering an investment.' if category != state.risk_tolerance else
-                                                'Use this category only alongside the reserve, debt, goal, and investment-readiness checks.'))],limitations=[])
+            findings=findings,limitations=[])
 
     def _analyze_dynamic(self, state: DynamicPlanningState) -> PlanningAgentResult:
         category = risk_category(state)

@@ -12,7 +12,10 @@ class InvestmentAgent:
     def analyze(self, state: PlanningState) -> PlanningAgentResult:
         if isinstance(state, DynamicPlanningState):
             return self._analyze_dynamic(state)
+        picture = getattr(state, 'picture', None)
         blockers, missing = [], []
+        if picture and picture.spending.gross_cash_flow.value < 0:
+            blockers.append(('gross_shortfall', 'Entered expenses exceed the current gross income estimate.'))
         if state.monthly_income <= 0:
             blockers.append(('zero_income','Positive monthly income is required.'))
         if state.monthly_savings_contribution is None:
@@ -41,6 +44,9 @@ class InvestmentAgent:
                 reason=' '.join(reasons) if reasons else 'Profile prerequisites met; the coordinator also checks goal funding.',
                 priority=False,
                 evidence=[Evidence(label='Monthly savings contribution', value=state.monthly_savings_contribution, unit='currency'),
+                          Evidence(label='Gross monthly cash flow', value=picture.spending.gross_cash_flow.value,
+                                   unit='currency', source=picture.spending.gross_cash_flow.source) if picture else
+                          Evidence(label='Gross monthly cash flow', value=None, unit='currency'),
                           Evidence(label='Emergency fund coverage', value=state.emergency_fund_months, unit='months'),
                           Evidence(label='Debt-to-income ratio', value=state.debt_to_income_percent, unit='%')],
                 limitations=['No asset selection, returns, or suitability prediction.'],

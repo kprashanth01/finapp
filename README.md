@@ -15,7 +15,7 @@ FinApp is a local web application for exploring everyday financial decisions. En
 | **Advisor** | How are emergency savings, debt, goals, and investment readiness coordinated? Why? |
 | **Research** | How do the rule-based, random, and trained selectors behave in controlled experiments? |
 
-The main saved plan is **rule based**. Six specialist agents check budget, debt, emergency savings, goals, risk, and investment readiness. A coordinator turns their findings into one plan using the monthly savings amount you entered. Experimental selectors run separately; an incomplete selection does not become a complete saved plan.
+The main saved plan is **rule based**. Six specialist agents check budget, debt, emergency savings, goals, risk, and investment readiness using the current financial picture. They return sourced findings for the coordinator and saved explanation. A gross cash shortfall holds the entered savings amount unassigned for review. Experimental selectors run separately; an incomplete selection does not become a complete saved plan.
 
 ## Get it running
 
@@ -36,7 +36,7 @@ Follow [the complete local setup guide](docs/setup.md) for copyable **Windows Po
 4. Add a goal in **Goals**, then return to Dashboard to see the current recommendation update. Run a new analysis to refresh the saved allocation plan.
 5. Use **Months** to record different income or spending months, or try the Dashboard's one-month and specific-event previews. These previews do not edit the saved plan.
 
-Profile also has an optional detail section for income context, recurring expense categories, loans, and upcoming one-time costs. Dashboard's current recommendation uses those details and recorded months when available. The saved allocation plan still uses the aggregate Profile values; details do not add to those totals.
+Profile also has an optional detail section for income context, recurring expense categories, loans, and upcoming one-time costs. Dashboard's current recommendation and new saved Advisor agent findings use those details and recorded months when available. The saved allocation amounts still use the aggregate Profile values; details do not add to those totals. Editing detail marks an older saved plan stale until you run a new one.
 
 See [Using FinApp](docs/using-finapp.md) for a plain-language field guide and a worked example.
 

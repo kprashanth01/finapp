@@ -21,6 +21,7 @@ class GoalRequirement(BaseModel):
 class BudgetFacts(BaseModel):
     kind: Literal['budget'] = 'budget'
     capacity: Decimal | None
+    cash_shortfall: Decimal = Decimal(0)
 
 
 class DebtFacts(BaseModel):

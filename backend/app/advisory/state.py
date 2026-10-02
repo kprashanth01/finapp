@@ -6,10 +6,11 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal, Sequence
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.models import FinancialGoal, FinancialProfile, User
 from app.schemas import AnalysisRead
+from app.services.financial_picture import FinancialPicture
 
 
 class FinancialState(BaseModel):
@@ -86,6 +87,7 @@ class PlanningState(FinancialState):
     financial_goal: str | None
     goals: tuple[GoalSnapshot, ...]
     as_of_date: date
+    picture: FinancialPicture | None = Field(default=None, exclude=True)
 
 
 def build_planning_state(user: User, profile: FinancialProfile, analysis: AnalysisRead,
@@ -96,7 +98,7 @@ def build_planning_state(user: User, profile: FinancialProfile, analysis: Analys
         investment_horizon_years=profile.investment_horizon_years,
         financial_goal=profile.financial_goal,
         goals=tuple(GoalSnapshot.model_validate(g) for g in sorted(goals, key=lambda g: g.id) if not g.archived),
-        as_of_date=as_of_date)
+        as_of_date=as_of_date, picture=analysis.picture)
 
     def canonical(value):
         if isinstance(value, Decimal):
@@ -110,5 +112,7 @@ def build_planning_state(user: User, profile: FinancialProfile, analysis: Analys
         return value
 
     inputs = snapshot.model_dump(exclude={'input_fingerprint', 'as_of_date'})
+    if snapshot.picture is not None:
+        inputs['financial_picture'] = snapshot.picture.model_dump(exclude={'as_of_date'})
     digest = hashlib.sha256(json.dumps(canonical(inputs), sort_keys=True, separators=(',', ':')).encode()).hexdigest()
     return snapshot.model_copy(update={'input_fingerprint': digest})
