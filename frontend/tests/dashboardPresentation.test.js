@@ -59,3 +59,13 @@ test('dashboard with no saved plan offers to create one', () => {
   assert.match(html, /Create my monthly plan/)
   assert.doesNotMatch(html, /Your first priority/)
 })
+
+test('dashboard offers a separate read-only event preview for real-life changes', () => {
+  const html = render(null)
+  assert.match(html, /Try a specific financial change/)
+  assert.match(html, /Unexpected expense/)
+  assert.match(html, /Subscription reduction/)
+  assert.match(html, /Extra loan payment/)
+  assert.match(html, /Change goal contribution/)
+  assert.match(html, /does not change saved information/)
+})
