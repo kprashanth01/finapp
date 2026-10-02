@@ -24,6 +24,7 @@ from app.services.user_recommendations import UserRecommendationsRead, recommend
 from app.services.current_chat import (CurrentChatAnswer, CurrentChatQuestion, answer_current_question,
                                        scenario_answer, scenario_input_answer)
 from app.services.conversational_scenarios import parse_scenario
+from app.services.advice_approaches import AdviceApproaches, compare_advice_approaches
 
 
 router = APIRouter()
@@ -169,6 +170,15 @@ def _advisory_context(user_id: int, session: Session) -> dict:
         months=session.scalars(select(FinancialMonth).where(FinancialMonth.user_id == user_id)
                                .order_by(FinancialMonth.period)).all(),
     )
+
+
+@router.get('/users/{user_id}/advice-approaches', response_model=AdviceApproaches,
+            dependencies=[Depends(require_owner)])
+def get_advice_approaches(user_id: int, session: Session = Depends(get_session)) -> AdviceApproaches:
+    user, profile = _saved_financial_data(user_id, session)
+    state = financial_state(user, profile, load_active_goals(session, user_id), planning_date(),
+                            **_advisory_context(user_id, session))
+    return compare_advice_approaches(state)
 
 
 def _session_read(row: AnalysisSession, current_state: PlanningState) -> AdvisorySessionRead:

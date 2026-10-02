@@ -146,6 +146,10 @@ export async function runOrchestration(userId, mode, seed = 42) {
   })).data
 }
 
+export async function getAdviceApproaches(userId) {
+  return (await api.get(`/users/${userId}/advice-approaches`, { timeout: 30000 })).data
+}
+
 export async function getResearchActions(userId) {
   return (await api.get(`/users/${userId}/research/actions`)).data
 }
