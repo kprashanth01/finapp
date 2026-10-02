@@ -64,6 +64,52 @@ test('recorded-month plan explains the worksheet and keeps a manual amount avail
   assert.match(html, /not a savings recommendation/)
 })
 
+test('a recorded low-income gap can be kept aside before planning the remainder', () => {
+  const months = [
+    { ...month, period: '2026-07-01', monthly_income: '2200.00', fixed_expenses: '1600.00' },
+    { ...month, period: '2026-09-01', fixed_expenses: '2300.00' },
+  ]
+  const html = renderToStaticMarkup(createElement(RecordedMonthPlan, {
+    months, userId: 1, onOpenProfile() {}, onOpenGoal() {},
+  }))
+  assert.match(html, /low-income month buffer/)
+  assert.match(html, /2,200\.00/)
+  assert.match(html, /2,600\.00/)
+  assert.match(html, /400\.00/)
+  assert.match(html, /Keep 400\.00 unallocated/)
+  assert.match(html, /If you have not already set aside a buffer/)
+  assert.match(html, /replaces the cash-to-keep entry/)
+  assert.deepEqual(estimateMonthContribution(month, '0', '400.00'),
+    { possibleCents: 10000, overByCents: 0 })
+})
+
+test('no buffer action is offered with one month or no positive low-income gap', () => {
+  const oneMonth = renderToStaticMarkup(createElement(RecordedMonthPlan, {
+    months: [month], userId: 1, onOpenProfile() {}, onOpenGoal() {},
+  }))
+  assert.doesNotMatch(oneMonth, /Keep .* unallocated/)
+  const covered = renderToStaticMarkup(createElement(RecordedMonthPlan, {
+    months: [{ ...month, period: '2026-07-01', fixed_expenses: '2000.00' },
+      { ...month, fixed_expenses: '2000.00' }], userId: 1,
+    onOpenProfile() {}, onOpenGoal() {},
+  }))
+  assert.match(covered, /no positive one-month gap/)
+  assert.doesNotMatch(covered, /Keep .* unallocated/)
+})
+
+test('buffer larger than the selected remainder is explained before allocation', () => {
+  const html = renderToStaticMarkup(createElement(RecordedMonthPlan, {
+    months: [
+      { ...month, period: '2026-07-01', monthly_income: '1500.00', fixed_expenses: '1600.00' },
+      { ...month, fixed_expenses: '2300.00' },
+    ], userId: 1, onOpenProfile() {}, onOpenGoal() {},
+  }))
+  assert.match(html, /1,100\.00/)
+  assert.match(html, /recorded remainder is smaller than that gap/)
+  assert.deepEqual(estimateMonthContribution(month, '0', '1100.00'),
+    { possibleCents: 0, overByCents: 60000 })
+})
+
 test('a missed loan payment or unfunded bill stops a funded preview', () => {
   assert.equal(unpaidObligations({ ...month, paid_emi: '100.00', unfunded_expenses: '0.00' }), 'loan')
   assert.equal(unpaidObligations({ ...month, paid_emi: '300.00', unfunded_expenses: '50.00' }), 'bills')

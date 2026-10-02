@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import AdvisoryPlan from './AdvisoryPlan.jsx'
 import { explainApiError, previewRecordedMonthPlan } from '../services/api.js'
-import { estimateMonthContribution, monthSavingsLimit, unpaidObligations } from '../services/monthlyPlanning.js'
+import { estimateMonthContribution, monthSavingsLimit, summarizeMonths, unpaidObligations } from '../services/monthlyPlanning.js'
 import { formatAmount } from '../utils/format.js'
 
 const monthLabel = (period) => new Date(`${period}T12:00:00`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
@@ -17,6 +17,8 @@ export default function RecordedMonthPlan({ months, userId, onOpenProfile, onOpe
   const [pending, setPending] = useState(false)
   const requestId = useRef(0)
   const selected = months.find((month) => month.period === period) ?? months.at(-1)
+  const history = summarizeMonths(months, null)
+  const bufferCents = history.sampleCount > 1 ? history.lowIncomeObligationGapCents : 0
   const shortfall = Math.max(0, Math.round((Number(selected.monthly_expenses) - Number(selected.monthly_income)) * 100))
   const limit = monthSavingsLimit(selected)
   const estimate = estimateMonthContribution(selected, unrecordedCosts, heldCash)
@@ -52,6 +54,11 @@ export default function RecordedMonthPlan({ months, userId, onOpenProfile, onOpe
     setEstimateApplied(true); setPreview(null); setError(''); setPending(false)
   }
 
+  function useLowIncomeBuffer() {
+    if (bufferCents <= 0) return
+    changeWorksheet('heldCash', (bufferCents / 100).toFixed(2))
+  }
+
   async function submit(event) {
     event.preventDefault()
     if (pending || tooHigh || aboveEstimate || blockedContribution) return
@@ -80,6 +87,18 @@ export default function RecordedMonthPlan({ months, userId, onOpenProfile, onOpe
     <section className="mt-4 rounded-lg border border-teal-200 bg-white p-4" aria-labelledby="month-amount-heading">
       <h5 id="month-amount-heading" className="font-semibold text-teal-950">Work out an amount to plan with</h5>
       <p className="mt-2 text-sm text-slate-700">Calculated from your recorded figures: {monthLabel(selected.period)} leaves at most <strong>{formatAmount(limit / 100)}</strong> of income after entered spending. This is a ceiling, not a savings recommendation.</p>
+      {history.sampleCount > 1 && <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-slate-800">
+        <p className="font-semibold">Check a low-income month buffer</p>
+        {bufferCents > 0 ? <>
+          <p className="mt-1">Your lowest recorded income was {formatAmount(history.lowest.monthly_income)} in {monthLabel(history.lowest.period)}. If that income recurred while your latest essential bills and scheduled loan payment stayed at {formatAmount(history.latestObligationsCents / 100)}, you would need <strong>{formatAmount(bufferCents / 100)}</strong> to cover the gap for one month.</p>
+          <p className="mt-1">If you have not already set aside a buffer, you can keep this amount out of the selected month's plan. This replaces the cash-to-keep entry below; you can adjust it afterwards. It does not change your saved balance or move money.</p>
+          {bufferCents > limit && <p className="mt-1 font-medium text-amber-900">This selected month's recorded remainder is smaller than that gap. Keeping the full amount would leave no new money to allocate from this month.</p>}
+          <button type="button" onClick={useLowIncomeBuffer} disabled={pending}
+            className="mt-2 rounded-lg border border-amber-700 px-3 py-2 font-semibold text-amber-900 disabled:opacity-50">Keep {formatAmount(bufferCents / 100)} unallocated</button>
+          {heldCash === (bufferCents / 100).toFixed(2) && <p role="status" className="mt-2">The buffer is entered below. Add any missing costs (enter 0 if none) to see what remains for a plan.</p>}
+        </> : <p className="mt-1">The lowest recorded income covers the latest essential bills and scheduled loan payment, so this check found no positive one-month gap. You can still enter cash to keep for other uncertainties below.</p>}
+        <p className="mt-1 text-xs text-slate-600">Based on up to 12 entered months, not a forecast. Taxes, payment timing and unrecorded costs may change what you need.</p>
+      </div>}
       <p className="mt-2 text-sm text-slate-700">Enter costs missing from recorded spending and cash you want to keep unallocated. Enter 0 if none. These are your assumptions for this preview and are not saved.</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <label className="text-sm font-medium text-slate-800">Costs not included in recorded spending
