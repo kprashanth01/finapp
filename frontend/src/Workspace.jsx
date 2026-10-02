@@ -308,6 +308,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                   onRunAdvisory={handleRunAdvisory}
                   onOpenProfile={openProfile}
                   onOpenGoal={openGoal}
+                  onOpenMonths={() => setActiveView('months')}
                   onOpenAdvisor={() => setActiveView('advisor')}
                 />
               )}

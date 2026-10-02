@@ -32,11 +32,11 @@ Follow [the complete local setup guide](docs/setup.md) for copyable **Windows Po
 
 1. Create an account with practice details.
 2. In **Profile → User details**, enter gross monthly income. Save your financial profile, including monthly expenses and the amount you can actually save per month.
-3. On **Dashboard**, run an analysis. Read the priority, its supporting fact, and the proposed monthly allocation.
-4. Add a goal in **Goals**, then run a new analysis to see the tradeoff with your other priorities.
+3. On **Dashboard**, read the current recommendation, its supporting numbers, and its assumptions. Run an analysis to create the separate saved monthly allocation plan.
+4. Add a goal in **Goals**, then return to Dashboard to see the current recommendation update. Run a new analysis to refresh the saved allocation plan.
 5. Use **Months** to record different income or spending months, or try the Dashboard's one-month and specific-event previews. These previews do not edit the saved plan.
 
-Profile also has an optional detail section for income context, recurring expense categories, loans, and upcoming one-time costs. The saved plan currently uses the aggregate Profile values; these records describe them without adding to those totals.
+Profile also has an optional detail section for income context, recurring expense categories, loans, and upcoming one-time costs. Dashboard's current recommendation uses those details and recorded months when available. The saved allocation plan still uses the aggregate Profile values; details do not add to those totals.
 
 See [Using FinApp](docs/using-finapp.md) for a plain-language field guide and a worked example.
 

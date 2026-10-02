@@ -3,6 +3,7 @@ import { getDashboardDecision, getDashboardDisplayState } from '../services/dash
 import ScenarioPreview from './ScenarioPreview.jsx'
 import FinancialPicture from './FinancialPicture.jsx'
 import EventScenario from './EventScenario.jsx'
+import UserRecommendations from './UserRecommendations.jsx'
 
 const balanceItems = [
   ['Gross monthly income', 'monthly_income', 'user'],
@@ -26,7 +27,7 @@ function evidenceText(item) {
   return `${item.label}: ${value}${unit}`
 }
 
-function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, advisoryRunning, advisoryError, saving, goalPending, onRetryAdvisory, onRunAdvisory, onOpenProfile, onOpenGoal, onOpenAdvisor, goals, goalsLoading, goalsError, onOpenGoals }) {
+function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, advisoryRunning, advisoryError, saving, goalPending, onRetryAdvisory, onRunAdvisory, onOpenProfile, onOpenGoal, onOpenMonths, onOpenAdvisor, goals, goalsLoading, goalsError, onOpenGoals }) {
   const display = getDashboardDisplayState({ saving, analysis, advisoryLoading, advisoryError, advisorySession })
   if (display.updating) return <p role="status" className="text-slate-600">Updating dashboard from your saved values…</p>
 
@@ -55,8 +56,10 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
       <button type="button" onClick={() => onOpenProfile()} className="text-sm font-medium text-slate-700 underline underline-offset-4">Edit profile</button>
     </div>
 
+    <UserRecommendations userId={user.id} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenMonths={onOpenMonths} />
+
     <section aria-labelledby="decision-heading" className="rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-6">
-      <h3 id="decision-heading" className="text-xl font-semibold">What should I do this month?</h3>
+      <h3 id="decision-heading" className="text-xl font-semibold">Saved monthly allocation plan</h3>
       {display.latest === 'loading' && <p role="status" className="mt-3 text-sm text-slate-600">Checking your saved plan…</p>}
       {display.latest === 'error' && <div className="mt-3 text-sm"><p role="alert" className="text-rose-800">Your plan status could not be checked: {advisoryError}</p>
         <button type="button" onClick={onRetryAdvisory} className="mt-3 font-medium underline">Retry plan status</button></div>}
@@ -66,7 +69,7 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
         <button type="button" disabled={!canRun} onClick={onRunAdvisory} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50">Run updated plan</button></div>}
       {decision && <div className="mt-4 space-y-5">
         <div className="rounded-xl bg-white p-5 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Your first priority · Plan from {advisorySession.result.state.as_of_date}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Saved Advisor focus · Plan from {advisorySession.result.state.as_of_date}</p>
           <h4 className="mt-2 text-lg font-semibold text-slate-900">{decision.primary.title}</h4>
           {decision.evidence && <p className="mt-2 text-sm font-medium text-slate-900">{evidenceText(decision.evidence)}</p>}
           <p className="mt-2 text-sm text-slate-700"><span className="font-semibold">What we found:</span> {decision.primary.reason}</p>
