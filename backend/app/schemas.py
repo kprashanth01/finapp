@@ -3,6 +3,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints, model_validator
 
+from app.services.financial_picture import FinancialPicture
+
 
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 Money = Annotated[Decimal, Field(ge=0, max_digits=12, decimal_places=2)]
@@ -53,6 +55,7 @@ class AnalysisRead(BaseModel):
     expense_to_income_percent: Decimal | None
     emergency_fund_months: Decimal | None
     health_score: int | None
+    picture: FinancialPicture | None = None
 
 
 class ScenarioWrite(BaseModel):

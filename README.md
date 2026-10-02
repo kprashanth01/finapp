@@ -8,7 +8,7 @@ FinApp is a local web application for exploring everyday financial decisions. En
 
 | In the app | What it helps you answer |
 | --- | --- |
-| **Dashboard** | What is my current priority, and what might I do this month? |
+| **Dashboard** | What is my current priority, what does my current financial picture show, and what might I do this month? |
 | **Profile** | What income, expenses, balances, payments, and risk preferences is the plan using? Optional detail records describe recurring costs, individual loans, and upcoming one-time expenses. |
 | **Months** | How did cash flow change across months? What if a lower-income month recurs? |
 | **Goals** | Can my current monthly allocation support a target and date? |

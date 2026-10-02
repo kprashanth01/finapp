@@ -61,6 +61,13 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
     if (view === 'advisor' && !profile) setActiveView('profile')
     else setActiveView(view)
   }
+  async function refreshAnalysis(userId) {
+    try { setAnalysis(await getFinancialAnalysis(userId)) }
+    catch (requestError) {
+      setAnalysis(null)
+      setError(`Financial picture could not load: ${explainApiError(requestError)}`)
+    }
+  }
   useEffect(() => {
     if (activeView !== 'profile' || !focusTarget) return
     const input = document.querySelector(`[name="${focusTarget}"]`)
@@ -80,6 +87,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
     try {
       const saved = await operation()
       if (!saved) return null
+      if (profile) await refreshAnalysis(user.id)
       setAdvisorySession((current) => markSessionStale(current, true))
       setSelectedSession(null); setSelectedSessionError(''); setSelectedSessionLoading(false)
       if (profile) await refreshAdvisory(user.id)
@@ -320,7 +328,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                   </details>
                   <FinancialProfileForm profile={profile} onSave={handleSaveProfile} saving={saving} disabled={advisoryRunning || advisoryLoading} />
                   {profile && <FinancialDetails key={user.id} userId={user.id} user={user} profile={profile}
-                    onOpenMonths={() => setActiveView('months')} />}
+                    onOpenMonths={() => setActiveView('months')} onSaved={() => refreshAnalysis(user.id)} />}
                   {profile && (saving
                     ? <p role="status" className="mt-8 text-sm text-slate-600">Updating financial snapshot…</p>
                     : <FinancialAnalysis analysis={analysis} user={user} profile={profile} />)}
@@ -333,7 +341,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
               )}
               {activeView === 'months' && (profile
                 ? <AccountMonths key={user.id} mode="planning" userId={user.id} user={user} profile={profile}
-                    onOpenProfile={openProfile} onOpenGoal={openGoal} />
+                    onOpenProfile={openProfile} onOpenGoal={openGoal} onMonthsChanged={() => refreshAnalysis(user.id)} />
                 : <div><p>Save a financial profile before recording months for your plan.</p>
                     <button type="button" className="mt-3 font-semibold underline" onClick={() => openProfile()}>Open Profile</button></div>)}
               {activeView === 'advisor' && profile && (

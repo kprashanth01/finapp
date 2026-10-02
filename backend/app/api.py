@@ -15,7 +15,7 @@ from app.advisory.chat_model import answer_with_local_model
 from app.advisory.state import PlanningState
 from app.advisory.rules import RULE_VERSION
 from app.goal_api import load_active_goals
-from app.models import AnalysisSession, FinancialProfile, Loan, RecurringExpense, User
+from app.models import AnalysisSession, FinancialMonth, FinancialProfile, Loan, PlannedExpense, RecurringExpense, User
 from app.schemas import AnalysisRead, ProfileRead, ProfileWrite, ScenarioWrite, UserCreate, UserRead
 from app.services.financial_analysis import FinancialAnalysisService
 from app.services.financial_details import validate_detail_totals
@@ -102,7 +102,16 @@ def get_financial_analysis(user_id: int, session: Session = Depends(get_session)
     profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
     if profile is None:
         raise HTTPException(status_code=404, detail="Financial profile not found.")
-    return FinancialAnalysisService.analyze(user, profile)
+    return FinancialAnalysisService.analyze(
+        user, profile,
+        expenses=session.scalars(select(RecurringExpense).where(RecurringExpense.user_id == user_id)).all(),
+        loans=session.scalars(select(Loan).where(Loan.user_id == user_id)).all(),
+        plans=session.scalars(select(PlannedExpense).where(PlannedExpense.user_id == user_id)).all(),
+        goals=load_active_goals(session, user_id),
+        months=session.scalars(select(FinancialMonth).where(FinancialMonth.user_id == user_id)
+                               .order_by(FinancialMonth.period)).all(),
+        as_of_date=planning_date(),
+    )
 
 
 def _saved_financial_data(user_id: int, session: Session) -> tuple[User, FinancialProfile]:

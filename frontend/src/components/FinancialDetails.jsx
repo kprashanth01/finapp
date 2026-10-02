@@ -45,7 +45,7 @@ function TextField({ title, value, onChange, type = 'text', required = false, mi
   </label>
 }
 
-export default function FinancialDetails({ userId, user, profile, onOpenMonths }) {
+export default function FinancialDetails({ userId, user, profile, onOpenMonths, onSaved }) {
   const [draft, setDraft] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -85,6 +85,7 @@ export default function FinancialDetails({ userId, user, profile, onOpenMonths }
       const saved = await saveFinancialDetails(userId, detailsPayload(draft))
       setDraft(saved)
       setNotice('Details saved. Your current plan continues to use the totals in Profile.')
+      await onSaved?.()
     } catch (failure) { setError(explainApiError(failure)) }
     finally { setSaving(false) }
   }

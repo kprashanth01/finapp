@@ -1,9 +1,12 @@
 """Deterministic analysis of stored user inputs; no advice or LLM calls."""
 
 from decimal import Decimal, ROUND_HALF_UP
+from datetime import date
+from typing import Sequence
 
-from app.models import FinancialProfile, User
+from app.models import FinancialGoal, FinancialMonth, FinancialProfile, Loan, PlannedExpense, RecurringExpense, User
 from app.schemas import AnalysisRead
+from app.services.financial_picture import build_financial_picture
 
 
 HUNDRED = Decimal("100")
@@ -22,26 +25,29 @@ def _clamp(value: Decimal) -> Decimal:
 
 class FinancialAnalysisService:
     @staticmethod
-    def analyze(user: User, profile: FinancialProfile) -> AnalysisRead:
+    def analyze(user: User, profile: FinancialProfile, *,
+                expenses: Sequence[RecurringExpense] = (), loans: Sequence[Loan] = (),
+                plans: Sequence[PlannedExpense] = (), goals: Sequence[FinancialGoal] = (),
+                months: Sequence[FinancialMonth] = (), as_of_date: date | None = None) -> AnalysisRead:
         income = user.monthly_income
-        expenses = profile.monthly_expenses
+        total_expenses = profile.monthly_expenses
         monthly_savings = profile.monthly_savings_contribution
         monthly_debt_payments = profile.monthly_debt_payments
 
         savings_rate = _percent(monthly_savings, income)
         debt_to_income = _percent(monthly_debt_payments, income)
-        expense_to_income = _percent(expenses, income)
+        expense_to_income = _percent(total_expenses, income)
         emergency_months = (
-            (profile.emergency_fund / expenses).quantize(CENT, rounding=ROUND_HALF_UP)
-            if expenses > 0
+            (profile.emergency_fund / total_expenses).quantize(CENT, rounding=ROUND_HALF_UP)
+            if total_expenses > 0
             else None
         )
 
         score = None
-        if income > 0 and expenses > 0 and monthly_savings is not None and monthly_debt_payments is not None:
+        if income > 0 and total_expenses > 0 and monthly_savings is not None and monthly_debt_payments is not None:
             savings_fraction = monthly_savings / income
             debt_fraction = monthly_debt_payments / income
-            emergency_coverage = profile.emergency_fund / expenses
+            emergency_coverage = profile.emergency_fund / total_expenses
             points = (
                 Decimal("30") * _clamp(savings_fraction / Decimal("0.20"))
                 + Decimal("30") * _clamp(Decimal("1") - debt_fraction / Decimal("0.50"))
@@ -55,4 +61,7 @@ class FinancialAnalysisService:
             expense_to_income_percent=expense_to_income,
             emergency_fund_months=emergency_months,
             health_score=score,
+            picture=(build_financial_picture(user, profile, expenses=expenses, loans=loans,
+                                            plans=plans, goals=goals, months=months,
+                                            as_of_date=as_of_date) if as_of_date is not None else None),
         )

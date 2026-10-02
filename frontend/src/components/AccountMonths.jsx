@@ -149,7 +149,7 @@ export function AccountAdvice({ advice }) {
   </section>
 }
 
-export default function AccountMonths({ userId, user, profile, mode = 'research', onOpenProfile, onOpenGoal }) {
+export default function AccountMonths({ userId, user, profile, mode = 'research', onOpenProfile, onOpenGoal, onMonthsChanged }) {
   const planning = mode === 'planning'
   const [months, setMonths] = useState([])
   const [draft, setDraft] = useState(() => planning ? startingPlanningMonth() : startingMonth(user, profile))
@@ -188,6 +188,7 @@ export default function AccountMonths({ userId, user, profile, mode = 'research'
       const saved = await saveFinancialMonth(userId, { ...values, monthly_expenses: totals.monthly_expenses, period: `${draft.period}-01` })
       const rows = await getFinancialMonths(userId)
       setMonths(rows); setSelected(saved.period); setAdvice(null); setAnswer(null)
+      await onMonthsChanged?.()
       setMessage(planning ? `${monthLabel(saved.period)} saved. The planning check above now uses this month.`
         : `${monthLabel(saved.period)} saved. Select this month and press Get advice when ready.`)
     } catch (requestError) { setError(explainApiError(requestError)) }
@@ -201,6 +202,7 @@ export default function AccountMonths({ userId, user, profile, mode = 'research'
       await deleteFinancialMonth(userId, period)
       const rows = await getFinancialMonths(userId)
       setMonths(rows); setSelected((current) => current === period ? rows.at(-1)?.period ?? '' : current)
+      await onMonthsChanged?.()
       setAdvice(null); setAnswer(null); setMessage(`${monthLabel(period)} removed.`)
     } catch (requestError) { setError(explainApiError(requestError)) }
     finally { setBusy(false) }
