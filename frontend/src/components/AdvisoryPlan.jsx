@@ -10,6 +10,31 @@ function evidenceText(item) {
   return `${item.label}: ${item.value}${item.unit === '%' ? '%' : item.unit ? ` ${item.unit}` : ''}`
 }
 
+function goalTimeline(allocation, asOfDate) {
+  const remainingCents = Math.round(Number(allocation.requirement.remaining_amount) * 100)
+  const monthlyCents = Math.round(Number(allocation.allocated_monthly) * 100)
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(asOfDate) ? new Date(`${asOfDate}T00:00:00Z`) : null
+  if (!Number.isSafeInteger(remainingCents) || !Number.isSafeInteger(monthlyCents) || monthlyCents <= 0 ||
+      !start || Number.isNaN(start.getTime())) return null
+  const months = Math.ceil(remainingCents / monthlyCents)
+  if (months > 600) return { months, date: null }
+  const finish = new Date(start.getTime() + months * 30 * 24 * 60 * 60 * 1000)
+  return { months, date: new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(finish) }
+}
+
+function GoalTradeoff({ allocation, asOfDate, onOpenProfile }) {
+  const timeline = goalTimeline(allocation, asOfDate)
+  return <div className="mt-4 rounded-lg bg-amber-50 p-4 text-sm text-slate-800">
+    <h5 className="font-semibold">Your choices for this goal</h5>
+    <p className="mt-2"><span className="font-medium">Keep the target date:</span> this goal needs {formatAmount(allocation.funding_gap)} more per month than this plan assigns. That is a calculated requirement; it does not mean that extra money is available.</p>
+    <p className="mt-2"><span className="font-medium">Keep the current goal allocation:</span> {timeline
+      ? `at ${formatAmount(allocation.allocated_monthly)} per month, the remaining target would take about ${timeline.months} months from ${asOfDate}${timeline.date ? ` (around ${timeline.date})` : ''}.`
+      : Number(allocation.allocated_monthly) === 0 ? 'No completion date can be estimated from a zero monthly allocation.' : 'Timing cannot be estimated from this saved plan.'}</p>
+    <p className="mt-2 text-xs text-slate-600">Hypothetical timing assumes this same allocation every month, 30-day months, and no growth. The plan funds the emergency reserve and earlier goals first; debt review can hold goal funding. This gap belongs to this goal, not to an extra pool of money.</p>
+    <button onClick={() => onOpenProfile('monthly_savings_contribution')} className="mt-3 font-medium underline">Review monthly savings contribution</button>
+  </div>
+}
+
 export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal, showExplanation = true }) {
   const { summary, monthly_plan: plan, investment, priority_actions: actions } = result.advice
   const guidedFindings = (result.agent_results ?? []).flatMap((agent) => (agent.findings ?? [])
@@ -49,6 +74,7 @@ export default function AdvisoryPlan({ result, onOpenProfile, onOpenGoal, showEx
             <div><dt className="text-slate-500">Approximate months remaining</dt><dd className="mt-1 font-medium">{a.requirement.approximate_months ?? (a.status === 'completed' ? 'Target reached' : 'Update deadline')}</dd></div>
           </dl>
           <dl className="mt-3 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">{[['Needed per month',a.requirement.required_monthly],['Planned per month',a.allocated_monthly],['Monthly gap',a.funding_gap]].map(([label,value]) => <div key={label}><dt className="text-slate-500">{label}</dt><dd className="mt-1 font-semibold">{value == null && a.status === 'overdue' ? 'Update deadline' : formatAmount(value)}</dd></div>)}</dl>
+          {a.status === 'underfunded' && <GoalTradeoff allocation={a} asOfDate={result.state.as_of_date} onOpenProfile={onOpenProfile} />}
           <button onClick={() => onOpenGoal(a.requirement.goal.id)} className="mt-3 text-sm underline">Edit current goal</button>
         </li>)}</ul>}
     </section>

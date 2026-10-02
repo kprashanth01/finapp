@@ -72,3 +72,47 @@ test('Advisor shows specialist findings as situation, impact, and next step afte
   }
   assert.match(text, /Coverage: 1\.25 months/)
 })
+
+test('underfunded goal explains the deadline and allocation choices from its saved plan', () => {
+  const result = savedResult('0', 12)
+  const allocation = result.advice.monthly_plan.goal_allocations[0]
+  allocation.status = 'underfunded'
+  allocation.allocated_monthly = '200.00'
+  allocation.funding_gap = '300.00'
+  allocation.requirement.required_monthly = '500.00'
+  const text = visibleText(createElement(AdvisoryPlan, { result }))
+  assert.match(text, /Keep the target date/)
+  assert.match(text, /this goal needs 300\.00 more per month than this plan assigns/)
+  assert.match(text, /Keep the current goal allocation/)
+  assert.match(text, /about 30 months/)
+  assert.match(text, /Mar 2029/)
+  assert.match(text, /does not mean that extra money is available/)
+  assert.match(text, /not to an extra pool of money/)
+  assert.match(text, /Review monthly savings contribution/)
+})
+
+test('zero goal allocation shows no projected completion date', () => {
+  const result = savedResult('0', 12)
+  const allocation = result.advice.monthly_plan.goal_allocations[0]
+  allocation.status = 'underfunded'
+  allocation.allocated_monthly = '0.00'
+  allocation.funding_gap = '500.00'
+  allocation.requirement.required_monthly = '500.00'
+  const text = visibleText(createElement(AdvisoryPlan, { result }))
+  assert.match(text, /No completion date can be estimated from a zero monthly allocation/)
+  assert.doesNotMatch(text, /around Mar 2029/)
+})
+
+test('goal timing uses the historical plan date and stays hidden for a covered goal', () => {
+  const earlier = savedResult('0', 12)
+  const allocation = earlier.advice.monthly_plan.goal_allocations[0]
+  allocation.status = 'underfunded'
+  allocation.allocated_monthly = '200.00'
+  allocation.funding_gap = '300.00'
+  allocation.requirement.required_monthly = '500.00'
+  const later = structuredClone(earlier)
+  later.state.as_of_date = '2027-09-29'
+  assert.match(visibleText(createElement(AdvisoryPlan, { result: earlier })), /Mar 2029/)
+  assert.match(visibleText(createElement(AdvisoryPlan, { result: later })), /Mar 2030/)
+  assert.doesNotMatch(visibleText(createElement(AdvisoryPlan, { result: savedResult('1000', 12) })), /Keep the target date/)
+})
