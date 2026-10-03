@@ -78,13 +78,13 @@ function Dashboard({ user, profile, analysis, analysisRetrying, advisorySession,
       </div>
     </div>
 
+    <CurrentChat userId={user.id} />
+
     <MonthlySnapshot picture={analysis?.picture} onRetry={onRetryAnalysis} retrying={analysisRetrying} />
 
     <UserRecommendations userId={user.id} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenMonths={onOpenMonths} />
 
     <UpcomingOverview picture={analysis?.picture} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenGoals={onOpenGoals} />
-
-    <CurrentChat userId={user.id} />
 
     <section aria-labelledby="decision-heading" className="rounded-2xl border border-slate-200 bg-slate-50 p-5 sm:p-6">
       <h3 id="decision-heading" className="text-xl font-semibold">Saved monthly allocation plan</h3>

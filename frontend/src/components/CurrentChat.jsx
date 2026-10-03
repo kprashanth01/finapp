@@ -4,9 +4,12 @@ import { EventComparison } from './EventScenario.jsx'
 
 const prompts = [
   'What should I prioritize?',
-  'Why should I save before investing?',
+  'How much should I save each month for my goal?',
+  'How did my income change last month?',
+  'Which expenses can I reduce if income falls?',
+  'What if my income falls next month?',
+  'Why is this the priority?',
   'Can I afford an upcoming expense?',
-  'What if my income falls?',
   'What if I get extra money?',
   'What if I stop a subscription?',
 ]
@@ -15,6 +18,9 @@ export function CurrentChatReply({ item }) {
   const { response } = item
   const sourceLabel = response.topic === 'scenario' ? 'Calculated what-if preview'
     : response.topic === 'scenario_input' ? 'More detail needed'
+      : response.topic === 'goal_plan' ? 'Current calculated plan and recorded months'
+        : response.topic === 'history' ? 'Recorded months'
+          : response.topic === 'expense_options' ? 'Saved expense details'
       : response.source === 'llm' ? 'Local AI explanation' : 'Current financial picture'
   return <li className="rounded-xl border border-slate-200 bg-slate-50 p-4">
     <p className="text-sm font-medium">You: {item.question}</p>
@@ -59,9 +65,10 @@ export default function CurrentChat({ userId }) {
     finally { askingRef.current = false; setAsking(false) }
   }
 
-  return <section aria-labelledby="current-chat-heading" className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
-    <h3 id="current-chat-heading" className="text-xl font-semibold">Ask about your current finances</h3>
-    <p className="mt-1 text-sm text-slate-600">Ask about your saved picture or a possible change. Supported what-if questions use temporary calculations. The local AI model explains recorded facts when available; otherwise you get a rule-based answer. Questions and answers are not saved.</p>
+  return <section aria-labelledby="current-chat-heading" className="rounded-2xl border border-teal-200 bg-teal-50 p-5 sm:p-7">
+    <p className="text-xs font-semibold uppercase tracking-wider text-teal-800">Your financial assistant</p>
+    <h3 id="current-chat-heading" className="mt-2 text-2xl font-semibold text-teal-950">Ask about your financial plan</h3>
+    <p className="mt-2 text-sm text-slate-700">Ask about your saved income, recorded months, loan payments, goals, and what the current calculated plan proposes. You can also preview one financial change. Answers show the figures used; questions and answers are not saved.</p>
     <div className="mt-4 flex flex-wrap gap-2" aria-label="Suggested questions">
       {prompts.map((prompt) => <button key={prompt} type="button" disabled={asking} onClick={() => ask(prompt)}
         className="rounded-full border border-slate-300 px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-50 disabled:opacity-50">{prompt}</button>)}
