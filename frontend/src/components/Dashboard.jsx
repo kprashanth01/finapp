@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { formatAmount, staleMessage } from '../utils/format.js'
 import { getDashboardDecision, getDashboardDisplayState } from '../services/dashboardState.js'
 import ScenarioPreview from './ScenarioPreview.jsx'
@@ -29,14 +30,24 @@ function evidenceText(item) {
   return `${item.label}: ${value}${unit}`
 }
 
-function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, advisoryRunning, advisoryError, saving, goalPending, onRetryAdvisory, onRunAdvisory, onOpenProfile, onOpenGoal, onOpenMonths, onOpenAdvisor, goals, goalsLoading, goalsError, onOpenGoals }) {
+function Dashboard({ user, profile, analysis, analysisRetrying, advisorySession, advisoryLoading, advisoryRunning, advisoryError, saving, goalPending, onRetryAdvisory, onRetryAnalysis, onRunAdvisory, onOpenProfile, onOpenGoal, onOpenMonths, onOpenAdvisor, goals, goalsLoading, goalsError, onOpenGoals }) {
+  const whatIfRef = useRef(null)
   const display = getDashboardDisplayState({ saving, analysis, advisoryLoading, advisoryError, advisorySession })
   if (display.updating) return <p role="status" className="text-slate-600">Updating dashboard from your saved values…</p>
 
   if (!profile) return <section aria-labelledby="dashboard-heading">
     <h2 id="dashboard-heading" className="text-2xl font-semibold">Start your financial plan</h2>
-    <p className="mt-2 text-slate-600">Add your monthly expenses, savings, debt, and emergency reserve to see what needs attention.</p>
-    <button type="button" onClick={() => onOpenProfile()} className="mt-5 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700">Create financial profile</button>
+    <p className="mt-2 text-slate-600">Two short steps set up your first financial picture. You can add goals, loans, and more detail later.</p>
+    <ol className="mt-5 grid gap-3 sm:grid-cols-2">
+      <li className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step 1 of 2</p>
+        <h3 className="mt-1 font-semibold">Review gross monthly income</h3>
+        <p className="mt-2 text-sm text-slate-600">Currently {formatAmount(user.monthly_income)} before tax. A new account starts at zero; keep zero if it is correct.</p>
+        <button type="button" onClick={() => onOpenProfile('monthly_income')} className="mt-3 text-sm font-medium text-teal-900 underline">Review income in Profile</button></li>
+      <li className="rounded-xl border border-slate-200 bg-white p-4"><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Step 2 of 2</p>
+        <h3 className="mt-1 font-semibold">Create financial profile</h3>
+        <p className="mt-2 text-sm text-slate-600">Enter monthly expenses and current balances to see your first analysis.</p>
+        <button type="button" onClick={() => onOpenProfile()} className="mt-3 text-sm font-medium text-teal-900 underline">Open financial profile</button></li>
+    </ol>
   </section>
 
   const decision = display.latest === 'saved' ? getDashboardDecision(advisorySession) : null
@@ -49,14 +60,25 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
     else onOpenAdvisor()
   }
 
+  function openWhatIf() {
+    const section = whatIfRef.current
+    if (!section) return
+    section.open = true
+    section.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    section.querySelector('summary')?.focus({ preventScroll: true })
+  }
+
   return <div className="space-y-8">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h2 id="dashboard-heading" className="text-2xl font-semibold">{user.name}'s financial plan</h2>
         <p className="mt-1 text-sm text-slate-600">Current guidance from your saved information, in your profile currency.</p></div>
-      <button type="button" onClick={() => onOpenProfile()} className="text-sm font-medium text-slate-700 underline underline-offset-4">Edit profile</button>
+      <div className="flex flex-wrap gap-4 text-sm font-medium">
+        <button type="button" onClick={openWhatIf} className="text-teal-900 underline underline-offset-4">Preview a change</button>
+        <button type="button" onClick={() => onOpenProfile()} className="text-slate-700 underline underline-offset-4">Edit profile</button>
+      </div>
     </div>
 
-    <MonthlySnapshot picture={analysis?.picture} />
+    <MonthlySnapshot picture={analysis?.picture} onRetry={onRetryAnalysis} retrying={analysisRetrying} />
 
     <UserRecommendations userId={user.id} onOpenProfile={onOpenProfile} onOpenGoal={onOpenGoal} onOpenMonths={onOpenMonths} />
 
@@ -105,7 +127,7 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
       </div>}
     </section>
 
-    <details className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
+    <details ref={whatIfRef} className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
       <summary className="cursor-pointer text-lg font-semibold">Explore what-if changes</summary>
       <div className="mt-5 space-y-7">
         <ScenarioPreview key={JSON.stringify([user, profile, goals])} user={user} profile={profile}
@@ -127,7 +149,7 @@ function Dashboard({ user, profile, analysis, advisorySession, advisoryLoading, 
           </dl>
           <details className="mt-4 rounded-xl border border-slate-200 p-4"><summary className="cursor-pointer font-medium">All saved amounts and calculated ratios</summary>
             <dl className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{balanceItems.map(([label, key, source]) => <div key={key} className="rounded-lg bg-slate-50 p-3"><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 font-semibold">{formatAmount(source === 'user' ? user[key] : profile[key])}</dd></div>)}</dl>
-            {display.snapshot === 'ready' ? <dl className="mt-4 grid gap-3 sm:grid-cols-2">{ratioItems.map(([label, key, unit]) => <div key={key} className="rounded-lg bg-slate-50 p-3"><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 font-semibold">{analysis[key] == null ? 'Unavailable' : `${analysis[key]}${unit}`}</dd></div>)}</dl> : <p className="mt-4 text-sm text-slate-600">Calculated ratios could not load. Reload this page to try again.</p>}
+            {display.snapshot === 'ready' ? <dl className="mt-4 grid gap-3 sm:grid-cols-2">{ratioItems.map(([label, key, unit]) => <div key={key} className="rounded-lg bg-slate-50 p-3"><dt className="text-sm text-slate-600">{label}</dt><dd className="mt-1 font-semibold">{analysis[key] == null ? 'Unavailable' : `${analysis[key]}${unit}`}</dd></div>)}</dl> : <p className="mt-4 text-sm text-slate-600">Calculated ratios could not load. Use Retry calculations above.</p>}
             <p className="mt-4 text-sm text-slate-600">Risk tolerance: <span className="font-medium capitalize text-slate-900">{profile.risk_tolerance}</span>. Ratios using income use gross income, which does not show spendable cash.</p>
             {display.snapshot === 'ready' && <p className="mt-2 text-xs text-slate-500">Illustrative project health score: {analysis.health_score == null ? 'Unavailable' : `${analysis.health_score} / 100`}. This heuristic is not validated financial advice.</p>}
           </details>

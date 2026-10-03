@@ -45,10 +45,11 @@ function Goal({ goal, asOfDate, onOpenGoal }) {
   </li>
 }
 
-export function MonthlySnapshot({ picture }) {
+export function MonthlySnapshot({ picture, onRetry, retrying = false }) {
   if (!picture) return <section aria-labelledby="snapshot-heading" className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6">
     <h3 id="snapshot-heading" className="text-xl font-semibold">Your month at a glance</h3>
-    <p className="mt-2 text-sm text-slate-600">Current calculations are unavailable. Reload Dashboard to try again.</p>
+    <p className="mt-2 text-sm text-slate-600">Current calculations are unavailable. Your saved profile still exists.</p>
+    <button type="button" onClick={onRetry} disabled={retrying} className="mt-3 text-sm font-medium text-teal-900 underline disabled:opacity-50">{retrying ? 'Retrying calculations…' : 'Retry calculations'}</button>
   </section>
 
   const gross = picture.spending.gross_cash_flow.value

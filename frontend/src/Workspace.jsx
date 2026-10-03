@@ -3,6 +3,7 @@ import { formatAmount } from './utils/format.js'
 import Goals from './components/Goals.jsx'
 import useGoals from './hooks/useGoals.js'
 import { createOperationGate } from './services/operationGate.js'
+import { resolveAccountLoad } from './services/accountLoad.js'
 import AdvisorySession from './components/AdvisorySession.jsx'
 import OrchestrationLab, { AdviceApproachPanel } from './components/OrchestrationLab.jsx'
 import AdvisoryHistory from './components/AdvisoryHistory.jsx'
@@ -32,6 +33,8 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
   const [activeView, setActiveView] = useState(startView)
   const [connection, setConnection] = useState('checking')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [analysisRetrying, setAnalysisRetrying] = useState(false)
   const [saving, setSaving] = useState(false)
   const [user, setUser] = useState(initialUser)
   const [profile, setProfile] = useState(null)
@@ -124,15 +127,15 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
 
   async function loadSavedUser(userId) {
     setLoading(true)
+    setLoadError('')
     setError('')
     try {
-      const loadedUser = await getUser(userId)
-      let loadedProfile = null
-      try {
-        loadedProfile = await getFinancialProfile(userId)
-      } catch (requestError) {
-        if (requestError.response?.status !== 404) throw requestError
+      const account = await resolveAccountLoad(userId, { getUser, getFinancialProfile })
+      if (account.status === 'error') {
+        setLoadError(explainApiError(account.error))
+        return
       }
+      const { user: loadedUser, profile: loadedProfile } = account
       setUser(loadedUser)
       setProfile(loadedProfile)
       if (loadedProfile) {
@@ -148,10 +151,18 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
         setAdvisorySession(null)
       }
     } catch (requestError) {
-      setError(explainApiError(requestError))
+      setLoadError(explainApiError(requestError))
     } finally {
       setLoading(false)
     }
+  }
+
+  async function retryAnalysis() {
+    if (analysisRetrying) return
+    setAnalysisRetrying(true)
+    setError('')
+    try { await refreshAnalysis(user.id) }
+    finally { setAnalysisRetrying(false) }
   }
 
   useEffect(() => {
@@ -287,6 +298,12 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
 
           {loading ? (
             <p className="text-slate-600">Loading saved profile…</p>
+          ) : loadError ? (
+            <section role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-5">
+              <h2 className="text-lg font-semibold text-rose-950">Your saved account could not be loaded</h2>
+              <p className="mt-2 text-sm text-rose-900">{loadError} Your saved profile status is unknown; no financial information was changed.</p>
+              <button type="button" onClick={() => loadSavedUser(initialUser.id)} className="mt-4 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white">Retry loading account</button>
+            </section>
           ) : user ? (
             <>
               {activeView === 'dashboard' && (
@@ -305,6 +322,8 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                   saving={saving}
                   goalPending={goalsState.pending}
                   onRetryAdvisory={() => refreshAdvisory(user.id)}
+                  onRetryAnalysis={retryAnalysis}
+                  analysisRetrying={analysisRetrying}
                   onRunAdvisory={handleRunAdvisory}
                   onOpenProfile={openProfile}
                   onOpenGoal={openGoal}
