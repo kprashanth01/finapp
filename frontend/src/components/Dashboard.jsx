@@ -30,7 +30,7 @@ function evidenceText(item) {
   return `${item.label}: ${value}${unit}`
 }
 
-function Dashboard({ user, profile, analysis, analysisRetrying, advisorySession, advisoryLoading, advisoryRunning, advisoryError, saving, goalPending, onRetryAdvisory, onRetryAnalysis, onRunAdvisory, onOpenProfile, onOpenGoal, onOpenMonths, onOpenAdvisor, goals, goalsLoading, goalsError, onOpenGoals }) {
+function Dashboard({ user, profile, analysis, analysisRetrying, advisorySession, advisoryLoading, advisoryRunning, advisoryError, saving, goalPending, onRetryAdvisory, onRetryAnalysis, onRunAdvisory, onOpenProfile, onOpenGoal, onOpenMonths, onOpenLoanReadiness, onOpenAdvisor, goals, goalsLoading, goalsError, onOpenGoals }) {
   const whatIfRef = useRef(null)
   const display = getDashboardDisplayState({ saving, analysis, advisoryLoading, advisoryError, advisorySession })
   if (display.updating) return <p role="status" className="text-slate-600">Updating dashboard from your saved values…</p>
@@ -74,6 +74,7 @@ function Dashboard({ user, profile, analysis, analysisRetrying, advisorySession,
         <p className="mt-1 text-sm text-slate-600">Current guidance from your saved information, in your profile currency.</p></div>
       <div className="flex flex-wrap gap-4 text-sm font-medium">
         <button type="button" onClick={openWhatIf} className="text-teal-900 underline underline-offset-4">Preview a change</button>
+        <button type="button" onClick={onOpenLoanReadiness} className="text-teal-900 underline underline-offset-4">Check a loan</button>
         <button type="button" onClick={() => onOpenProfile()} className="text-slate-700 underline underline-offset-4">Edit profile</button>
       </div>
     </div>

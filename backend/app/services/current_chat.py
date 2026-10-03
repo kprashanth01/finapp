@@ -24,7 +24,7 @@ from app.services.user_recommendations import UserRecommendation, UserRecommenda
 
 Topic = Literal['priorities', 'why', 'extra_money', 'income_drop', 'affordability',
                 'goal_plan', 'reserve_plan', 'expense_options', 'history', 'state',
-                'unsupported', 'scenario', 'scenario_input']
+                'unsupported', 'scenario', 'scenario_input', 'loan_readiness']
 _BRACKET_CITATION = re.compile(r'\[\d+\]')
 
 
