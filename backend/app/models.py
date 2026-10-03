@@ -37,6 +37,7 @@ class User(Base):
     recurring_expenses: Mapped[list["RecurringExpense"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     loans: Mapped[list["Loan"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     planned_expenses: Mapped[list["PlannedExpense"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    loan_scenarios: Mapped[list["LoanScenario"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 Index("uq_users_email_lower", func.lower(User.email), unique=True)
@@ -231,6 +232,51 @@ class FinancialGoal(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     user: Mapped[User] = relationship(back_populates="goals")
+
+
+class LoanScenario(Base):
+    """A proposed loan and user-entered criteria, separate from existing obligations."""
+
+    __tablename__ = "loan_scenarios"
+    __table_args__ = (
+        CheckConstraint("amount > 0 AND tenure_months BETWEEN 1 AND 480", name="ck_loan_scenario_terms"),
+        Index("ix_loan_scenarios_user", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    name: Mapped[str] = mapped_column(String(100))
+    loan_type: Mapped[str] = mapped_column(String(60))
+    lender_name: Mapped[str | None] = mapped_column(String(100))
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    annual_interest_rate_percent: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    tenure_months: Mapped[int]
+    quoted_monthly_payment: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
+    credit_score: Mapped[int | None]
+    credit_history_months: Mapped[int | None]
+    credit_utilization_percent: Mapped[Decimal | None] = mapped_column(Numeric(6, 2))
+    income_documents_ready: Mapped[bool | None] = mapped_column(Boolean)
+    missed_payments_last_12_months: Mapped[int | None]
+    criteria: Mapped[list] = mapped_column(JSON, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+    user: Mapped[User] = relationship(back_populates="loan_scenarios")
+    snapshots: Mapped[list["LoanReadinessSnapshot"]] = relationship(back_populates="scenario", cascade="all, delete-orphan")
+
+
+class LoanReadinessSnapshot(Base):
+    """Reproducible input/result trace for an assessment that changed."""
+
+    __tablename__ = "loan_readiness_snapshots"
+    __table_args__ = (Index("ix_loan_readiness_snapshots_scenario_id_id", "scenario_id", "id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    scenario_id: Mapped[int] = mapped_column(ForeignKey("loan_scenarios.id", ondelete="CASCADE"))
+    input_fingerprint: Mapped[str] = mapped_column(String(64))
+    result_payload: Mapped[dict] = mapped_column(JSON)
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    scenario: Mapped[LoanScenario] = relationship(back_populates="snapshots")
 
 
 class AnalysisSession(Base):

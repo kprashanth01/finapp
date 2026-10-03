@@ -9,6 +9,7 @@ from app.auth_api import router as auth_router
 from app.api import router
 from app.goal_api import router as goal_router
 from app.financial_details_api import router as financial_details_router
+from app.loan_readiness_api import router as loan_readiness_router
 from app.rl.api import router as research_router
 
 
@@ -54,6 +55,7 @@ app.include_router(auth_router)
 app.include_router(router)
 app.include_router(goal_router)
 app.include_router(financial_details_router)
+app.include_router(loan_readiness_router)
 app.include_router(research_router)
 
 

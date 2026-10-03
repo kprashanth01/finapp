@@ -14,6 +14,7 @@ import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
 import FinancialDetails from './components/FinancialDetails.jsx'
 import AccountMonths from './components/AccountMonths.jsx'
+import LoanReadiness from './components/LoanReadiness.jsx'
 import UserForm from './components/UserForm.jsx'
 import { canStartRun, canStartSave, hasIncomeChanged, hasProfileFinancialChanges, markSessionStale } from './services/advisoryFreshness.js'
 import {
@@ -328,6 +329,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                   onOpenProfile={openProfile}
                   onOpenGoal={openGoal}
                   onOpenMonths={() => setActiveView('months')}
+                  onOpenLoanReadiness={() => setActiveView('loan-readiness')}
                   onOpenAdvisor={() => setActiveView('advisor')}
                 />
               )}
@@ -364,6 +366,8 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
                     onOpenProfile={openProfile} onOpenGoal={openGoal} onMonthsChanged={() => refreshAnalysis(user.id)} />
                 : <div><p>Save a financial profile before recording months for your plan.</p>
                     <button type="button" className="mt-3 font-semibold underline" onClick={() => openProfile()}>Open Profile</button></div>)}
+              {activeView === 'loan-readiness' && <LoanReadiness userId={user.id} profile={profile}
+                onOpenProfile={() => openProfile(null)} onOpenMonths={() => setActiveView('months')} />}
               {activeView === 'advisor' && profile && (
                 <>
                   {selectedSessionLoading && <p className="text-sm text-slate-600">Opening saved run…</p>}
