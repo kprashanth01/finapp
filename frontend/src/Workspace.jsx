@@ -13,7 +13,7 @@ import Research from './components/Research.jsx'
 import FinancialAnalysis from './components/FinancialAnalysis.jsx'
 import FinancialProfileForm from './components/FinancialProfileForm.jsx'
 import FinancialDetails from './components/FinancialDetails.jsx'
-import AccountMonths from './components/AccountMonths.jsx'
+import AccountMonths, { startingPlanningMonth } from './components/AccountMonths.jsx'
 import LoanReadiness from './components/LoanReadiness.jsx'
 import UserForm from './components/UserForm.jsx'
 import { canStartRun, canStartSave, hasIncomeChanged, hasProfileFinancialChanges, markSessionStale } from './services/advisoryFreshness.js'
@@ -56,6 +56,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
   const advisoryToken = useRef(0)
   const [focusTarget, setFocusTarget] = useState(null)
   const [focusGoalId, setFocusGoalId] = useState(null)
+  const [monthDraft, setMonthDraft] = useState(() => startingPlanningMonth())
 
   function openProfile(field) { setFocusTarget(field ?? null); setActiveView('profile') }
   function openGoal(id) { setFocusGoalId(id ?? null); setActiveView('goals') }
@@ -363,6 +364,7 @@ function Workspace({ initialUser, startView = 'dashboard', onSignOut }) {
               )}
               {activeView === 'months' && (profile
                 ? <AccountMonths key={user.id} mode="planning" userId={user.id} user={user} profile={profile}
+                    draft={monthDraft} onDraftChange={setMonthDraft}
                     onOpenProfile={openProfile} onOpenGoal={openGoal} onMonthsChanged={() => refreshAnalysis(user.id)} />
                 : <div><p>Save a financial profile before recording months for your plan.</p>
                     <button type="button" className="mt-3 font-semibold underline" onClick={() => openProfile()}>Open Profile</button></div>)}

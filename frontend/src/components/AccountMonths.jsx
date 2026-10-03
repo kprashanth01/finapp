@@ -149,10 +149,13 @@ export function AccountAdvice({ advice }) {
   </section>
 }
 
-export default function AccountMonths({ userId, user, profile, mode = 'research', onOpenProfile, onOpenGoal, onMonthsChanged }) {
+export default function AccountMonths({ userId, user, profile, mode = 'research', draft: retainedDraft, onDraftChange,
+  onOpenProfile, onOpenGoal, onMonthsChanged }) {
   const planning = mode === 'planning'
   const [months, setMonths] = useState([])
-  const [draft, setDraft] = useState(() => planning ? startingPlanningMonth() : startingMonth(user, profile))
+  const [localDraft, setLocalDraft] = useState(() => planning ? startingPlanningMonth() : startingMonth(user, profile))
+  const draft = retainedDraft ?? localDraft
+  const setDraft = onDraftChange ?? setLocalDraft
   const [selected, setSelected] = useState('')
   const [focus, setFocus] = useState('all')
   const [advice, setAdvice] = useState(null)
