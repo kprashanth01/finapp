@@ -75,6 +75,16 @@ test('dashboard shows the current priority, its evidence, and the coordinated mo
   assert.ok(html.indexOf('What should I do this month?') < html.indexOf('All saved amounts and calculated ratios'))
 })
 
+test('dashboard makes the financial assistant the first action after the heading', () => {
+  const html = render(savedSession(false))
+  const assistant = html.indexOf('Ask about your financial plan')
+  const snapshot = html.indexOf('Your month at a glance')
+  const recommendations = html.indexOf('What should I do this month?')
+  assert.ok(assistant > 0)
+  assert.ok(assistant < snapshot)
+  assert.ok(assistant < recommendations)
+})
+
 test('dashboard with changed inputs asks for a new plan and does not show old allocations', () => {
   const html = render(savedSession(true))
   assert.match(html, /Run updated plan/)
@@ -154,11 +164,11 @@ test('dashboard presents the monthly shortfall, reserve, due costs, and goals be
 
 test('dashboard offers a conversation about current finances without requiring a saved run', () => {
   const html = render(null, { ...analysis, picture: examplePicture() })
-  assert.match(html, /Ask about your current finances/)
+  assert.match(html, /Ask about your financial plan/)
   assert.match(html, /What should I prioritize\?/)
   assert.match(html, /Can I afford an upcoming expense\?/)
-  assert.match(html, /What if my income falls\?/)
-  assert.ok(html.indexOf('Ask about your current finances') < html.indexOf('Saved monthly allocation plan'))
+  assert.match(html, /What if my income falls next month\?/)
+  assert.ok(html.indexOf('Ask about your financial plan') < html.indexOf('Saved monthly allocation plan'))
 })
 
 test('current recommendation shows the ranked action, calculation source, and assumptions', () => {

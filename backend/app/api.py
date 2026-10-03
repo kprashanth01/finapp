@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from types import SimpleNamespace
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -132,23 +133,31 @@ def get_user_recommendations(user_id: int, session: Session = Depends(get_sessio
              dependencies=[Depends(require_owner)])
 def chat_about_current_finances(user_id: int, payload: CurrentChatQuestion,
                                 session: Session = Depends(get_session)) -> CurrentChatAnswer:
-    analysis = get_financial_analysis(user_id, session)
-    profile = session.scalar(select(FinancialProfile).where(FinancialProfile.user_id == user_id))
-    decisions = recommend(analysis.picture, profile)
+    user, profile = _saved_financial_data(user_id, session)
     context = _advisory_context(user_id, session)
-    parsed = parse_scenario(payload.question, payload.history, analysis.picture.income.expected_monthly.value,
+    goals = load_active_goals(session, user_id)
+    current = run_advisory(user, profile, goals, planning_date(), **context)
+    picture = current.state.picture
+    decisions = recommend(picture, profile)
+    parsed = parse_scenario(payload.question, payload.history, picture.income.expected_monthly.value,
                             context['expenses'])
     if parsed.recognized:
         if parsed.need:
-            return scenario_input_answer(analysis.picture.as_of_date, parsed.need)
+            return scenario_input_answer(picture.as_of_date, parsed.need)
         try:
-            preview = preview_event(session.get(User, user_id), profile, parsed.event,
-                                    goals=load_active_goals(session, user_id),
-                                    as_of_date=analysis.picture.as_of_date, **context)
+            preview = preview_event(user, profile, parsed.event, goals=goals,
+                                    as_of_date=picture.as_of_date, **context)
         except ValueError as error:
-            return scenario_input_answer(analysis.picture.as_of_date, str(error))
-        return scenario_answer(preview, decisions, recommend(preview.after, profile))
-    return answer_current_question(analysis.picture, decisions, profile, payload)
+            return scenario_input_answer(picture.as_of_date, str(error))
+        hypothetical = None
+        if parsed.event.kind in ('income_increase', 'income_decrease'):
+            hypothetical_user = SimpleNamespace(monthly_income=preview.after.income.expected_monthly.value)
+            hypothetical = run_advisory(hypothetical_user, profile, goals, picture.as_of_date, **context)
+        return scenario_answer(preview, decisions, recommend(preview.after, profile),
+                               question=payload.question, plan=hypothetical)
+    return answer_current_question(picture, decisions, profile, payload,
+                                   plan=current, months=context['months'],
+                                   expenses=context['expenses'])
 
 
 def _saved_financial_data(user_id: int, session: Session) -> tuple[User, FinancialProfile]:

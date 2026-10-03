@@ -162,7 +162,10 @@ _BARE_CURRENCY = re.compile(r'(?<!profile )\bcurrency\b', re.I)
 _REDUNDANT_CITATION = re.compile(
     r'\s*(?:\[\s*(?:id|evidence|evidence_ids)\s*:[^\]]+\]|'
     r'\(\s*evidence_ids\s*:\s*\[[^\]]*\]\s*\))(?=[.,;!?]|\s|$)', re.I)
-_INLINE_EVIDENCE_ID = re.compile(r'\[\s*id\s*:|\b(?:state|plan|finding|recommendation|limitation|context|month):[\w:-]+', re.I)
+_INLINE_EVIDENCE_ID = re.compile(
+    r'\[\s*id\s*:|\bevidence_ids\s*:|\b(?:state|plan|finding|recommendation|limitation|context|month):[\w:-]+',
+    re.I,
+)
 
 
 def _numbers(text: str) -> set[Decimal]:

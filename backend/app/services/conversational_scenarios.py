@@ -67,12 +67,18 @@ def parse_scenario(question: str, history: list[ChatTurn], monthly_income: Decim
     if history and _FOLLOW_UP.match(text):
         text = f'{history[-1].question} {text}'
     lower = text.lower()
+    if (re.search(r'\b(which|what|where)\b', lower)
+            and re.search(r'\b(expenses?|spending|costs?)\b', lower)
+            and re.search(r'\b(reduce|cut|trim|lower)\b', lower)
+            and not _amounts(text)):
+        return ParsedScenario(False)
     one_time = bool(re.search(r'\b(extra|bonus|windfall|received|receive|got|get)\b', lower)) and bool(
         re.search(r'\b(money|cash|paid|payment|income|extra|bonus|windfall)\b|[₹$€£]', lower))
     subscription = bool(re.search(r'\b(stop|cancel|reduce|cut)\b', lower)) and bool(
         re.search(r'\b(subscription|streaming|recurring)\b', lower) or _named_expense(text, expenses)[1])
     income = bool(re.search(r'\b(income|earn|earning|earnings|salary|make|paycheck)\b', lower)) and bool(
-        re.search(r'\b(what if|if|next month|fall|falls|drop|drops|lower|decrease|increase|rise|rises|earn|make)\b', lower))
+        re.search(r'\b(what if|if|next month|will|expect\w*|would|could)\b', lower)) and bool(
+        re.search(r'\b(fall|falls|drop|drops|lower|decrease|increase|rise|rises|earn|make|to|by)\b', lower))
     if sum((one_time, subscription, income and not one_time)) > 1:
         return ParsedScenario(True, question=text, need='Ask about one financial change at a time.')
     if (one_time or subscription or income) and _invalid_grouped_amount(text):
