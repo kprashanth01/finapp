@@ -105,7 +105,7 @@ export function EvaluationReportCard({ evidence }) {
   return <section className="research-evaluation" aria-labelledby="evaluation-heading">
     <p className="research-small-label">COMPARISON ON GENERATED CASES</p>
     <h3 id="evaluation-heading">How the three selectors performed</h3>
-    <p>Each method ran on the same {report.cohort.case_count} generated financial cases. Random used {report.random_seeds.length} repeatable seeds; the other methods ran once per case. DQN is the trained reinforcement learning selector used here.</p>
+    <p>Each method ran on the same {report.cohort.case_count} generated financial cases, with one agent selection per case. Random used {report.random_seeds.length} repeatable seeds; the other methods ran once per case. DQN is the trained reinforcement learning selector used here.</p>
     <div className="research-table-scroll"><table>
       <thead><tr><th scope="col">Selector</th><th scope="col">Average proxy score</th><th scope="col">Score variance</th><th scope="col">Missed critical check</th><th scope="col">Relevant checks covered</th><th scope="col">Avg. agents</th><th scope="col">Full plan possible</th></tr></thead>
       <tbody>{names.map((name) => {
@@ -116,7 +116,7 @@ export function EvaluationReportCard({ evidence }) {
           <td>{pct(m.full_plan_rate)}</td></tr>
       })}</tbody>
     </table></div>
-    <p className="research-paired-note">On the paired cases, DQN chose the same agents as the rule based selector in <strong>{report.paired_rl_vs_rule.same_selection_count} of {report.cohort.case_count}</strong> cases. Its proxy score was lower in {report.paired_rl_vs_rule.rl_lower_score_count}, equal in {report.paired_rl_vs_rule.equal_score_count}, and higher in {report.paired_rl_vs_rule.rl_higher_score_count}. It omitted agents needed for a full plan in {report.paired_rl_vs_rule.rl_partial_plan_count} cases.</p>
+    <p className="research-paired-note"><strong>Average paired score difference (DQN − rule): {report.paired_rl_vs_rule.mean_reward_delta > 0 ? '+' : ''}{report.paired_rl_vs_rule.mean_reward_delta.toFixed(4)}</strong> proxy points per case. A positive number means DQN scored higher under this project's selection reward. Average paired agent-call difference (DQN − rule): {report.paired_rl_vs_rule.mean_agent_call_delta > 0 ? '+' : ''}{report.paired_rl_vs_rule.mean_agent_call_delta.toFixed(4)} agents per case. DQN chose the same agents as the rule based selector in <strong>{report.paired_rl_vs_rule.same_selection_count} of {report.cohort.case_count}</strong> cases. Its proxy score was lower in {report.paired_rl_vs_rule.rl_lower_score_count}, equal in {report.paired_rl_vs_rule.equal_score_count}, and higher in {report.paired_rl_vs_rule.rl_higher_score_count}. It omitted agents needed for a full plan in {report.paired_rl_vs_rule.rl_partial_plan_count} cases.</p>
     <details className="research-evaluation-details"><summary>Coverage, scenario groups, and method</summary>
       <div className="research-table-scroll"><table>
         <thead><tr><th scope="col">Selector</th><th scope="col">Risk check selected</th><th scope="col">Goal check on unfinished goals</th><th scope="col">Mean execution</th></tr></thead>
@@ -128,10 +128,11 @@ export function EvaluationReportCard({ evidence }) {
       </table></div>
       <h4>Where the checks were needed</h4>
       <div className="research-table-scroll"><table>
-        <thead><tr><th scope="col">Scenario group</th><th scope="col">Cases</th><th scope="col">Random score</th><th scope="col">Rule score</th><th scope="col">DQN score</th></tr></thead>
+        <thead><tr><th scope="col">Scenario group</th><th scope="col">Cases</th><th scope="col">Random score</th><th scope="col">Rule score</th><th scope="col">DQN score</th><th scope="col">DQN − rule score</th></tr></thead>
         <tbody>{Object.entries(report.methods.rule_based.segments).map(([key, segment]) => <tr key={key}>
           <th scope="row">{segmentLabels[key] ?? key}</th><td>{segment.case_count}</td>
           {names.map((name) => <td key={name}>{report.methods[name].segments[key]?.mean_reward.toFixed(2) ?? '—'}</td>)}
+          <td>{report.paired_rl_vs_rule.segments[key].mean_reward_delta > 0 ? '+' : ''}{report.paired_rl_vs_rule.segments[key].mean_reward_delta.toFixed(4)}</td>
         </tr>)}</tbody>
       </table></div>
       <p>Groups overlap: a case can have both a low reserve and an unfinished goal. Random aggregates {report.methods.random.evaluations} selections across five seeds; rule based and DQN each have {report.cohort.case_count}. The score variance is across selections, not a confidence interval. Timing includes selection and agent execution on the evaluation machine, excluding model load; it is diagnostic only.</p>

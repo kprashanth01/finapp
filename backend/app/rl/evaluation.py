@@ -17,7 +17,7 @@ from app.rl.reward import REWARD_VERSION
 from app.rl.scenarios import SCENARIO_VERSION, generate_scenarios
 from app.rl.selection import ACTION_VERSION
 
-EVALUATION_VERSION = "paired-selection-evaluation-v1"
+EVALUATION_VERSION = "paired-selection-evaluation-v2"
 REPORT_FILENAME = "evaluation_report.json"
 DEFAULT_SEED = 20261002
 DEFAULT_CASE_COUNT = 256
@@ -55,6 +55,40 @@ def _metrics(rows):
         "full_plan_rate": round(statistics.mean(row["full_plan"] for row in rows), 4),
         "mean_execution_ms": round(statistics.mean(row["execution_ms"] for row in rows), 4),
     }
+
+
+def _paired_summary(rule_rows, rl_rows):
+    """Compare DQN minus rule only when each row describes the same case."""
+    if (not rule_rows or len(rule_rows) != len(rl_rows) or
+            len({row["fingerprint"] for row in rule_rows}) != len(rule_rows) or
+            any(rule["fingerprint"] != rl["fingerprint"] or
+                set(rule["segments"]) != set(rl["segments"])
+                for rule, rl in zip(rule_rows, rl_rows))):
+        raise ValueError("Paired evaluation needs matching, distinct cases and segments.")
+
+    def summarize(pairs):
+        return {
+            "case_count": len(pairs),
+            "mean_reward_delta": round(statistics.mean(rl["reward"] - rule["reward"]
+                                                       for rule, rl in pairs), 4),
+            "rl_higher_score_count": sum(rl["reward"] > rule["reward"] for rule, rl in pairs),
+            "equal_score_count": sum(rl["reward"] == rule["reward"] for rule, rl in pairs),
+            "rl_lower_score_count": sum(rl["reward"] < rule["reward"] for rule, rl in pairs),
+        }
+
+    pairs = list(zip(rule_rows, rl_rows))
+    summary = summarize(pairs)
+    summary.update({
+        "mean_agent_call_delta": round(statistics.mean(rl["agent_calls"] - rule["agent_calls"]
+                                                       for rule, rl in pairs), 4),
+        "same_selection_count": sum(rule["action"] == rl["action"] for rule, rl in pairs),
+        "rl_partial_plan_count": sum(not rl["full_plan"] for _, rl in pairs),
+        "segments": {name: summarize([pair for pair in pairs if name in pair[0]["segments"]])
+                     for name in ("low_reserve", "high_or_unknown_debt_payment",
+                                  "unfinished_goal", "expenses_at_or_above_income")
+                     if any(name in rule["segments"] for rule, _ in pairs)},
+    })
+    return summary
 
 
 def evaluate_cohort(states, model, *, scenario_seed: int,
@@ -123,7 +157,6 @@ def evaluate_cohort(states, model, *, scenario_seed: int,
                                                            if name in row["segments"]), 4),
             } for name in segment_names if any(name in row["segments"] for row in pooled)},
         }
-    comparisons = [(rule, rl) for rule, rl in zip(paired_rows["rule_based"], paired_rows["rl"])]
     return {
         "evaluation_version": EVALUATION_VERSION,
         "scenario_version": SCENARIO_VERSION,
@@ -134,21 +167,19 @@ def evaluate_cohort(states, model, *, scenario_seed: int,
                    "sha256": cohort_digest, "fingerprints": fingerprints,
                    "source": "generated scenarios; no saved profiles or observed outcomes"},
         "random_seeds": list(random_seeds), "methods": methods,
-        "paired_rl_vs_rule": {
-            "same_selection_count": sum(rule["action"] == rl["action"] for rule, rl in comparisons),
-            "rl_higher_score_count": sum(rl["reward"] > rule["reward"] for rule, rl in comparisons),
-            "equal_score_count": sum(rl["reward"] == rule["reward"] for rule, rl in comparisons),
-            "rl_lower_score_count": sum(rl["reward"] < rule["reward"] for rule, rl in comparisons),
-            "rl_partial_plan_count": sum(not rl["full_plan"] for _, rl in comparisons),
-        },
+        "paired_rl_vs_rule": _paired_summary(paired_rows["rule_based"], paired_rows["rl"]),
         "metric_definitions": {
+            "mean_reward": "Mean selection-proxy-v1 points per selection; random pools all seeded runs.",
             "reward_variance": "Population variance of per-case proxy rewards; random pools all seeded runs.",
             "critical_miss_rate": "Share of selections missing at least one reward-defined critical agent.",
             "relevant_coverage_rate": "Selected relevant agents divided by all reward-defined relevant agents.",
             "risk_coverage_rate": "Share selecting the risk agent; risk is relevant in every generated case.",
             "goal_alignment_rate": "Share selecting goal agent among cases with an unfinished goal.",
+            "mean_agent_calls": "Mean number of selected agents per selection; this is a call count, not a monetary cost.",
             "full_plan_rate": "Share selecting every agent required by the current rule-based plan.",
             "mean_execution_ms": "Mean wall-clock policy selection plus agent execution on this machine; model load excluded.",
+            "mean_reward_delta": "Mean of paired DQN reward minus rule reward on the same cases, in proxy points; positive favors DQN under this reward only.",
+            "mean_agent_call_delta": "Mean of paired DQN selected-agent count minus rule count on the same cases.",
         },
         "limitations": {
             "recommendation_consistency": "not measured",
@@ -199,11 +230,39 @@ def read_evaluation_report(path: Path = DEFAULT_ARTIFACT_DIR / REPORT_FILENAME) 
                 if not 0 <= metrics[key] <= 1:
                     raise ValueError("Evaluation rates are invalid.")
         paired = report["paired_rl_vs_rule"]
-        if (sum(paired[key] for key in ("rl_higher_score_count", "equal_score_count",
-                                       "rl_lower_score_count")) != cohort["case_count"] or
-                any(not isinstance(value, int) or not 0 <= value <= cohort["case_count"]
-                    for value in paired.values())):
+        def validate_pair_counts(item, case_count):
+            if (type(item.get("case_count")) is not int or item["case_count"] != case_count or
+                    any(type(item.get(key)) is not int or not 0 <= item[key] <= case_count
+                        for key in ("rl_higher_score_count", "equal_score_count",
+                                    "rl_lower_score_count")) or
+                    sum(item[key] for key in ("rl_higher_score_count", "equal_score_count",
+                                              "rl_lower_score_count")) != case_count or
+                    type(item.get("mean_reward_delta")) not in (int, float) or
+                    not math.isfinite(item["mean_reward_delta"])):
+                raise ValueError("Paired comparison is invalid.")
+
+        validate_pair_counts(paired, cohort["case_count"])
+        for key in ("same_selection_count", "rl_partial_plan_count"):
+            if type(paired.get(key)) is not int or not 0 <= paired[key] <= cohort["case_count"]:
+                raise ValueError("Paired comparison is invalid.")
+        if (type(paired.get("mean_agent_call_delta")) not in (int, float) or
+                not math.isfinite(paired["mean_agent_call_delta"]) or
+                abs(paired["mean_reward_delta"] - (
+                    report["methods"]["rl"]["metrics"]["mean_reward"] -
+                    report["methods"]["rule_based"]["metrics"]["mean_reward"])) > 0.0002 or
+                abs(paired["mean_agent_call_delta"] - (
+                    report["methods"]["rl"]["metrics"]["mean_agent_calls"] -
+                    report["methods"]["rule_based"]["metrics"]["mean_agent_calls"])) > 0.0002):
             raise ValueError("Paired comparison is invalid.")
+        if set(paired["segments"]) != set(report["methods"]["rule_based"]["segments"]):
+            raise ValueError("Paired segments are invalid.")
+        for name, item in paired["segments"].items():
+            count = report["methods"]["rule_based"]["segments"][name]["case_count"]
+            validate_pair_counts(item, count)
+            if abs(item["mean_reward_delta"] - (
+                    report["methods"]["rl"]["segments"][name]["mean_reward"] -
+                    report["methods"]["rule_based"]["segments"][name]["mean_reward"])) > 0.0002:
+                raise ValueError("Paired segments are invalid.")
         return {"status": "available", "report": report}
     except (OSError, ValueError, KeyError, TypeError):
         return {"status": "unavailable", "reason": "Evaluation report is missing or does not match the installed model."}

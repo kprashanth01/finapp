@@ -1,5 +1,5 @@
 {
-  "evaluation_version": "paired-selection-evaluation-v1",
+  "evaluation_version": "paired-selection-evaluation-v2",
   "scenario_version": "coverage-scenarios-v1",
   "observation_version": "planning-observation-v1",
   "action_version": "agent-subset-v1",
@@ -290,7 +290,7 @@
         "goal_case_count": 960,
         "mean_agent_calls": 3.0438,
         "full_plan_rate": 0.025,
-        "mean_execution_ms": 0.3583
+        "mean_execution_ms": 0.4487
       },
       "runs": [
         {
@@ -306,7 +306,7 @@
             "goal_case_count": 192,
             "mean_agent_calls": 2.9727,
             "full_plan_rate": 0.0117,
-            "mean_execution_ms": 0.3645
+            "mean_execution_ms": 0.4471
           }
         },
         {
@@ -322,7 +322,7 @@
             "goal_case_count": 192,
             "mean_agent_calls": 3.0664,
             "full_plan_rate": 0.0273,
-            "mean_execution_ms": 0.3635
+            "mean_execution_ms": 0.468
           }
         },
         {
@@ -338,7 +338,7 @@
             "goal_case_count": 192,
             "mean_agent_calls": 3.0898,
             "full_plan_rate": 0.0195,
-            "mean_execution_ms": 0.3548
+            "mean_execution_ms": 0.4314
           }
         },
         {
@@ -354,7 +354,7 @@
             "goal_case_count": 192,
             "mean_agent_calls": 3.0117,
             "full_plan_rate": 0.0352,
-            "mean_execution_ms": 0.3657
+            "mean_execution_ms": 0.4262
           }
         },
         {
@@ -370,7 +370,7 @@
             "goal_case_count": 192,
             "mean_agent_calls": 3.0781,
             "full_plan_rate": 0.0312,
-            "mean_execution_ms": 0.343
+            "mean_execution_ms": 0.4708
           }
         }
       ],
@@ -410,7 +410,7 @@
         "goal_case_count": 192,
         "mean_agent_calls": 5.5,
         "full_plan_rate": 1,
-        "mean_execution_ms": 0.483
+        "mean_execution_ms": 0.6061
       },
       "runs": [
         {
@@ -426,7 +426,7 @@
             "goal_case_count": 192,
             "mean_agent_calls": 5.5,
             "full_plan_rate": 1,
-            "mean_execution_ms": 0.483
+            "mean_execution_ms": 0.6061
           }
         }
       ],
@@ -466,7 +466,7 @@
         "goal_case_count": 192,
         "mean_agent_calls": 5.4375,
         "full_plan_rate": 0.9375,
-        "mean_execution_ms": 0.9971
+        "mean_execution_ms": 1.2345
       },
       "runs": [
         {
@@ -482,7 +482,7 @@
             "goal_case_count": 192,
             "mean_agent_calls": 5.4375,
             "full_plan_rate": 0.9375,
-            "mean_execution_ms": 0.9971
+            "mean_execution_ms": 1.2345
           }
         }
       ],
@@ -511,20 +511,57 @@
     }
   },
   "paired_rl_vs_rule": {
-    "same_selection_count": 240,
+    "case_count": 256,
+    "mean_reward_delta": -0.0531,
     "rl_higher_score_count": 0,
     "equal_score_count": 240,
     "rl_lower_score_count": 16,
-    "rl_partial_plan_count": 16
+    "mean_agent_call_delta": -0.0625,
+    "same_selection_count": 240,
+    "rl_partial_plan_count": 16,
+    "segments": {
+      "low_reserve": {
+        "case_count": 154,
+        "mean_reward_delta": -0.0883,
+        "rl_higher_score_count": 0,
+        "equal_score_count": 138,
+        "rl_lower_score_count": 16
+      },
+      "high_or_unknown_debt_payment": {
+        "case_count": 64,
+        "mean_reward_delta": 0.0,
+        "rl_higher_score_count": 0,
+        "equal_score_count": 64,
+        "rl_lower_score_count": 0
+      },
+      "unfinished_goal": {
+        "case_count": 192,
+        "mean_reward_delta": -0.0708,
+        "rl_higher_score_count": 0,
+        "equal_score_count": 176,
+        "rl_lower_score_count": 16
+      },
+      "expenses_at_or_above_income": {
+        "case_count": 64,
+        "mean_reward_delta": -0.0797,
+        "rl_higher_score_count": 0,
+        "equal_score_count": 58,
+        "rl_lower_score_count": 6
+      }
+    }
   },
   "metric_definitions": {
+    "mean_reward": "Mean selection-proxy-v1 points per selection; random pools all seeded runs.",
     "reward_variance": "Population variance of per-case proxy rewards; random pools all seeded runs.",
     "critical_miss_rate": "Share of selections missing at least one reward-defined critical agent.",
     "relevant_coverage_rate": "Selected relevant agents divided by all reward-defined relevant agents.",
     "risk_coverage_rate": "Share selecting the risk agent; risk is relevant in every generated case.",
     "goal_alignment_rate": "Share selecting goal agent among cases with an unfinished goal.",
+    "mean_agent_calls": "Mean number of selected agents per selection; this is a call count, not a monetary cost.",
     "full_plan_rate": "Share selecting every agent required by the current rule-based plan.",
-    "mean_execution_ms": "Mean wall-clock policy selection plus agent execution on this machine; model load excluded."
+    "mean_execution_ms": "Mean wall-clock policy selection plus agent execution on this machine; model load excluded.",
+    "mean_reward_delta": "Mean of paired DQN reward minus rule reward on the same cases, in proxy points; positive favors DQN under this reward only.",
+    "mean_agent_call_delta": "Mean of paired DQN selected-agent count minus rule count on the same cases."
   },
   "limitations": {
     "recommendation_consistency": "not measured",
@@ -535,7 +572,7 @@
   },
   "model_sha256": "3158475c12fd75c9ad87e2ffb483301ccabd247e15f1c7c2c11a5e568d9f5ed8",
   "runtime": {
-    "python": "3.12.10",
+    "python": "3.13.1",
     "platform": "Windows-11-10.0.26200-SP0"
   }
 }
