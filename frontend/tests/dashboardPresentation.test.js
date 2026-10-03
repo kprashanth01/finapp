@@ -89,6 +89,24 @@ test('dashboard with no saved plan offers to create one', () => {
   assert.doesNotMatch(html, /Your first priority/)
 })
 
+test('first use guides the user to enter income before creating a profile', () => {
+  const html = renderToStaticMarkup(createElement(Dashboard, {
+    user: { ...user, monthly_income: '0' }, profile: null, goals: [],
+    onOpenProfile() {},
+  }))
+  assert.match(html, /Step 1 of 2/)
+  assert.match(html, /Review gross monthly income/)
+  assert.match(html, /Step 2 of 2/)
+  assert.match(html, /Create financial profile/)
+})
+
+test('a failed calculation offers a retry without claiming the profile is empty', () => {
+  const html = render(null, null)
+  assert.match(html, /Current calculations are unavailable/)
+  assert.match(html, /Retry calculations/)
+  assert.doesNotMatch(html, /Create financial profile/)
+})
+
 test('dashboard offers a separate read-only event preview for real-life changes', () => {
   const html = render(null)
   assert.match(html, /<details[^>]*><summary[^>]*>Explore what-if changes<\/summary>[\s\S]*Try a specific financial change/)
@@ -98,6 +116,13 @@ test('dashboard offers a separate read-only event preview for real-life changes'
   assert.match(html, /Extra loan payment/)
   assert.match(html, /Change goal contribution/)
   assert.match(html, /does not change saved information/)
+})
+
+test('dashboard makes the temporary what-if preview reachable from the top', () => {
+  const html = render(savedSession(false), { ...analysis, picture: examplePicture() })
+  assert.match(html, /Preview a change/)
+  assert.ok(html.indexOf('Preview a change') < html.indexOf('Saved monthly allocation plan'))
+  assert.match(html, /Explore what-if changes/)
 })
 
 test('dashboard separates current recommendations from the saved monthly allocation', () => {
