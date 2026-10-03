@@ -75,6 +75,34 @@ export async function saveFinancialDetails(userId, details) {
   return (await api.put(`/users/${userId}/financial-details`, details)).data
 }
 
+export async function getLoanScenarios(userId) {
+  return (await api.get(`/users/${userId}/loan-readiness/scenarios`)).data
+}
+
+export async function createLoanScenario(userId, values) {
+  return (await api.post(`/users/${userId}/loan-readiness/scenarios`, values)).data
+}
+
+export async function updateLoanScenario(userId, scenarioId, values) {
+  return (await api.put(`/users/${userId}/loan-readiness/scenarios/${scenarioId}`, values)).data
+}
+
+export async function deleteLoanScenario(userId, scenarioId) {
+  await api.delete(`/users/${userId}/loan-readiness/scenarios/${scenarioId}`)
+}
+
+export async function assessLoanScenario(userId, scenarioId) {
+  return (await api.post(`/users/${userId}/loan-readiness/scenarios/${scenarioId}/assess`, {})).data
+}
+
+export async function previewLoanScenario(userId, scenarioId, values) {
+  return (await api.post(`/users/${userId}/loan-readiness/scenarios/${scenarioId}/preview`, values)).data
+}
+
+export async function askLoanScenario(userId, scenarioId, question) {
+  return (await api.post(`/users/${userId}/loan-readiness/scenarios/${scenarioId}/chat`, { question })).data
+}
+
 export async function getLatestAdvisorySession(userId) {
   const response = await api.get(`/users/${userId}/advisory-sessions/latest`)
   return response.data

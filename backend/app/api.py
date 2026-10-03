@@ -16,7 +16,9 @@ from app.advisory.chat_model import answer_with_local_model
 from app.advisory.state import PlanningState
 from app.advisory.rules import RULE_VERSION
 from app.goal_api import load_active_goals
-from app.models import AnalysisSession, FinancialMonth, FinancialProfile, Loan, PlannedExpense, RecurringExpense, User
+from app.loan_readiness_api import _assess_and_snapshot
+from app.loan_readiness_schemas import LoanScenarioRead
+from app.models import AnalysisSession, FinancialMonth, FinancialProfile, Loan, LoanScenario, PlannedExpense, RecurringExpense, User
 from app.schemas import AnalysisRead, ProfileRead, ProfileWrite, ScenarioWrite, UserCreate, UserRead
 from app.services.financial_analysis import FinancialAnalysisService
 from app.services.financial_details import validate_detail_totals
@@ -25,6 +27,8 @@ from app.services.user_recommendations import UserRecommendationsRead, recommend
 from app.services.current_chat import (CurrentChatAnswer, CurrentChatQuestion, answer_current_question,
                                        scenario_answer, scenario_input_answer)
 from app.services.conversational_scenarios import parse_scenario
+from app.services.loan_readiness_chat import answer_loan_question, is_loan_question
+from app.advisory.chat import ChatEvidence
 from app.services.advice_approaches import AdviceApproaches, compare_advice_approaches
 
 
@@ -135,6 +139,20 @@ def chat_about_current_finances(user_id: int, payload: CurrentChatQuestion,
                                 session: Session = Depends(get_session)) -> CurrentChatAnswer:
     user, profile = _saved_financial_data(user_id, session)
     context = _advisory_context(user_id, session)
+    if is_loan_question(payload.question):
+        loan_row = session.scalar(select(LoanScenario).where(LoanScenario.user_id == user_id)
+                                  .order_by(LoanScenario.id.desc()).limit(1))
+        if loan_row is None:
+            return CurrentChatAnswer(as_of_date=planning_date(), topic='loan_readiness', evidence=[],
+                                     answer='Save a proposed loan in Loan Readiness first so I can compare it with your finances.')
+        assessment = _assess_and_snapshot(session, user_id, loan_row)
+        loan_answer = answer_loan_question(payload.question, assessment, LoanScenarioRead.model_validate(loan_row),
+                                           user=user, profile=profile, as_of_date=planning_date(), **context)
+        evidence = [ChatEvidence(id=f'loan:{item.key}', label=item.name,
+                                 detail=f'{item.current_value or "Not provided"}; {item.explanation}')
+                    for item in loan_answer.evidence]
+        return CurrentChatAnswer(as_of_date=assessment.as_of_date, topic='loan_readiness',
+                                 answer=loan_answer.answer, evidence=evidence)
     goals = load_active_goals(session, user_id)
     current = run_advisory(user, profile, goals, planning_date(), **context)
     picture = current.state.picture
